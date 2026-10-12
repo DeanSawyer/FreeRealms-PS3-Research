@@ -1,0 +1,37 @@
+# Proprietary PS3 client files and local test environments
+NPUA30048/
+RPCS3_TEST/
+Preservation/
+ResearchArchive/
+SavedDigests/
+StateResetBackups/
+Digests/
+*.prx
+*.sprx
+*.self
+*.elf
+*.pkg
+*.edat
+*.rap
+*.rif
+EBOOT.BIN
+*.soe
+*.pack
+*.dat
+*.zs
+
+# Local traces, logs and caches
+*.log
+*.jsonl
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Private configuration and machine state
+config.local.*
+secrets.*
+*.key
