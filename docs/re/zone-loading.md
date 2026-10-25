@@ -128,7 +128,8 @@ The PC game's spawn (-1904.9, 412.6) lies in tile (-32, 4), which is **only in t
 client has to download it. The four tiles around the world origin are all local. Since an origin camera would
 have dropped the overlay, the camera is probably at the player's spawn (not proven). The server therefore now spawns
 the player in the centre of a tile whose 3 x 3 neighbourhood is local (`assetlib.pick_spawn`); `FR_SPAWN="x,y,z"`
-overrides it. The height of the ground there is unknown; the default `y` is 400 (`FR_SPAWN_Y`).
+overrides it. The same position goes into the player's own data (`SendSelfToClient`, opcode 12), not only into `AddPc`: the first v18-v20 runs
+still had the old position there, so the camera stayed on the missing tile. The height of the ground there is unknown; the default `y` is 400 (`FR_SPAWN_Y`).
 
 ## How the server decides
 

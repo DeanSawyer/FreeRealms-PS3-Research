@@ -225,7 +225,8 @@ def player_blob(character=None, guid=1):
     out += _string(head) + _string(hair)
     out += struct.pack("<ii", _int(c.get("HairColor")), _int(c.get("EyeColor")))
     out += _string(skin) + _string("none") + _string("")     # skin tone, face paint, model customization
-    out += struct.pack("<8f", -1904.883, -39.7098, 412.6024, 1.0, 0.5531712, 0.0, 0.8330676, 0.0)  # position, rotation
+    out += struct.pack("<4f", *configured_spawn())          # position (the client's camera follows this player)
+    out += struct.pack("<4f", *SPAWN_ROTATION)               # rotation
     out += struct.pack("<iii", 0, 0, 0)                      # name ids
     out += _string(c.get("FirstName") or "Test") + _string(c.get("LastName") or "")
     out += struct.pack("<iQii", 0, int(time.time()), 0, 0)   # coins, birthday, age, play time
