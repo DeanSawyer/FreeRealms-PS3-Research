@@ -263,3 +263,20 @@ Finding: the C++ loading check at 0x14f2d4 calls the Lua method `IsLoadingFinish
 `GetMovie()` is not nil, `movie:IsLoadingFinished()` is true and `GameTutorial:IsLoaded()` is true; otherwise 0.
 Both are asset-load states in the client (a Scaleform movie and the tutorial loading-screen data, whose load state
 must be 4), not server packets.
+
+## RPCS3 logs every file the game opens (use it)
+
+RPCS3's default log has `sys_fs_open(path=...)` lines at warning level, so a stuck run shows what the client loaded.
+Run (PowerShell): `Select-String RPCS3.log -Pattern 'sys_fs_open\(path'`.
+
+Observed on the stuck run (probe v14, all login packets accepted):
+
+- After FinishedLoading the client opens every `ui/uimodules/main/wnd*.xml` (the HUD windows) at about 0:40.
+- It then opens `resources/sky/sky_wilds_crossroads24.xml` at 0:42.7 (the default sky; ZoneDetails sends no sky).
+- After that there are no more file opens and no `CELL_ENOENT` for the next 60 seconds, while the main loop keeps
+  running (about 125 network reads a second). So it is not waiting on a missing file in the install.
+  Terrain and textures come from the `assets_ps3_*.pack` files, which are read through already open handles and
+  do not show up as opens.
+
+Open question: what the client waits on after the sky definition. Candidates: the sky/terrain assets inside the packs
+(the status line prints `SkyFinishedLoading` and `SkyDefinitionSet`), or a state flag set by a server packet.
