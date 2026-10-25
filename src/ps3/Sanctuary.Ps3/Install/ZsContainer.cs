@@ -152,10 +152,11 @@ public sealed class ZsContainer
     }
 
     /// <summary>
-    /// A valid zlib stream for <paramref name="raw"/> that is exactly <paramref name="target"/> bytes long, or null.
-    /// Built as: zlib header, a level 9 deflate of all but the last few bytes, a short independently compressed segment, empty
-    /// stored blocks (5 bytes each) to land on the exact length, stored blocks for the rest, then the Adler-32.
-    /// Any standard inflater reads it back to <paramref name="raw"/>.
+    /// A valid zlib stream for <paramref name="raw"/> that is exactly <paramref name="target"/> bytes long, or null when the
+    /// target is too small to reach. Built as: zlib header, deflate blocks for all but the last few bytes ending on a byte
+    /// boundary (a sync flush), empty stored blocks (5 bytes each) to land on the exact length, the last few bytes as stored
+    /// blocks (or an empty closing block), then the Adler-32. Any standard inflater reads it back to <paramref name="raw"/>.
+    /// Best effort: the usual path is a level that reproduces the length (see <see cref="Payload"/>).
     /// </summary>
     public static byte[]? PadZlib(byte[] raw, int target)
     {
@@ -163,47 +164,32 @@ public sealed class ZsContainer
         if (target < 2 + 2 + 4)
             return null;
 
-        foreach (var level in new[] { 9, 6, 1 })
-        {
-            foreach (var tail in new[] { 96, 400, 2000 })
-            {
-                var result = PadZlib(raw, target, tail, level);
-
-                if (result is not null)
-                    return result;
-            }
-        }
-
-        return null;
-    }
-
-    private static byte[]? PadZlib(byte[] raw, int target, int tail, int level)
-    {
-        var n0 = Math.Max(raw.Length - tail, 0);
-        var main = n0 > 0 ? DeflateSegment(raw.AsSpan(0, n0), level) : [];
-
         var adler = new byte[4];
         BinaryPrimitives.WriteUInt32BigEndian(adler, Adler32(raw));
 
-        var maxSplit = Math.Min(tail, raw.Length - n0);
-
-        for (var split = 0; split <= maxSplit; split++)
+        foreach (var level in new[] { 9, 6, 1 })
         {
-            var first = split > 0 ? DeflateSegment(raw.AsSpan(n0, split), level) : [];
-            var rest = raw.AsSpan(n0 + split);
+            var whole = raw.Length > 0 ? DeflateSegment(raw, level) : [];
 
-            // The rest compressed too, and the stream closed by an empty fixed-Huffman block (2 bytes).
-            var compressed = rest.Length > 0 ? DeflateSegment(rest, level) : [];
-            var viaCompressed = Assemble(target, main, first, compressed, EmptyFinalBlock, adler);
+            if (2 + whole.Length + EmptyFinalBlock.Length + adler.Length > target)
+                continue; // this level cannot get small enough
 
-            if (viaCompressed is not null)
-                return viaCompressed;
+            var closed = Assemble(target, whole, [], [], EmptyFinalBlock, adler);
 
-            // The rest stored, which also closes the stream (the final stored block).
-            var viaStored = Assemble(target, main, first, StoredBlocks(rest, final: true), [], adler);
+            if (closed is not null)
+                return closed;
 
-            if (viaStored is not null)
-                return viaStored;
+            // The last k bytes stored: every extra byte moves the length by about one, so a few values of k reach any gap.
+            for (var tail = 1; tail <= Math.Min(10, raw.Length); tail++)
+            {
+                var main = raw.Length - tail > 0 ? DeflateSegment(raw.AsSpan(0, raw.Length - tail), level) : [];
+                var stored = StoredBlocks(raw.AsSpan(raw.Length - tail), final: true);
+
+                var padded = Assemble(target, main, [], stored, [], adler);
+
+                if (padded is not null)
+                    return padded;
+            }
         }
 
         return null;
