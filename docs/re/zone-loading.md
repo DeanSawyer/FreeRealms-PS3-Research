@@ -131,6 +131,43 @@ the player in the centre of a tile whose 3 x 3 neighbourhood is local (`assetlib
 overrides it. The same position goes into the player's own data (`SendSelfToClient`, opcode 12), not only into `AddPc`: the first v18-v20 runs
 still had the old position there, so the camera stayed on the missing tile. The height of the ground there is unknown; the default `y` is 400 (`FR_SPAWN_Y`).
 
+## The per-frame overlay check (`fn_000ee7bc`)
+
+The loading overlay (client flag at `client+0x2a2`) is switched by one block in the client's per-frame function
+(`fn_000ee7bc`, decompiled around `0xef5e4`-`0xf0494`). It runs **only when four gate objects are all idle**:
+
+| gate | pointer in client | byte that must be 0 |
+|---|---|---|
+| 1 | `client[0x21e]` | `+0x18` |
+| 2 | `client[0x21b]` | `+0x174` |
+| 3 | `client[0x21f]` | `+0x8` |
+| 4 | `client[0x21c]` | `+0x390` |
+
+(a null pointer counts as idle). If all four are idle:
+
+* overlay off -> `IsLoaded(camera position, R_show)` (`0x897db4`); if it returns false -> `SetLoadingWorldAssets(1)` (`0xdced8`);
+* overlay on  -> `IsLoaded(camera position, R_hide)`; if it returns true -> `SetLoadingWorldAssets(0)`.
+
+`R_show` defaults to 32.0 and `R_hide` to 96.0; each can be replaced by a config-map entry (keys `0x63bfdb08` and `-0x6c4fec45`
+as stored in the code). The camera position is `*(client[0x20e] + 0x30) + 0x40` (`0x88ade8`). So the overlay stays up
+when **either** a gate byte is set (the check never runs) **or** `IsLoaded` stays false at the camera.
+
+The Lua UI is not what holds it: the Lua `IsLoadingFinished` calls only ask whether individual Flash movies have loaded.
+
+## Test results so far (zone `FabledRealms`)
+
+| run | what the server sent | result |
+|---|---|---|
+| v17-v19 | zone ok, spawn at the PC game's position (tile only in the manifest) | overlay never drops |
+| v20 | `AddPc` at tile (0,-4) centre, 3 x 3 neighbours local | overlay never drops (self data still had the old position) |
+| v21 | same position in `AddPc` **and** `SendSelfToClient` | overlay never drops; no tile or extra asset requests reach the server |
+
+So the zone name and the spawn tile are no longer the explanation. What is not known is *which* of the following holds it:
+a set gate byte, a terrain object that is never ready, tile objects (models/textures named in the `.odd`/`.gcnk`)
+that are not local, or a camera that is not where the player is. Reading more code will not separate these; the next step is
+a runtime probe: patch the game in RPCS3 so `IsLoaded` (`0x897db4`) returns true, and see whether the overlay drops
+(then the check is the problem and the gate bytes are fine) or not (then a gate byte is set or something else holds it).
+
 ## How the server decides
 
 `gateway_probe.choose_zone_from_install()` runs `assetlib.pick_zone()` over the user's packs and manifest and sends the

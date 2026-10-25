@@ -167,6 +167,21 @@ def main():
     rpcs3_log = os.path.join(install, "RPCS3_TEST", "log", "RPCS3.log")
     with open(os.path.join(out_dir, "rpcs3_log_tail.txt"), "w", encoding="utf-8") as f:
         f.write("".join(tail_lines(rpcs3_log, 3000)))
+    # RPCS3 lines that show what the client opened (packs, tiles) and every patch line, kept in full.
+    keep = re.compile(r"PAT|patch|assets_ps3|\.gcnk|\.gzne|FabledRealms|\.cob|\.odd|FreeRealms\.log|GameRuntimeTerrain", re.I)
+    with open(os.path.join(out_dir, "rpcs3_log_filtered.txt"), "w", encoding="utf-8") as f:
+        f.write("".join([ln for ln in tail_lines(rpcs3_log, 200000) if keep.search(ln)][-1500:]))
+    # The patch files and RPCS3 settings (text only), so the diagnostic patch can use the exact same format.
+    rp = os.path.join(install, "RPCS3_TEST")
+    for rel in ("config\\patch_config.yml", "config\\log.yml", "config\\config.yml"):
+        src = os.path.join(rp, rel.replace("\\", os.sep))
+        if os.path.isfile(src):
+            shutil.copyfile(src, os.path.join(out_dir, rel.replace("\\", "_")))
+    pdir = os.path.join(rp, "patches")
+    if os.path.isdir(pdir):
+        for name in sorted(os.listdir(pdir)):
+            if name.lower().endswith(".yml") and os.path.getsize(os.path.join(pdir, name)) < 400000:
+                shutil.copyfile(os.path.join(pdir, name), os.path.join(out_dir, "patches_" + name))
     trace = os.path.join(REPO, "bootstrap", "ps3_gateway_trace.jsonl")
     with open(os.path.join(out_dir, "gateway_trace_tail.jsonl"), "w", encoding="utf-8") as f:
         f.write("".join(tail_lines(trace, 600)))
