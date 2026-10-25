@@ -8,7 +8,11 @@ protocol on top can be worked out. It is a probe, not a game server: it never se
 Application layer (from the first packets the PS3 client sent, matching Clover's ClientGateway packets):
   Login (client -> server): u16 LE opcode 1 | string ticket | u64 guid | string version | string unknown
   LoginReply (server -> client): u16 LE opcode 2 | u8 success         (strings are u32 LE length + bytes)
-The probe answers a Login with LoginReply(success) so the client moves on, and logs whatever it sends next.
+The probe answers a Login with LoginReply(success) so the client moves on, then sends the first world packets
+(see world_packets) and logs whatever the client sends next.
+  Tunneled (either direction): u16 LE opcode 5 | u8 reliable | i32 LE size | inner packet (u16 LE opcode + fields)
+  ZoneDetails (inner opcode 43, layout read from the PS3 client): string name | i32 type | u8 | u8 | string sky
+                                                                    | u8 in-arena | i32 zone id
 
 Packet layouts follow the UdpLibrary port in the Clover server (Sanctuary.UdpLibrary, AGPL-3.0):
   Connect : 00 01 | protocol version i32 | connect code i32 | max raw packet size i32 | name\\0
@@ -67,6 +71,26 @@ def parse_login(payload):
         return ticket, guid, version, unknown
     except ValueError:
         return None
+
+
+def _string(value):
+    raw = value.encode("utf-8")
+    return struct.pack("<I", len(raw)) + raw
+
+
+def tunneled(inner, reliable=True):
+    return struct.pack("<HBI", 5, 1 if reliable else 0, len(inner)) + inner
+
+
+def zone_details(name="FabledRealms", zone_type=2, tutorial=0, unknown=0, sky="", arena=0, zone_id=1):
+    """Inner packet 43 as the PS3 client (build 1.77) reads it; it must consume every byte."""
+    return (struct.pack("<H", 43) + _string(name) + struct.pack("<iBB", zone_type, tutorial, unknown)
+            + _string(sky) + struct.pack("<Bi", arena, zone_id))
+
+
+def world_packets():
+    """Packets sent right after the login reply, in order (each already tunneled)."""
+    return [tunneled(zone_details())]
 
 
 class GatewayProbe:
@@ -138,6 +162,7 @@ class GatewayProbe:
                 for key in [k for k in self.pending if k[0] == addr and k[1] == channel
                             and (k[2] == seq or (kind >= 21 and k[2] <= seq))]:
                     self.pending.pop(key, None)
+            LOG.info("gateway %s from %s: %s", name, addr, data[2:].hex())
             _trace("ack", peer=addr[0], label=name, hex=data[2:].hex())
         elif kind == 3 and depth < 3:                    # Multi: [len][packet]...
             pos = 2
@@ -195,6 +220,15 @@ class GatewayProbe:
             _trace("login", ticket=fields[0], guid=fields[1], version=fields[2], unknown=fields[3])
             if self.login_reply:
                 self.send_reliable(addr, struct.pack("<HB", 2, 1), channel)   # LoginReply(success)
+                for packet in world_packets():
+                    self.send_reliable(addr, packet, channel)
+        elif opcode in (5, 6) and len(payload) >= 7:     # tunneled client packet
+            size = struct.unpack_from("<I", payload, 3)[0]
+            inner = payload[7:7 + size]
+            inner_op = struct.unpack_from("<H", inner, 0)[0] if len(inner) >= 2 else -1
+            LOG.info("gateway tunneled (%d) inner opcode %d from %s (%d bytes): %s", opcode, inner_op, addr,
+                     len(inner), inner[:MAX_LOGGED_BYTES].hex())
+            _trace("tunneled", peer=addr[0], outer=opcode, inner_opcode=inner_op, hex=inner[:512].hex())
         else:
             LOG.info("gateway application opcode %d from %s (%d bytes)", opcode, addr, len(payload))
 
