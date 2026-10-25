@@ -78,20 +78,33 @@ def set_digest_trailer(trailer):
     _digest_trailer = bytes(trailer) if len(trailer) == ZS_TRAILER_LEN else None
 
 
-def _zs_payload(raw):
-    packed = zlib.compress(raw, 9)
-    return packed if len(packed) < len(raw) else bytes(raw)
+def _zs_payload(raw, target=None):
+    """zlib stream, or the raw bytes when zlib does not make the file smaller.
+
+    ``target`` is the payload length the manifest implies (compressed length
+    minus the trailer). When given, prefer whichever zlib level reproduces it.
+    """
+    if target is not None and target == len(raw):
+        return bytes(raw)
+    default = zlib.compress(raw, 9)
+    if target is not None:
+        for level in (9, 6, 1, 2, 3, 4, 5, 7, 8):
+            candidate = zlib.compress(raw, level)
+            if len(candidate) == target:
+                return candidate
+    return default if len(default) < len(raw) else bytes(raw)
 
 
-def _zs_digest_trailer(raw):
+def _zs_digest_trailer(raw, target=None):
     if _digest_trailer is None:
         raise RuntimeError("digest trailer not available; start the server with a valid digest")
-    return _zs_payload(raw) + _digest_trailer
+    return _zs_payload(raw, target) + _digest_trailer
 
 
 ZS_CODECS = {
     # trailer = 0x01 followed by 128 zero bytes (tests: is the trailer checked at all?)
-    "zs-zlib-zero-trailer": lambda raw: _zs_payload(raw) + b"\x01" + b"\x00" * 128,
+    "zs-zlib-zero-trailer": lambda raw, target=None: (
+        _zs_payload(raw, target) + b"\x01" + b"\x00" * 128),
     # trailer copied from the digest (well-formed-looking bytes, wrong content)
     "zs-zlib-digest-trailer": _zs_digest_trailer,
 }
@@ -102,9 +115,9 @@ def codec_names():
             + [base + prefix for base in BASE_CODECS for prefix in PREFIXES])
 
 
-def encode(name, raw):
+def encode(name, raw, payload_target=None):
     if name in ZS_CODECS:
-        return ZS_CODECS[name](raw)
+        return ZS_CODECS[name](raw, payload_target)
     for prefix, make_prefix in PREFIXES.items():
         if prefix and name.endswith(prefix):
             base = name[: -len(prefix)]

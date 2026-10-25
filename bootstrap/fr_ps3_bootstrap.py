@@ -240,8 +240,71 @@ def make_handler(ip, digest, server_list_variant, client_root,
             self.respond(200, encoded, "application/octet-stream", close=True)
             return True
 
+        def serve_zs(self, route):
+            """Build any FreeRealms.zs/<path>.zs asset from the matching local file.
+
+            The client requests ``?c=<CRC32 of decoded file>&l=<compressed length>``.
+            The decoded file must already exist under USRDIR and match that CRC.
+            Hypothesis only: container = zlib (or raw) payload + 129-byte trailer.
+            """
+            relative = unquote(route[len(patch_prefix):]).replace("\\", "/")
+            marker = "FreeRealms.zs/"
+            if not (relative.startswith(marker) and relative.endswith(".zs")):
+                return False
+            decoded = relative[len(marker):-3]
+            rel_path = Path(decoded)
+            if not decoded or rel_path.is_absolute() or ".." in rel_path.parts or "\x00" in decoded:
+                self.respond(400, b"Invalid path\r\n", "text/plain", close=True)
+                return True
+            source = (asset_root / rel_path).resolve()
+            try:
+                source.relative_to(asset_root)
+            except ValueError:
+                self.respond(403, b"Forbidden\r\n", "text/plain", close=True)
+                return True
+            query = parse_qs(urlsplit(self.path).query)
+
+            def number(key):
+                value = query.get(key, [""])[0]
+                return int(value) if value.isdigit() else None
+
+            want_crc, want_len = number("c"), number("l")
+            if not source.is_file():
+                trace_event("zs_source_missing", route=route, decoded=decoded,
+                            expected_crc32=want_crc, manifest_length=want_len)
+                self.respond(404, b"Decoded source not found\r\n", "text/plain", close=True)
+                return True
+            raw = source.read_bytes()
+            crc, note = zlib.crc32(raw), ""
+            if want_crc is not None and crc != want_crc:
+                # Some tools rewrite line endings in text files (LF vs CRLF).
+                fixed = raw.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+                if zlib.crc32(fixed) == want_crc:
+                    raw, crc, note = fixed, want_crc, "lf_to_crlf"
+                else:
+                    trace_event("zs_source_crc_mismatch", route=route, decoded=decoded,
+                                source=str(source), size=len(raw), crc32=hex(crc),
+                                expected_crc32=hex(want_crc))
+                    LOG.warning("CRC mismatch for %s: have %s, client wants %s", decoded,
+                                hex(crc), hex(want_crc))
+                    self.respond(409, b"Source does not match client CRC\r\n",
+                                 "text/plain", close=True)
+                    return True
+            target = want_len - codec_candidates.ZS_TRAILER_LEN if want_len else None
+            encoded = codec_candidates.encode(codec, raw, target)
+            trace_event("zs_response", route=route, decoded=decoded, codec=codec, note=note,
+                        decoded_bytes=len(raw), decoded_crc32=hex(crc), bytes=len(encoded),
+                        manifest_length=want_len,
+                        matches_manifest_length=(len(encoded) == want_len))
+            if want_len is not None and len(encoded) != want_len:
+                LOG.warning("ZS %s: sent %d bytes, manifest says %d", decoded, len(encoded), want_len)
+            self.respond(200, encoded, "application/octet-stream", close=True)
+            return True
+
         def serve_asset(self, route):
             if self.serve_lzma_terrain(route):
+                return
+            if codec.startswith("zs-") and self.serve_zs(route):
                 return
             # Only expose files under the PS3 client's USRDIR, never arbitrary host files.
             relative = unquote(route[len(patch_prefix):])

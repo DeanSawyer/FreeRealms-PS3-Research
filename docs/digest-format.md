@@ -22,6 +22,18 @@ The LZMA response (251 bytes, no trailer) could not match the manifest length of
 The installer's "Unknown codec reading" is consistent with it reading the last 129 bytes of the
 response as a trailer that was not there, but that link is a **hypothesis**, not a decoded code path.
 
+## Observed in RPCS3 (2026-10-24 run, `--codec zs-zlib-zero-trailer`)
+
+- The installer fetched `AppConfig`, the digest, then `terraincalendardefinitions.txt.zs?c=2435667166&l=373`.
+  `c` is the CRC32 of the decoded file (decimal) and `l` is the manifest compressed length.
+- The server answered with 373 bytes (zlib payload + zeroed 129-byte trailer). About 25 ms later the client
+  requested the next file (`beam_mask.gtf.zs`), with no retry of the terrain file. So the response **appears to
+  have been accepted**, which also suggests the trailer content is not rejected at this stage. This is inferred from
+  request order, not from a decoded code path.
+- The next request returned 404 because the server only knew how to build the terrain file. The server now builds
+  any `.zs` response from the matching local file under `USRDIR`, verifying the CRC from `c`.
+- The client also retries a missing asset with `&cb=L`, `&cb=LF`, `&cb=LFH`, ... (growing letter suffixes).
+
 ## Hypotheses, not yet tested in the emulator
 
 - The `.zs` file is `zlib stream (or raw bytes) + 129-byte trailer`, the same shape as the digest.
