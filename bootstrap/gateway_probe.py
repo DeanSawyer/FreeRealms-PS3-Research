@@ -242,7 +242,12 @@ def zone_done_packets():
     """What the client's WaitForWorldReady step waits for besides loading: ZoneDoneSendingInitialData (opcode 14)
     and the "done sending preload characters" ClientUpdate (opcode 38, sub-opcode 26, bool true; the client only
     counts it as received when the bool is set)."""
-    return [tunneled(struct.pack("<H", 14)), tunneled(struct.pack("<HHB", 38, 26, 1))]
+    # LoadWelcomeScreen (93): Clover notes the client will not render the rest of the UI unless this is sent with
+    # ShowWelcomeScreen true. Layout from Clover, untested on the PS3 client. FR_WELCOME=0 turns it off.
+    welcome = []
+    if os.environ.get("FR_WELCOME", "1").strip() != "0":
+        welcome = [tunneled(struct.pack("<HBiiii", 93, 1, 0, 0, 0, 0))]
+    return welcome + [tunneled(struct.pack("<H", 14)), tunneled(struct.pack("<HHB", 38, 26, 1))]
 
 
 def world_packets():
