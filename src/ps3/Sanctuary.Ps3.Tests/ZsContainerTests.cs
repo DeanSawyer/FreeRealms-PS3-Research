@@ -71,7 +71,7 @@ public sealed class ZsContainerTests
     }
 
     [TestMethod]
-    public void ALevelThatReproducesTheTargetIsUsedAsIs()
+    public void ALevelThatReproducesTheTargetIsUsed()
     {
         foreach (var (label, raw) in Samples())
         {
@@ -82,7 +82,11 @@ public sealed class ZsContainerTests
                 if (packed.Length >= raw.Length)
                     continue;
 
-                CollectionAssert.AreEqual(packed, new ZsContainer().Payload(raw, packed.Length), $"{label}: level {level}");
+                // Two levels can give the same length (then the first one tried wins), so compare length and content.
+                var payload = new ZsContainer().Payload(raw, packed.Length);
+
+                Assert.AreEqual(packed.Length, payload.Length, $"{label}: level {level}");
+                CollectionAssert.AreEqual(raw, ZsContainer.Inflate(payload), $"{label}: level {level}");
             }
         }
     }
