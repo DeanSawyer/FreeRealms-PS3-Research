@@ -354,6 +354,20 @@ def pattern(count):
     return bytes((i * 7 + 3) % 251 for i in range(count))
 
 
+def sample(kind, count):
+    """Inputs the C# tests rebuild with the same formulas (ZsContainerTests.Sample)."""
+    if kind == "text":
+        unit = b"Free Realms terrain calendar definitions, line of text. "
+        return (unit * (count // len(unit) + 1))[:count]
+    if kind == "pattern":
+        return pattern(count)
+    if kind == "structured":
+        return bytes(((i // 7) ^ (i % 13)) & 0xFF for i in range(count))
+    if kind == "noise":
+        return pseudo("noise", count)
+    raise KeyError(kind)
+
+
 # ---------------------------------------------------------------- generation
 
 def gzne_vector(label, data):
@@ -496,6 +510,16 @@ def generate():
         zlib_stored.append("(%d, %d, 0x%08xu)" % (n, len(data), zlib.crc32(data) & 0xFFFFFFFF))
     add("    /// <summary>Raw length, container length and CRC-32 of variant 6 (stored zlib) over bytes[i] = (i * 7 + 3) %% 251.</summary>")
     add("    public static readonly (int RawLength, int EncodedLength, uint EncodedCrc)[] StoredZlib = %s;" % array("", zlib_stored))
+    add("")
+    compress = []
+    for kind in ("text", "pattern", "structured", "noise"):
+        for count in (0, 1, 403, 5000, 70000):
+            data = sample(kind, count)
+            for level in (1, 6, 9):
+                packed = zlib.compress(data, level)
+                compress.append("(%s, %d, %d, %d, 0x%08xu)" % (cs_str(kind), count, level, len(packed), zlib.crc32(packed) & 0xFFFFFFFF))
+    add("    /// <summary>Kind, length, level, and the length and CRC-32 of <c>zlib.compress</c>: the C# deflate must match byte for byte.</summary>")
+    add("    public static readonly (string Kind, int Length, int Level, int PackedLength, uint PackedCrc)[] Compressed = %s;" % array("", compress))
     add("")
     crlf_inputs = [b"", b"a", b"a\nb", b"a\r\nb", b"\r\r\n", b"\r", b"\n\n", b"a\r\n\r\nb\n", b"\r\n\r\r\n\n", b"\rx\ry"]
     crlf = ["(%s, %s)" % (cs_bytes(d), cs_bytes(d.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))) for d in crlf_inputs]

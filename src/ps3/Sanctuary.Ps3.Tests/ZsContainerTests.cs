@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -57,7 +58,37 @@ public sealed class ZsContainerTests
     }
 
     [TestMethod]
-    public void PayloadReachesTheLengthTheDigestNames()
+    public void DeflateIsByteForByteWhatZlibWrites()
+    {
+        foreach (var (kind, length, level, packedLength, packedCrc) in ReferenceVectors.Compressed)
+        {
+            var packed = ZsContainer.Deflate(Sample(kind, length), level);
+            var label = $"{kind} x {length} at level {level}";
+
+            Assert.AreEqual(packedLength, packed.Length, label + ": length");
+            Assert.AreEqual(packedCrc, Sanctuary.Ps3.Assets.Crc32.Compute(packed), label + ": bytes");
+        }
+    }
+
+    [TestMethod]
+    public void ALevelThatReproducesTheTargetIsUsedAsIs()
+    {
+        foreach (var (label, raw) in Samples())
+        {
+            foreach (var level in new[] { 9, 6, 1 })
+            {
+                var packed = ZsContainer.Deflate(raw, level);
+
+                if (packed.Length >= raw.Length)
+                    continue;
+
+                CollectionAssert.AreEqual(packed, new ZsContainer().Payload(raw, packed.Length), $"{label}: level {level}");
+            }
+        }
+    }
+
+    [TestMethod]
+    public void PayloadIsPaddedToTheLengthTheDigestNames()
     {
         foreach (var (label, raw) in Samples())
         {
@@ -66,7 +97,7 @@ public sealed class ZsContainerTests
             if (natural == raw.Length)
                 continue; // stored: covered below
 
-            for (var extra = 0; extra <= 13; extra++)
+            for (var extra = 24; extra <= 45; extra++)
             {
                 var container = new ZsContainer().Encode(raw, natural + extra);
 
@@ -135,25 +166,62 @@ public sealed class ZsContainerTests
         return bytes;
     }
 
+    /// <summary>The inputs of the reference compressor vectors; the formulas are the ones in tools/gen_ps3_vectors.py.</summary>
+    private static byte[] Sample(string kind, int count)
+    {
+        switch (kind)
+        {
+            case "text":
+                var unit = Encoding.ASCII.GetBytes("Free Realms terrain calendar definitions, line of text. ");
+                var text = new byte[count];
+
+                for (var index = 0; index < count; index++)
+                    text[index] = unit[index % unit.Length];
+
+                return text;
+
+            case "pattern":
+                return Pattern(count);
+
+            case "structured":
+                var structured = new byte[count];
+
+                for (var index = 0; index < count; index++)
+                    structured[index] = (byte)(((index / 7) ^ (index % 13)) & 0xFF);
+
+                return structured;
+
+            case "noise":
+                var noise = new byte[count];
+                var filled = 0;
+
+                for (var block = 0; filled < count; block++)
+                {
+                    var hash = SHA256.HashData(Encoding.ASCII.GetBytes($"noise:{block}"));
+                    var take = Math.Min(hash.Length, count - filled);
+
+                    hash.AsSpan(0, take).CopyTo(noise.AsSpan(filled));
+                    filled += take;
+                }
+
+                return noise;
+
+            default:
+                throw new ArgumentException(kind);
+        }
+    }
+
     private static (string Label, byte[] Raw)[] Samples()
     {
-        var text = Encoding.ASCII.GetBytes(string.Concat(Enumerable.Repeat("Free Realms terrain calendar definitions, line of text. ", 8)))[..403];
-
-        var noise = new byte[3000];
-        new Random(12345).NextBytes(noise);
-
-        var structured = new byte[100_000];
-
-        for (var index = 0; index < structured.Length; index++)
-            structured[index] = (byte)((index / 7) ^ (index % 13));
-
         return
         [
-            ("empty", []),
-            ("one byte", [42]),
-            ("403 bytes of text", text),
-            ("3000 random bytes", noise),
-            ("100 KB structured", structured),
+            ("empty", Sample("text", 0)),
+            ("one byte", Sample("text", 1)),
+            ("403 bytes of text", Sample("text", 403)),
+            ("5000 bytes of text", Sample("text", 5000)),
+            ("3000 noise bytes", Sample("noise", 3000)),
+            ("20000 pattern bytes", Sample("pattern", 20000)),
+            ("70000 structured bytes", Sample("structured", 70000)),
         ];
     }
 

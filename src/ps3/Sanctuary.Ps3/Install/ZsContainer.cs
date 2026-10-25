@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 
+using ZLibDotNet;
+
 namespace Sanctuary.Ps3.Install;
 
 /// <summary>Which trailer a <c>.zs</c> container gets after its payload.</summary>
@@ -29,6 +31,11 @@ public sealed class ZsContainer
     private static readonly int[] DefaultLevels = [9, 6, 1, 2, 3, 4, 5, 7, 8];
 
     private static readonly byte[] Signature = new byte[128];
+
+    private static readonly ZLibDotNet.ZLib Zlib = new();
+
+    /// <summary>An empty final block with fixed Huffman codes: BFINAL, BTYPE 01, end of block.</summary>
+    private static readonly byte[] EmptyFinalBlock = [0x03, 0x00];
 
     /// <summary>
     /// How a file stored without compression is wrapped. The first trailer byte probably says how the payload is encoded;
@@ -152,8 +159,8 @@ public sealed class ZsContainer
     /// </summary>
     public static byte[]? PadZlib(byte[] raw, int target)
     {
-        // zlib header, one empty final stored block and the Adler-32 are the least a stream can be.
-        if (target < 2 + 5 + 4)
+        // zlib header, an empty final block and the Adler-32 are the least a stream can be.
+        if (target < 2 + 2 + 4)
             return null;
 
         foreach (var level in new[] { 9, 6, 1 })
@@ -182,32 +189,50 @@ public sealed class ZsContainer
 
         for (var split = 0; split <= maxSplit; split++)
         {
-            var segment = split > 0 ? DeflateSegment(raw.AsSpan(n0, split), level) : [];
-            var final = StoredBlocks(raw.AsSpan(n0 + split), final: true);
+            var first = split > 0 ? DeflateSegment(raw.AsSpan(n0, split), level) : [];
+            var rest = raw.AsSpan(n0 + split);
 
-            var total = 2 + main.Length + segment.Length + final.Length + adler.Length;
-            var gap = target - total;
+            // The rest compressed too, and the stream closed by an empty fixed-Huffman block (2 bytes).
+            var compressed = rest.Length > 0 ? DeflateSegment(rest, level) : [];
+            var viaCompressed = Assemble(target, main, first, compressed, EmptyFinalBlock, adler);
 
-            if (gap < 0 || gap % 5 != 0)
-                continue;
+            if (viaCompressed is not null)
+                return viaCompressed;
 
-            using var output = new MemoryStream(target);
+            // The rest stored, which also closes the stream (the final stored block).
+            var viaStored = Assemble(target, main, first, StoredBlocks(rest, final: true), [], adler);
 
-            output.WriteByte(0x78);
-            output.WriteByte(0xDA);
-            output.Write(main, 0, main.Length);
-            output.Write(segment, 0, segment.Length);
-
-            for (var index = 0; index < gap / 5; index++)
-                output.Write([0x00, 0x00, 0x00, 0xFF, 0xFF]);
-
-            output.Write(final, 0, final.Length);
-            output.Write(adler, 0, adler.Length);
-
-            return output.ToArray();
+            if (viaStored is not null)
+                return viaStored;
         }
 
         return null;
+    }
+
+    /// <summary>Joins the parts of a padded stream when empty stored blocks (5 bytes each) can fill the gap exactly.</summary>
+    private static byte[]? Assemble(int target, byte[] main, byte[] first, byte[] last, byte[] end, byte[] adler)
+    {
+        var total = 2 + main.Length + first.Length + last.Length + end.Length + adler.Length;
+        var gap = target - total;
+
+        if (gap < 0 || gap % 5 != 0)
+            return null;
+
+        using var output = new MemoryStream(target);
+
+        output.WriteByte(0x78);
+        output.WriteByte(0xDA);
+        output.Write(main, 0, main.Length);
+        output.Write(first, 0, first.Length);
+
+        for (var index = 0; index < gap / 5; index++)
+            output.Write([0x00, 0x00, 0x00, 0xFF, 0xFF]);
+
+        output.Write(last, 0, last.Length);
+        output.Write(end, 0, end.Length);
+        output.Write(adler, 0, adler.Length);
+
+        return output.ToArray();
     }
 
     /// <summary>A zlib stream made only of stored blocks.</summary>
@@ -265,15 +290,31 @@ public sealed class ZsContainer
         return (b << 16) | a;
     }
 
-    /// <summary>A complete zlib stream at the given level (0 to 9).</summary>
+    /// <summary>
+    /// A complete zlib stream at the given level (0 to 9), byte for byte what zlib's <c>compress2</c> writes. ZLibDotNet is a
+    /// managed port of zlib, so the length matches the one the original tools stored in the digest; the framework's own zlib
+    /// (zlib-ng) does not reproduce those lengths.
+    /// </summary>
     public static byte[] Deflate(byte[] data, int level)
     {
-        using var output = new MemoryStream();
+        // zlib's compressBound, with room to spare.
+        var bound = data.Length + (data.Length >> 12) + (data.Length >> 14) + (data.Length >> 25) + 64;
+        var output = new byte[bound];
 
-        using (var stream = new ZLibStream(output, new ZLibCompressionOptions { CompressionLevel = level }, leaveOpen: true))
-            stream.Write(data, 0, data.Length);
+        var stream = new ZStream { Input = data, Output = output };
 
-        return output.ToArray();
+        if (Zlib.DeflateInit(ref stream, level) != ZLibDotNet.ZLib.Z_OK)
+            throw new InvalidOperationException("zlib could not start a deflate stream.");
+
+        var result = Zlib.Deflate(ref stream, ZLibDotNet.ZLib.Z_FINISH);
+        var length = stream.NextOut;
+
+        Zlib.DeflateEnd(ref stream);
+
+        if (result != ZLibDotNet.ZLib.Z_STREAM_END)
+            throw new InvalidOperationException($"zlib stopped with code {result} while compressing {data.Length} bytes.");
+
+        return output[..length];
     }
 
     /// <summary>Decodes a zlib stream (used by tests and by the digest reader).</summary>
