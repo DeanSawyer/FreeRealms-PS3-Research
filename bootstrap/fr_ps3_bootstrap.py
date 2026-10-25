@@ -427,10 +427,18 @@ def make_handler(ip, digest, server_list_variant, client_root,
             if length < 0 or length > 1024 * 1024:
                 self.respond(413, b"Invalid body length\r\n", "text/plain", close=True)
                 return
-            self.rfile.read(length)  # Never log an account/session payload.
+            body = self.rfile.read(length)  # Account/session payloads are never logged.
             route = urlsplit(self.path).path
             trace_event("ps3_post", route=route, query=urlsplit(self.path).query,
                         body_bytes=length, peer=self.client_address[0])
+            if route == "/ps3ws/game/serverList.action":
+                # The server-list request carries no account data; record its shape.
+                trace_event("serverlist_request", body_hex=body[:64].hex(),
+                            body_text=body[:64].decode("latin-1"),
+                            content_type=self.headers.get("Content-Type", ""),
+                            header_names=sorted({k.lower() for k in self.headers.keys()}))
+                LOG.info("serverList request body=%r content-type=%r", body[:64],
+                         self.headers.get("Content-Type", ""))
             LOG.info("POST %s host=%s body_bytes=%d", self.path,
                      self.headers.get("Host", ""), length)
             if route == "/ps3ws/game/serverList.action":

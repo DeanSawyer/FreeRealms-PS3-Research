@@ -79,6 +79,21 @@ response as a trailer that was not there, but that link is a **hypothesis**, not
   (15,897,920 bytes locally vs 15,897,872; locally it does not compress, the original did). `tools/self_info.py` prints the
   SELF header (key revision, NPDRM license type) to tell a missing-license problem from a corrupt or different file.
 
+## Stored files, and the game running (21:44-22:07)
+
+- Stored (uncompressed) files: the first variant, raw payload + trailer byte `0x00` + 128 zero bytes, was accepted
+  (`fr_logo.png`: `STORED variant raw+trailer00 was accepted`). Rejected earlier: raw + `0x01`. So the trailer's first byte
+  is the payload encoding (0x01 = zlib, 0x00 = stored).
+- `game.self` fails in RPCS3 itself (`Failed to decrypt SELF metadata info`), but RPCS3's `Utilities > Decrypt PS3 Binaries`
+  produced `game.elf` from it. Booting `game.elf` directly runs the game: the log shows its own threads (Deep Engine Renderer,
+  Miles audio thread, fios, SPURS) for over six minutes with no fatal error.
+- At 22:03:42 the game called `POST /ps3ws/game/serverList.action?request_locale=en_US` (8-byte body, host
+  `ps3.freerealms.com`); our placeholder reply was 228 bytes. Immediately after, the game opened
+  `cellMsgDialogOpen2(type=0xa1, msgString="")` (OK button, empty text) and showed a blank box. Hypotheses: our placeholder
+  XML is not what the client's parser expects, and/or the message text is empty because the English string data does not match
+  its index (`en_us_data.dat` is the LF-collapsed copy).
+- `tools/elf_strings.py` lists strings near a pattern in `game.elf` to recover the tag names the client parses.
+
 ## Digest layout (parsed by `tools/parse_digest.py`)
 
 - Tag/length/value tree. Length byte `< 0x80` is one byte, `0x80-0xFE` starts a 15-bit two-byte length, `0xFF` is
