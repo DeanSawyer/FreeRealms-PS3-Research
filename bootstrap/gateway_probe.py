@@ -247,7 +247,11 @@ def zone_done_packets():
 
 def world_packets():
     """Packets sent right after the login reply, in order (each already tunneled)."""
-    return [tunneled(zone_details()), tunneled(send_self_to_client(CHARACTER))]
+    extra = []
+    if os.environ.get("FR_EXTRA", "").strip() == "1":
+        # Untested: Clover's ClientGameSettings (144) layout, sent before ZoneDetails as Clover does.
+        extra.append(tunneled(struct.pack("<HiiiBf", 144, 4, 7, 268, 1, 1.0)))
+    return extra + [tunneled(zone_details()), tunneled(send_self_to_client(CHARACTER))]
 
 
 class GatewayProbe:
