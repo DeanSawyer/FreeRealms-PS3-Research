@@ -44,3 +44,12 @@ address,query,name,role,expect
 0x7d3d78,decomp,Tile::IsLoaded,"A tile counts as loaded after CreateAll(), CreateObjects() and when every object of the tile is loaded; otherwise writes 'Tile at lng:%d lat:%d waiting on ...'",waiting on object
 0x7e84a4,decomp,Tile asset-ready listener,"Dispatches by asset kind (1 = .gcnk parser 0x7e7628, 2 = .gck2 parser 0x7e81fc); a failed parse calls 0x7dea50",FUN_007e7628
 0x7e7628,decomp,Tile::ParseGcnk,"Reads the .gcnk contents: 16 sub-chunks (0x40c bytes each), then the object table named 'Chunk_<zone>_<x>_<z>'",Chunk_%s_%d_%d
+0x7ea164,decomp,Thread::RequestStop,Stores 1 in the stop byte at *(this+0x94)+8; the loading-screen thread loop and other worker threads test it,0x94
+0xb64180,decomp,LoadingScreenThread body,"Loops while the stop check (0x7ea068) is false: draws a frame (0x185ef8), sleeps 25 ms",FUN_007ea068
+0x182834,decomp,LoadingScreen::Stop,"Requests the stop (0x7ea164), joins the thread (0x7ea0f8), releases it and clears the pointer (+8)",FUN_007ea164
+0x1441b0,decomp,LoadingScreenManager::Stop,Stops the LoadingScreen held at +8,thunk_FUN_00182834
+0x14420c,decomp,"LoadingScreenManager::Start(w,h)",Restarts the LoadingScreen of the same size (0x18698c) or builds a new one from LOADSCREEN.DDS,LOADSCREEN.DDS
+0xc5ca8,decomp,Client::HideLoadingScreen,Stops the manager at client+0xc3c if there is one; the common end of WaitForWorldReady,FUN_001441b0
+0xc72f8,decomp,Client::ShowLoadingScreen,Starts the manager at client+0xc3c with the size of the screen; sets client+0x148d1,FUN_0014420c
+0xc73b4,decomp,Client::ShowLoadingScreenModal,"Shows the splash, then pumps the network until client+0x14bbd clears or its timeout passes, then hides it",0x14bbd
+0xec3dc,decomp,WaitForWorldReady,"Shows the splash at its start; every exit, including the success path after MarketingData.log, hides it (0xc5ca8)",FUN_000c5ca8

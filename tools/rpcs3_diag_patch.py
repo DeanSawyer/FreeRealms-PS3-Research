@@ -13,6 +13,10 @@ It separates the two remaining explanations:
     python tools/rpcs3_diag_patch.py --rpcs3 "C:\\Path\\To\\RPCS3_TEST"            # add and enable
     python tools/rpcs3_diag_patch.py --rpcs3 "C:\\Path\\To\\RPCS3_TEST" --remove   # take it out again
 
+A second patch, `--patch loading-thread`, makes the native LoadingScreenThread (the LOADSCREEN.DDS splash that WaitForWorldReady
+shows and hides) end at once: the call to its stop check inside the thread loop (0xb641a8, `bl 0x7ea068`) becomes `li r3,1`.
+It shows what is behind the splash: if the world appears, the splash is the only thing left (docs/re/zone-loading.md).
+
 It edits `patches/patch.yml` (the patch) and `config/patch_config.yml` (the enable flag) as text, inserting the entry under the
 game's existing `PPU-<hash>:` key, and keeps a one-time backup of each file next to it (`*.before-isloaded`). Running it twice
 changes nothing. The hash is the one RPCS3 prints as "PPU executable hash" for the decrypted build 1.77 `game.elf`.
@@ -65,6 +69,32 @@ OLD_CONFIG_ENTRY = '''  Free Realms IsLoaded forced true:
           Enabled: true
 '''
 
+THREAD_NAME = "Free Realms loading screen thread stops at once"
+
+THREAD_PATCH_ENTRY = f'''  "{THREAD_NAME}":
+    Games:
+      All:
+        All: [ All ]
+    Author: "FreeRealms-PS3-Research"
+    Patch Version: 1.0
+    Notes: "Diagnostic: the stop check in the LoadingScreenThread loop (0xb641a8) answers true, so the splash thread ends at once."
+    Patch:
+      - [ be32, 0x00b641a8, 0x38600001 ]
+'''
+
+THREAD_CONFIG_ENTRY = f'''  {THREAD_NAME}:
+    All:
+      All:
+        All:
+          Enabled: true
+'''
+
+# patch choice -> (name, patch.yml entry, patch_config.yml entry, older entry versions to drop)
+PATCHES = {
+    "overlay": (NAME, PATCH_ENTRY, CONFIG_ENTRY, OLD_PATCH_ENTRY, OLD_CONFIG_ENTRY),
+    "loading-thread": (THREAD_NAME, THREAD_PATCH_ENTRY, THREAD_CONFIG_ENTRY, None, None),
+}
+
 BACKUP_SUFFIX = ".before-isloaded"
 
 
@@ -76,7 +106,7 @@ def _fit(block, newline):
     return block.replace("\n", newline)
 
 
-def add_entry(text, entry, name=NAME):
+def add_entry(text, entry, name):
     """Insert `entry` under the PPU hash key (or add the key); a no-op when the entry is already there."""
     newline = _newline(text)
     if re.search(r'^\s{2}"?' + re.escape(name) + r'"?:\s*$', text, re.M):
@@ -97,13 +127,13 @@ def remove_entry(text, entry):
     return text.replace(block, "", 1), True
 
 
-def edit(path, entry, remove, old_entry=None):
+def edit(path, entry, remove, name, old_entry=None):
     if not path.is_file():
         print(f"missing: {path}")
         return False
     raw = path.read_bytes()
     text = raw.decode("utf-8")
-    new, changed = remove_entry(text, entry) if remove else add_entry(text, entry)
+    new, changed = remove_entry(text, entry) if remove else add_entry(text, entry, name)
     if old_entry:
         new, dropped = remove_entry(new, old_entry)       # the first, too broad version is never left behind
         changed = changed or dropped
@@ -118,25 +148,28 @@ def edit(path, entry, remove, old_entry=None):
     return True
 
 
-def apply(rpcs3_dir, remove=False):
-    """Add (or remove) the patch in the portable RPCS3 folder `rpcs3_dir`. Returns True when both files were handled."""
+def apply(rpcs3_dir, remove=False, which="overlay"):
+    """Add (or remove) a patch ("overlay" or "loading-thread") in the portable RPCS3 folder `rpcs3_dir`. True when both files were handled."""
+    name, patch_entry, config_entry, old_patch, old_config = PATCHES[which]
     rpcs3_dir = Path(rpcs3_dir)
     patches = rpcs3_dir / "patches" / "patch.yml"
     config = rpcs3_dir / "config" / "patch_config.yml"
-    return (edit(patches, PATCH_ENTRY, remove, OLD_PATCH_ENTRY)
-            and edit(config, CONFIG_ENTRY, remove, OLD_CONFIG_ENTRY))
+    return (edit(patches, patch_entry, remove, name, old_patch)
+            and edit(config, config_entry, remove, name, old_config))
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--rpcs3", required=True, type=Path, help="the portable RPCS3 folder (it holds patches\\ and config\\)")
     parser.add_argument("--remove", action="store_true", help="remove the diagnostic patch again")
+    parser.add_argument("--patch", choices=sorted(PATCHES), default="overlay",
+                        help="overlay (default): the overlay check sees 'loaded'; loading-thread: the splash thread ends at once")
     args = parser.parse_args()
-    if not apply(args.rpcs3, args.remove):
+    if not apply(args.rpcs3, args.remove, args.patch):
         return 1
     if not args.remove:
         print("Start the game from this RPCS3. The first start may take longer: RPCS3 recompiles the patched executable.")
-        print("RPCS3.log should show: PAT: Applied patch (... description='%s' ...)" % NAME)
+        print("RPCS3.log should show: PAT: Applied patch (... description='%s' ...)" % PATCHES[args.patch][0])
     return 0
 
 

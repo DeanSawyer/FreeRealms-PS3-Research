@@ -236,6 +236,47 @@ ActorReadyToDraw, SkyFinishedLoading, SkyDefinitionSet`; it also writes `BadSkyD
 Not done: the game's own log never reaches RPCS3's TTY, and the free space in the executable for a patch that
 prints to the TTY is limited (the only zero padding is a 96-byte gap at `0xea0a20` that an existing patch already uses).
 
+## Who stops the loading screen (callers of `0x7ea164`)
+
+The setter of the stop byte, `0x7ea164`, has five direct callers (an earlier search found none). It is a generic
+"ask this thread to stop" call, also used by the destructors of other worker threads (`0x3708c`, `0x37c34`, `0xdf630`) and
+`0x7f9ebc`. The loading screen goes through this chain, all read from `game.elf`:
+
+```
+Client::ShowLoadingScreen  0xc72f8  -> Manager::Start(w,h) 0x14420c  -> restarts the LoadingScreen of the same size (0x18698c)
+                                                                      or builds a new one from "LOADSCREEN.DDS" (ctor 0x18737c)
+Client::HideLoadingScreen  0xc5ca8  -> Manager::Stop 0x1441b0 (only if client+0xc3c exists)
+                                    -> LoadingScreen::Stop 0x182834 -> stop byte (0x7ea164), then join (0x7ea0f8)
+```
+
+`WaitForWorldReady` (`0xec3dc`) shows the screen near its start (call at `0xec4b8`) and **every exit of the function, the success
+path included, ends in `Client::HideLoadingScreen`** (label `0xecd68`). On the success path it first writes
+`ClientZoneTime.log` and `MarketingData.log`, which is exactly what the server sees. So on a normal run the stop *is* requested
+about 3.4 s after the zone change, and still the second `LoadingScreenThread` keeps running. That leaves three explanations, none of
+them checked at runtime yet:
+
+1. `client+0xc3c` is null or is not the manager that owns the running thread, so `HideLoadingScreen` does nothing.
+2. The screen is shown **again** after the hide (other callers of `0xc72f8`: `0x78e42c`, `0xf2ac0`, `0x151328`, and the modal wait
+   below), so the thread in the log is a new one.
+3. The stop byte is set but the thread never leaves its loop, or the main thread waits in the join (`0x7ea0f8`).
+
+A second loading mechanism exists: the **modal wait** `Client::ShowLoadingScreenModal` (`0xc73b4`), called from the per-frame
+function when `client+0x14bbd` is set. It shows the screen, pumps the network (object at `client+0xc44`) and waits until the
+flag clears or `client+0x14bc0` (60 in the setters) runs out. The flag is set by `0xa8a50`, `0xa97ec` and `0xaacb4` (each right
+after sending a request) and cleared by `0xaf584`, the handler of the housing-entry result (`HousingServerNotFound`,
+`HousingPermissionDenied`, ...), and by `0xc98ac` / `0xf18d4`. It looks tied to housing and zone-transfer requests and is probably
+not involved here; this is **not verified**. Note that the loading screen in `MarketingData.log` is `loadingscreen_housing01.gfx`.
+
+### Next experiment: end the splash thread by force
+
+`tools/rpcs3_diag_patch.py --patch loading-thread` (or `tools/run_test.py --stop-loading-thread`) replaces the stop check inside the
+thread loop (`0xb641a8`, `bl 0x7ea068`) with `li r3,1`, so every `LoadingScreenThread` ends at once. It separates two cases:
+
+| After the patch | Meaning |
+|---|---|
+| the world appears (or a black/empty world with the player) | the server side is complete enough; only the splash thread's stop path fails (explanations 1-3) |
+| still no world | the splash was hiding something else; the HUD overlay (`SetLoadingWorldAssets`) or the world itself is not ready |
+
 ## Not yet verified
 
 * The height of the ground at the chosen spawn (the server uses a fixed `y` of 400 and lets the player fall).

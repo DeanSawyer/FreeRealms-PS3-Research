@@ -6,7 +6,7 @@ What it does, in order (Windows, run from an Administrator PowerShell so ports 5
   1. puts the original ui/scriptsbase.bin.sdat back wherever a patched copy is live (the .orig next to it);
   2. runs tools/zone_report.py and tools/tile_report.py on the install (what the client can load, where it spawns);
   3. starts bootstrap/fr_ps3_bootstrap.py (its output is shown here and saved), or the C# port with --server-exe;
-  4. starts RPCS3 on the game (with --force-isloaded: with the overlay diagnostic patch, removed again afterwards) and waits - log in, make or pick a character, watch the screen, then CLOSE RPCS3;
+  4. starts RPCS3 on the game (with --force-isloaded or --stop-loading-thread: with that diagnostic patch, removed again afterwards) and waits - log in, make or pick a character, watch the screen, then CLOSE RPCS3;
   5. stops the server and writes one zip with everything needed to read the result: both reports, the server log,
      the lines of interest, the end of the RPCS3 log and the end of the gateway trace.
 
@@ -98,6 +98,9 @@ def main():
     ap.add_argument("--force-isloaded", action="store_true",
                     help="DIAGNOSTIC: run with an RPCS3 patch that makes the loading-overlay check see IsLoaded (0x897db4) as true, then remove it "
                          "(tools/rpcs3_diag_patch.py, docs/re/zone-loading.md)")
+    ap.add_argument("--stop-loading-thread", action="store_true",
+                    help="DIAGNOSTIC: run with an RPCS3 patch that ends the native loading-screen thread at once, then remove it "
+                         "(tools/rpcs3_diag_patch.py --patch loading-thread, docs/re/zone-loading.md)")
     ap.add_argument("--rpcs3", help="RPCS3 executable (default: RPCS3_TEST\\rpcs3.exe)")
     ap.add_argument("--elf", help="game.elf to start (default: inside RPCS3_TEST)")
     ap.add_argument("--bootstrap-args", default="", help="extra arguments for fr_ps3_bootstrap.py (or the C# server)")
@@ -161,6 +164,9 @@ def main():
         if args.force_isloaded:
             log(out_dir, "DIAGNOSTIC: overlay check forced loaded for this run (patch added to %s)" % rpcs3_dir)
             rpcs3_diag_patch.apply(rpcs3_dir)
+        if args.stop_loading_thread:
+            log(out_dir, "DIAGNOSTIC: the loading-screen thread ends at once for this run (patch added to %s)" % rpcs3_dir)
+            rpcs3_diag_patch.apply(rpcs3_dir, which="loading-thread")
         try:
             subprocess.run([rpcs3, "--no-gui", elf], check=False)
         except OSError as err:
@@ -169,6 +175,9 @@ def main():
             if args.force_isloaded:
                 rpcs3_diag_patch.apply(rpcs3_dir, remove=True)
                 log(out_dir, "diagnostic patch removed again")
+            if args.stop_loading_thread:
+                rpcs3_diag_patch.apply(rpcs3_dir, remove=True, which="loading-thread")
+                log(out_dir, "diagnostic patch (loading-thread) removed again")
         log(out_dir, "RPCS3 closed")
         time.sleep(2)
 
