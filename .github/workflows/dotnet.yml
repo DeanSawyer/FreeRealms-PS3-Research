@@ -53,11 +53,11 @@ jobs:
           set -o pipefail
           dotnet build Sanctuary.Ps3.slnx --no-restore -nologo -clp:NoSummary 2>&1 | tee build.log || status=$?
           if [ "${status:-0}" != "0" ]; then
-            errors=$(grep -E ': error ' build.log | sort -u | head -40 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+            errors=$(grep -E ': error ' build.log | sort -u | head -40 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}' || true)
             echo "::error title=dotnet build failed::${errors}"
             exit 1
           fi
-          warnings=$(grep -E ': warning ' build.log | sort -u | head -20 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+          warnings=$(grep -E ': warning ' build.log | sort -u | head -20 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}' || true)
           if [ -n "$warnings" ]; then echo "::warning title=dotnet build warnings::${warnings}"; fi
 
       - name: Test
@@ -65,7 +65,7 @@ jobs:
         run: |
           set -o pipefail
           dotnet test --no-build --nologo --logger "console;verbosity=normal" 2>&1 | tee test.log || status=$?
-          summary=$(grep -E 'Passed!|Failed!|Total tests|Failed |Error Message|Assert\.|Expected|Actual|\[FAIL\]' test.log | head -60 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+          summary=$(grep -E 'Passed!|Failed!|Total tests|Failed |Error Message|Assert\.|Expected|Actual|\[FAIL\]' test.log | head -60 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}' || true)
           if [ "${status:-0}" != "0" ]; then
             echo "::error title=dotnet test failed::${summary}"
             exit 1
