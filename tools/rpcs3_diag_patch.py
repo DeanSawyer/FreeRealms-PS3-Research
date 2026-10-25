@@ -93,15 +93,20 @@ def edit(path, entry, remove):
     return True
 
 
+def apply(rpcs3_dir, remove=False):
+    """Add (or remove) the patch in the portable RPCS3 folder `rpcs3_dir`. Returns True when both files were handled."""
+    rpcs3_dir = Path(rpcs3_dir)
+    patches = rpcs3_dir / "patches" / "patch.yml"
+    config = rpcs3_dir / "config" / "patch_config.yml"
+    return edit(patches, PATCH_ENTRY, remove) and edit(config, CONFIG_ENTRY, remove)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--rpcs3", required=True, type=Path, help="the portable RPCS3 folder (it holds patches\\ and config\\)")
     parser.add_argument("--remove", action="store_true", help="remove the diagnostic patch again")
     args = parser.parse_args()
-    patches = args.rpcs3 / "patches" / "patch.yml"
-    config = args.rpcs3 / "config" / "patch_config.yml"
-    ok = edit(patches, PATCH_ENTRY, args.remove) and edit(config, CONFIG_ENTRY, args.remove)
-    if not ok:
+    if not apply(args.rpcs3, args.remove):
         return 1
     if not args.remove:
         print("Start the game from this RPCS3. The first start may take longer: RPCS3 recompiles the patched executable.")

@@ -6,7 +6,7 @@ What it does, in order (Windows, run from an Administrator PowerShell so ports 5
   1. puts the original ui/scriptsbase.bin.sdat back wherever a patched copy is live (the .orig next to it);
   2. runs tools/zone_report.py and tools/tile_report.py on the install (what the client can load, where it spawns);
   3. starts bootstrap/fr_ps3_bootstrap.py (its output is shown here and saved);
-  4. starts RPCS3 on the game and waits - log in, make or pick a character, watch the screen, then CLOSE RPCS3;
+  4. starts RPCS3 on the game (with --force-isloaded: with the IsLoaded diagnostic patch, removed again afterwards) and waits - log in, make or pick a character, watch the screen, then CLOSE RPCS3;
   5. stops the server and writes one zip with everything needed to read the result: both reports, the server log,
      the lines of interest, the end of the RPCS3 log and the end of the gateway trace.
 
@@ -26,6 +26,8 @@ import sys
 import threading
 import time
 import zipfile
+
+import rpcs3_diag_patch  # same folder
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 HOME = os.path.expanduser("~")
@@ -92,6 +94,9 @@ def main():
     ap.add_argument("--digest", default=os.path.join(os.path.expanduser("~"), "Downloads", "NPUA30048.original.soe"),
                     help="the original PS3 digest (used with --match-local when the file exists)")
     ap.add_argument("--no-restore", action="store_true", help="leave scriptsbase.bin.sdat as it is")
+    ap.add_argument("--force-isloaded", action="store_true",
+                    help="DIAGNOSTIC: run with an RPCS3 patch that makes IsLoaded (0x897db4) return true, then remove it "
+                         "(tools/rpcs3_diag_patch.py, docs/re/zone-loading.md)")
     ap.add_argument("--rpcs3", help="RPCS3 executable (default: RPCS3_TEST\\rpcs3.exe)")
     ap.add_argument("--elf", help="game.elf to start (default: inside RPCS3_TEST)")
     ap.add_argument("--bootstrap-args", default="", help="extra arguments for fr_ps3_bootstrap.py")
@@ -146,10 +151,18 @@ def main():
         log(out_dir, "")
         log(out_dir, ">>> Starting RPCS3. Log in, make or pick a character, watch the screen for a minute or two,")
         log(out_dir, ">>> then CLOSE RPCS3. This window finishes the report by itself.")
+        rpcs3_dir = os.path.dirname(rpcs3)
+        if args.force_isloaded:
+            log(out_dir, "DIAGNOSTIC: IsLoaded forced true for this run (patch added to %s)" % rpcs3_dir)
+            rpcs3_diag_patch.apply(rpcs3_dir)
         try:
             subprocess.run([rpcs3, "--no-gui", elf], check=False)
         except OSError as err:
             log(out_dir, "could not start RPCS3: %s" % err)
+        finally:
+            if args.force_isloaded:
+                rpcs3_diag_patch.apply(rpcs3_dir, remove=True)
+                log(out_dir, "diagnostic patch removed again")
         log(out_dir, "RPCS3 closed")
         time.sleep(2)
 
