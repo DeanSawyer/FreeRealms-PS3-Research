@@ -36,3 +36,8 @@ address,query,name,role,expect
 0xf0494,list,Main loop terrain check (overlay hidden),"IsLoaded(camera position) false and flag 0: SetLoadingWorldAssets(true)",bl 0x000dced8
 0x88ade8,decomp,Camera::Position,"Position used by the loaded check: *(camera+0x30)+0x40",0x40
 0x1fac0,decomp,CRC-64 (manifest key),"Table at 0xdb1f10, poly 0x95AC9329AC4BC9B5",DAT_00db1f10
+0x7e71bc,decomp,Tile::Request,"Requests '<zone>_<x>_<z>.gcnk' (always) and '.gck2' (when the tile flag at +0x4278 is set) through the asset delivery object",%s_%d_%d.gcnk
+0x7e66c8,decomp,Tile::Init,"Stores zone name and coordinates, calls the tile's load slot (vtable +0x1c = Tile::Request); on failure sets the failed flag",RuntimeTerrainFallback
+0x7e5d54,decomp,Tile ctor,"Sets the tile vtable (0xee3328)",DAT_00ee3328
+0x7ded28,decomp,Terrain::GetCell (tile cache),"Creates and initialises the tile object for an in-range cell",FUN_007e66c8
+0xef650,list,Overlay hide radius,"IsLoaded called with f1 = float at 0xde9d08 (96.0)",lfs f1

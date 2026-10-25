@@ -200,3 +200,60 @@ def pick_zone(usrdir, preferred="FabledRealms"):
     if complete:
         return complete[0], complete, "preferred zone %r is not in the packs" % preferred
     return None, [], "the packs hold no zone with .gzne, .cob and .odd"
+
+
+# ---------------------------------------------------------------- terrain header and tiles
+
+def gzne_header(data):
+    """Header fields of a <zone>.gzne file (parser 0x7df87c), or None if it is not a GZNE file.
+
+    Returns a dict: version, a, b, edge (= a / b, cells per tile edge, stored at terrain+0x440), cell_size (float,
+    terrain+0x444), min_x, min_z, ext_x, ext_z (cells, terrain+0x44c..0x458), endian."""
+    if len(data) < 0x30 or data[:4] != b"GZNE":
+        return None
+    endian = ">" if 0 < struct.unpack_from(">i", data, 4)[0] < 256 else "<"
+    ints = [struct.unpack_from(endian + "i", data, off)[0] for off in (4, 8, 12, 0x18, 0x1C, 0x20, 0x24)]
+    cell_size = struct.unpack_from(endian + "f", data, 0x10)[0]
+    version, a, b, min_x, min_z, ext_x, ext_z = ints
+    return {"version": version, "a": a, "b": b, "edge": (a // b) if b else 0, "cell_size": cell_size,
+            "min_x": min_x, "min_z": min_z, "ext_x": ext_x, "ext_z": ext_z, "endian": endian}
+
+
+def _floor_cell(value, cell_size):
+    import math
+    return int(math.floor(value / cell_size))
+
+
+def tile_origin(cell, edge):
+    """Tile origin of a cell as GetCell (0x7ded28) computes it: an UNSIGNED divide (divwu) by the tile edge, then
+    a multiply, as a signed 32-bit number. Exact for power-of-two edges, which is what the game uses."""
+    o = ((cell & 0xFFFFFFFF) // edge) * edge
+    o &= 0xFFFFFFFF
+    return o - (1 << 32) if o & 0x80000000 else o
+
+
+def tiles_near(header, x, z, radius):
+    """Tiles the client must have loaded for IsLoaded(position x, z; radius) (0x7cfdd4).
+
+    The client visits every cell from floor((p - radius) / cell size) to floor((p + radius) / cell size) on both
+    axes. A tile outside min .. min + extent counts as loaded at once; one inside needs its file streamed in.
+    Returns a sorted list of (origin x, origin z, inside the terrain box). The float-to-cell conversion
+    (0x449030) is taken to be a floor; that is not proven for negative values, so callers should treat tiles one
+    step away as relevant as well."""
+    cs, edge = header["cell_size"], header["edge"]
+    x0, x1 = _floor_cell(x - radius, cs), _floor_cell(x + radius, cs)
+    z0, z1 = _floor_cell(z - radius, cs), _floor_cell(z + radius, cs)
+    out = set()
+    for cx in range(x0, x1 + 1):
+        for cz in range(z0, z1 + 1):
+            ox, oz = tile_origin(cx, edge), tile_origin(cz, edge)
+            inside = (header["min_x"] <= ox < header["min_x"] + header["ext_x"]
+                      and header["min_z"] <= oz < header["min_z"] + header["ext_z"])
+            out.add((ox, oz, inside))
+    return sorted(out)
+
+
+def tile_file_names(zone, ox, oz):
+    """Asset names the client requests for one tile (0x7e71bc): '<zone>_<x>_<z>.gcnk' always, and
+    '<zone>_<x>_<z>.gck2' when the tile object has its extra-data flag set."""
+    return ["%s_%d_%d.gcnk" % (zone, ox, oz), "%s_%d_%d.gck2" % (zone, ox, oz)]

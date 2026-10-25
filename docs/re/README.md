@@ -35,8 +35,10 @@ Goal: a working PS3 client against a local server ("restore the client first"). 
 * **Solid (read from the binary, checked by the table):** ZoneDetails handler and its failure path; holder/controller
   structure; terrain request chain (`.gzne`/`.cob`/`.odd`); GZNE header fields used by the loaded check; manifest and
   pack formats; the CRC-64 name hash; the per-frame overlay check.
-* **Leading explanation, unconfirmed on the user's install:** the zone name sent (`FabledRealms`) is not present in
-  the PS3 content, so the terrain header request is refused and the overlay stays. `tools/zone_report.py` decides this
-  in one run.
+* **Ruled out on the user's install:** the zone name. `FabledRealms.gzne/.cob/.odd` are present in the packs and the
+  manifest (`tools/zone_report.py`), and the pack and manifest formats and the CRC-64 name hash were confirmed on
+  the real files (54,146 of 54,146 names matched).
+* **Next suspect:** terrain tiles `<zone>_<x>_<z>.gcnk` within 96 units of the camera - are they in the packs, only in
+  the manifest (download needed), or absent? `tools/tile_report.py` answers this for the spawn position and the origin.
 * **Open:** spawn position for a PS3 zone; tile streaming / bubble readiness if the zone does exist; the PS3 layouts of
-  the packets Clover sends in `OnClientIsReady`.
+  the packets Clover sends in `OnClientIsReady`; whether the camera sits at the spawn when the first check runs.

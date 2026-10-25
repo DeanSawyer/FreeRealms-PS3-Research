@@ -65,6 +65,33 @@ for a real install.
 edges) and answers "loaded" at once when that lies outside `min .. min + extent` on either axis. So a camera
 position outside the terrain's box is **not** what holds the overlay; only cells inside the box must be streamed.
 
+## Tiles (read from `game.elf`)
+
+`GetCell` (`0x7ded28`) keeps a cache of tile objects. For an in-range cell it creates one (`0x7e5d54`, vtable
+`0xee3328`), initialises it with the zone name and the tile origin (`0x7e66c8`) and calls its load slot, which is
+`0x7e71bc`. That function requests, through the asset delivery object:
+
+    <zone>_<x>_<z>.gcnk     always                         ("%s_%d_%d.gcnk")
+    <zone>_<x>_<z>.gck2     when the tile flag (+0x4278) is set   ("%s_%d_%d.gck2")
+
+`x`, `z` are the tile origin in cells: the cell rounded down to a multiple of the tile edge (`A / B` from the header);
+negative values print with a minus sign. The zone name is the one passed to `Load` (`0x7cf7b0`).
+
+`IsLoaded(camera position, radius)` visits every cell from `floor((p - r) / cellsize)` to `floor((p + r) / cellsize)`
+on both axes. The two call sites use different radii:
+
+| Site | Radius | Meaning |
+|---|---|---|
+| `0xef650` (overlay is shown) | 96.0 (float at `0xde9d08`) | the overlay is hidden once every tile within 96 units is loaded |
+| `0xf04f8` (overlay is hidden) | 32.0 (float at `0xde9d0c`) | the overlay is shown again if a tile within 32 units is missing |
+
+The camera position at that moment is `*(client[0x20e] + 0x30) + 0x40` (see `Camera::Position`, `0x88ade8`); whether
+it already equals the spawn position when the check first runs is **not verified**. `tools/tile_report.py` therefore
+reports both the spawn and the world origin.
+
+The float-to-cell conversion (`0x449030`) behaves like a floor (it adjusts negative values); treat tiles one step away
+from the computed ones as relevant too.
+
 ## Failure table (what a server-side or content problem looks like)
 
 | Cause | What the client does | Visible result |
@@ -73,11 +100,21 @@ position outside the terrain's box is **not** what holds the overlay; only cells
 | In manifest, not in packs / crc differs | not "current" (`0x801020`); a download is the apparent intent (inferred, not traced) | overlay until the asset is served |
 | `.gzne` parse fails | listener calls the failure stub (vtable +0x14) | overlay never drops |
 | Header ok, tiles not yet streamed | `Bubble not ready` (`0x7da88c`) until the first tiles arrive | overlay, then drops |
+| A needed tile is in the manifest but not in the packs | not "current"; download intended (inferred) | overlay until the file is served |
+| A needed tile is in neither | request refused (`0x802828`); the tile object is dropped again by `GetCell` | overlay (not traced further) |
 | `type` ≠ 2 | the holder has no implementation for it | overlay never drops |
 
 The first row is the leading explanation for the current stuck screen (the server sent `FabledRealms`, a name taken
 from the PC game). It is **not yet confirmed** on the user's install: run `tools/zone_report.py` against the real
 `USRDIR` (below).
+
+## What the first real install showed
+
+`tools/zone_report.py` on the user's install (77 packs, 54,146 assets, manifest 136,812 records): all 54,146 pack
+names are found in the manifest by the CRC-64 (this confirms the pack and manifest formats and the hash), and
+`FabledRealms.gzne/.cob/.odd` are present in packs and manifest. So the zone name is **not** the cause of the stuck
+screen. The manifest lists about 82,000 assets that are not in the packs: those are only available by download.
+The next check is whether the tiles around the player are among the local ones (`tools/tile_report.py`).
 
 ## How the server decides
 

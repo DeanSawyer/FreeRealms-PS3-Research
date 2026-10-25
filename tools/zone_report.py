@@ -44,15 +44,20 @@ def build_report(usrdir, zone):
         out("manifest: %d records, %s endian, sorted %.4f" % (
             manifest.count, "big" if manifest.endian == ">" else "little", manifest.sorted_fraction))
         found = same_crc = 0
+        differing = []
         for _pk, name, _off, _length, crc in entries:
             rec = manifest.find(name)
             if rec:
                 found += 1
                 same_crc += rec[0] == crc
+                if rec[0] != crc:
+                    differing.append("%s (pack %08x, manifest %08x)" % (name, crc, rec[0]))
         out("pack names found in the manifest by CRC-64: %d of %d (%.1f%%)" % (
             found, len(entries), 100.0 * found / len(entries)))
         out("pack crc equal to manifest crc (needed for 'local copy is current', 0x801020): %d of %d" % (
             same_crc, len(entries)))
+        for d in differing[:20]:
+            out("  crc differs: " + d)
         if found < 0.9 * len(entries):
             out("  -> the name hash or record layout in bootstrap/assetlib.py does not match this file;")
             out("     report this, do not trust the zone verdicts below.")
