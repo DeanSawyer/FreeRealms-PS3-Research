@@ -127,6 +127,14 @@ and a 4 byte big endian total length in front of the data of the first fragment.
 reliable packet. This follows UdpLibrary's reliable channel as remembered, so if the client still reports the player
 data as missing after the EMSGSIZE errors are gone, check this format first.
 
+## Observed: the loading step completes
+
+With the fragmented player data and the world-ready packets, a run went: Login, LoginReply, ZoneDetails, player data
+(fragmented, 2 pieces), the client's SetLocale and ClientInitializationDetails, ClientIsReady 3.5 s later, our 14 and
+38/26, then the client's ClientFinishedLoading, two ClientLog lines, and requests 102/1 and 141/1 for the mini-game
+list and matchmaking queues. So the client believes it is in the world. Not answered yet: 102/1, 141/1 and everything
+that makes the character appear. After three minutes of silence the client sent Terminate.
+
 ## The loading step: WaitForWorldReady
 
 The client has a loading step that logs (format string at `0xdec970`): `WaitForWorldReady Status:
@@ -152,7 +160,11 @@ tunneled packet for each, repeated. Seen so far, in order:
 |---|---|---|
 | 88 | SetLocale | string, `en_US` |
 | 169 | ClientInitializationDetails | `i32`, `-18000` (a timezone offset in seconds) |
-| 13 | ClientIsReady | no fields (expected next; not seen yet) |
+| 13 | ClientIsReady | no fields; arrives about 3.5 s after the player data (it loads the zone first) |
+| 102 | LobbyGameDefinition, sub-opcode 1 | `66 00 01 00`: Clover's DefinitionsRequest, the mini-game list. Outer packet type 6 |
+| 141 | matchmaking, sub-opcode 1 | `8d 00 01 00 01 00 00 00 00 00 00 00`: Clover's ListQueuesRequest. Outer packet type 6 |
+| 10 | ClientFinishedLoading | no fields; sent right after our 14 and 38/26 |
+| 109 | ClientLog | `ClientZoneTime.log` (`3272 ms`) and `MarketingData.log` ("Viewed loading screen loadingscreen_memberupgrade.gfx for 3.27 seconds. Member=true, Zoning=true, Minigame Type=0") |
 
 The probe unwraps Group and Multi packets, logs each inner packet by name, and answers ClientIsReady with
 ZoneDoneSendingInitialData (opcode 14) and the preload-done update (see WaitForWorldReady above).
