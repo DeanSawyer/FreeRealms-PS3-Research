@@ -44,3 +44,20 @@ tile_report.txt
 gzne_info.txt
 *.orig
 *.lf-copy
+
+# Content derived from the game (decrypted scripts, terrain, UI) and reverse-engineering workspaces
+*.bin
+*.sdat
+*.gcnk
+*.gck2
+*.gzne
+*.cob
+*.odd
+*.gfx
+*.gtf
+*.gpr
+*.rep/
+*.lock
+ghidra_dl/
+gproj/
+gq/

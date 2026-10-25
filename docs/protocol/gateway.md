@@ -61,6 +61,9 @@ in at least one case (43), but each packet has to be checked against the binary.
 
 ## Not known yet
 
+_Written early. The sections further down record the packets decoded since; what is still open is listed with the
+loading-screen sections at the end._
+
 - Whether `Key` from the login reply is used to encrypt later packets (Clover hardcodes encryption off).
 - Everything after ZoneDetails: the layouts of the other packets the client waits for (initialization details, item
   definitions, the player itself) and what the client sends back.
@@ -230,6 +233,9 @@ from a partly built buffer, so you can look inside one list element, and `--only
 
 ## Loading screen stays up after FinishedLoading (open)
 
+> **Superseded.** The Lua script *was* readable (next sections) and is ruled out; the overlay is held by a per-frame terrain
+> check. See [`../re/zone-loading.md`](../re/zone-loading.md) for the current state. The text below is the original reasoning.
+
 Observed with the v8 probe: the client sends ClientIsReady, then FinishedLoading (inner 10) and the
 "Viewed loading screen ... for 3.23 seconds" ClientLog, then sends nothing more. The bar is one pixel
 short of full and the screen never drops. No crash, no Terminate.
@@ -312,8 +318,8 @@ per-frame check in the big update function (`0xee9c4`-`0xf09ec`):
   The cell manager is only created after that byte is set (`0x7cf464`-`0x7cf488`).
 
 So the screen stays up while the zone's terrain header or tiles have not loaded. The zone name we send (`FabledRealms`,
-type 2) comes from the PC game (Clover). Whether the PS3 packs contain terrain for that name is not known yet;
-`tools/list_packs.py` lists the asset names in the `assets_ps3_NNN.pack` files to find out.
+type 2) came from the PC game (Clover). The PS3 packs do contain terrain for that name (checked on the real install with
+`tools/zone_report.py`); see [`../re/zone-loading.md`](../re/zone-loading.md).
 
 ### Update: a refused zone name fails silently (read from `game.elf`)
 

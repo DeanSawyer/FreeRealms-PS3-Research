@@ -11,11 +11,12 @@ or original digest bytes are embedded in this source. See bootstrap/README.md.
 """
 
 import argparse
+import hashlib
 import json
-import time
 from datetime import datetime, timezone
 import ipaddress
 import logging
+import re
 import socket
 import socketserver
 import struct
@@ -31,6 +32,7 @@ from urllib.parse import parse_qs
 import codec_candidates
 import digest_edit
 import gateway_probe
+import tracing
 
 
 LOG = logging.getLogger("homecoming")
@@ -193,14 +195,13 @@ class DNSServer(socketserver.ThreadingUDPServer):
     daemon_threads = True
 
 
-TRACE_FILE = Path(__file__).resolve().parent / "ps3_protocol_trace.jsonl"
+TRACE_FILE = tracing.trace_path("ps3_protocol_trace.jsonl")
 TRACE_LOCK = threading.Lock()
 
 def trace_event(event, **fields):
     record = {"time_utc": datetime.now(timezone.utc).isoformat(), "event": event, **fields}
     with TRACE_LOCK:
-        with TRACE_FILE.open("a", encoding="utf-8") as out:
-            out.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+        tracing.append_line(TRACE_FILE, json.dumps(record, ensure_ascii=False, separators=(",", ":")))
     LOG.info("TRACE %s %s", event, " ".join(f"{key}={value}" for key, value in fields.items()))
 
 
@@ -332,7 +333,8 @@ def make_handler(ip, digest, server_list_variant, client_root,
 
             def number(key):
                 value = query.get(key, [""])[0]
-                return int(value) if value.isdigit() else None
+                # isascii(): str.isdigit() is also true for characters such as "\u00b2" that int() rejects.
+                return int(value) if value.isascii() and value.isdigit() else None
 
             want_crc, want_len = number("c"), number("l")
             attempt = len(query.get("cb", [""])[0])
@@ -452,12 +454,12 @@ def make_handler(ip, digest, server_list_variant, client_root,
                      self.headers.get("Host", ""), self.headers.get("User-Agent", ""))
             if route == "/app/appconfig.php":
                 trace_event("config_reply", route=route, status=200, bytes=len(config),
-                            sha256=__import__("hashlib").sha256(config).hexdigest())
+                            sha256=hashlib.sha256(config).hexdigest())
                 self.respond(200, config, "text/xml; charset=utf-8", close=True)
                 LOG.info("200 AppConfig (%d bytes)", len(config))
             elif route == DIGEST_ROUTE:
                 trace_event("digest_reply", route=route, status=200, bytes=len(digest),
-                            sha256=__import__("hashlib").sha256(digest).hexdigest())
+                            sha256=hashlib.sha256(digest).hexdigest())
                 self.respond(200, digest, "application/octet-stream", close=True)
                 LOG.info("200 original PS3 digest (%d bytes)", len(digest))
             elif route.startswith(patch_prefix):
@@ -501,7 +503,8 @@ def make_handler(ip, digest, server_list_variant, client_root,
             else:
                 self.respond(501, b"Not implemented\r\n", "text/plain", close=True)
                 return
-            # Field names only; values (session, account, character data) are never logged.
+            # Only field names are logged here. The values of a character_create request are logged below
+            # (never the Session); the session and account values are never logged.
             fields = sorted(parse_qs(body.decode("latin-1"), keep_blank_values=True))
             trace_event("ps3_reply", route=route, http_status=200, body_bytes=len(reply),
                         reply_kind=kind, request_fields=fields,
@@ -514,7 +517,7 @@ def make_handler(ip, digest, server_list_variant, client_root,
                 gateway_probe.CHARACTER.update(values)
                 LOG.info("character_create values (kept for the game-server probe): %s",
                          ", ".join(f"{k}={v}" for k, v in sorted(values.items())))
-            status = __import__("re").search(rb'Status(?:="|>)(\d+)', reply)
+            status = re.search(rb'Status(?:="|>)(\d+)', reply)
             LOG.info("%s request fields: %s -> replying Status=%s", kind, ", ".join(fields) or "(none)",
                      status.group(1).decode() if status else "?")
             self.respond(200, reply, "text/xml; charset=utf-8", close=True)

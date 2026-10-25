@@ -18,5 +18,5 @@ jobs:
         run: python tools/check_docs.py
       - name: No game files are tracked
         run: |
-          bad=$(git ls-files | grep -Ei '\.(self|elf|pack|zs|soe|sprx|prx|pkg|edat|rap|rif)$|^NPUA30048/|EBOOT\.BIN' || true)
+          bad=$(git ls-files | grep -Ei '\.(self|elf|pack|zs|soe|sprx|prx|pkg|edat|rap|rif|sdat|bin|gcnk|gzne|cob|odd)$|^NPUA30048/|EBOOT\.BIN' || true)
           if [ -n "$bad" ]; then echo "Game files are tracked:"; echo "$bad"; exit 1; fi

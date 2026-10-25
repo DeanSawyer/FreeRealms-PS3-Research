@@ -71,6 +71,7 @@ answers the game's hostnames, pass `--no-dns`.
 | `FR_ADDPC` | Which character `AddPc` adds: `other` (default), `self`, `both`, `none`. |
 | `FR_EXTRA=1` | Also send hit points, mana, game settings and an empty item list (layouts from the PC server, untested on the PS3 client). |
 | `FR_WELCOME=0`, `FR_TIME=0` | Leave out the welcome-screen packet or the game-time reply. |
+| `FR_TRACE_DIR` | Folder for the two trace files (default: next to the scripts, or the temp folder when that is not writable). |
 
 ## Which zone and spawn the server sends
 
@@ -116,10 +117,11 @@ sends the packets that get the client to *FinishedLoading* and logs every packet
 | `assetlib.py` | Readers for the client's packs, manifest and `.gzne`; zone and spawn choice |
 | `digest_edit.py` | Read, edit and re-serialise the digest (`--match-local`) |
 | `codec_candidates.py` | The `.zs` encoders, including the experiments that failed |
+| `tracing.py` | Where the trace files go; a failed trace write never breaks a request |
 
 ## Files written, safety
 
-* The server writes `ps3_protocol_trace.jsonl` and `ps3_gateway_trace.jsonl` next to itself. They are ignored by Git and may
-  contain local addresses and paths; redact before sharing.
+* The server writes `ps3_protocol_trace.jsonl` and `ps3_gateway_trace.jsonl` next to the scripts (see `FR_TRACE_DIR`). They are
+  ignored by Git and may contain local addresses and paths; redact before sharing.
 * No authentication, no hardening. Do not expose ports 53, 80 or 20260 to the internet. See [`SECURITY.md`](../SECURITY.md).
 * Other asset responses depend on client files on disk; none are bundled with this repository.

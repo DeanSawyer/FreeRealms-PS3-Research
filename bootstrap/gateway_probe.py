@@ -31,10 +31,11 @@ import struct
 import threading
 import time
 from datetime import datetime, timezone
-from pathlib import Path
+
+import tracing
 
 LOG = logging.getLogger("gateway")
-TRACE_FILE = Path(__file__).resolve().parent / "ps3_gateway_trace.jsonl"
+TRACE_FILE = tracing.trace_path("ps3_gateway_trace.jsonl")
 PACKET_NAMES = {
     0: "ZeroEscape", 1: "Connect", 2: "Confirm", 3: "Multi", 4: "Big", 5: "Terminate", 6: "KeepAlive",
     7: "ClockSync", 8: "ClockReflect", 9: "Reliable1", 10: "Reliable2", 11: "Reliable3", 12: "Reliable4",
@@ -50,8 +51,7 @@ KEEPALIVE_SECONDS = 5
 
 def _trace(event, **fields):
     record = {"time_utc": datetime.now(timezone.utc).isoformat(), "event": event, **fields}
-    with TRACE_FILE.open("a", encoding="utf-8") as out:
-        out.write(json.dumps(record) + "\n")
+    tracing.append_line(TRACE_FILE, json.dumps(record))
 
 
 def _read_string(buf, pos):
@@ -386,6 +386,8 @@ class GatewayProbe:
         while True:
             try:
                 data, addr = self.sock.recvfrom(65535)
+            except ConnectionResetError:
+                continue      # Windows reports an ICMP "port unreachable" for an earlier send as an error here
             except OSError:
                 return
             try:
@@ -523,6 +525,8 @@ class GatewayProbe:
                 for peer in list(self.sessions):
                     try:
                         self.sock.sendto(b"\x00\x06", peer)
+                    except ConnectionResetError:
+                        pass  # the peer's port is closed (Windows reports it on the next call)
                     except OSError:
                         return
             for key, item in list(self.pending.items()):
@@ -533,6 +537,8 @@ class GatewayProbe:
                     item[1], item[2] = now, item[2] + 1
                     try:
                         self.sock.sendto(item[0], key[0])
+                    except ConnectionResetError:
+                        pass
                     except OSError:
                         return
 

@@ -112,9 +112,9 @@ from the computed ones as relevant too.
 | A needed tile is in neither | request refused (`0x802828`); the tile object is dropped again by `GetCell` | overlay (not traced further) |
 | `type` ≠ 2 | the holder has no implementation for it | overlay never drops |
 
-The first row is the leading explanation for the current stuck screen (the server sent `FabledRealms`, a name taken
-from the PC game). It is **not yet confirmed** on the user's install: run `tools/zone_report.py` against the real
-`USRDIR` (below).
+The first row was the leading explanation for the stuck screen while the server still sent `FabledRealms`, a name taken
+from the PC game. **It is ruled out**: `tools/zone_report.py` on the real install found `FabledRealms.gzne/.cob/.odd` in the
+packs and the manifest (next section).
 
 ## What the first real install showed
 
@@ -176,14 +176,17 @@ first zone that has `.gzne`, `.cob` and `.odd` present and manifest-listed (pref
 
 ## Test plan
 
-1. `python tools\zone_report.py "<USRDIR>"` → attach `zone_report.txt` (which zones exist; is the current one among them).
-2. `python tools\gzne_info.py "<USRDIR>" <zone>` for the chosen zone → attach `gzne_info.txt` (cell box, cell size).
-3. Run the bootstrap; the log line `ZoneDetails: zone=… type=2` shows what was sent. Report whether the overlay drops.
-4. If the zone exists and the overlay still holds: the next suspects are tile streaming and bubble readiness
-   (`0x7da88c`, `0x7dafb0`, `0x7dad04`, `0x7e66c8`) — they need runtime data, not more static reading.
+Done: steps 1-3 (zone exists, terrain header read, spawn chosen from tiles stored in the packs, overlay still holds).
+Next:
+
+1. Learn which part of the per-frame check fails. Patch the game in RPCS3 so `IsLoaded` (`0x897db4`) returns true: if the
+   overlay drops, the check is what fails and the four gate bytes are fine; if not, a gate byte is set or something else holds it.
+2. If the check itself fails: tile streaming and bubble readiness (`0x7da88c`, `0x7dafb0`, `0x7dad04`, `0x7e66c8`) and the
+   assets the tile objects need (models and textures named in the `.odd`/`.gcnk`) — these need runtime data, not more static reading.
 
 ## Not yet verified
 
-* That `FabledRealms` is absent from the PS3 content (static reasoning only).
-* The correct spawn position for a PS3 zone (the server still uses the PC value).
+* The height of the ground at the chosen spawn (the server uses a fixed `y` of 400 and lets the player fall).
+* What holds the overlay now (see *Test results so far*): a gate byte, a terrain object that never becomes ready, tile
+  objects that are not local, or the camera position.
 * What the client logs at runtime — the client's log sinks are a ring buffer / file / network, not RPCS3's TTY.

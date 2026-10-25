@@ -117,6 +117,9 @@ response as a trailer that was not there, but that link is a **hypothesis**, not
 
 ## Install-state findings (2026-10-24)
 
+_Notes from the first runs, in the order they were made. Later runs answered several of the open points; see the sections on
+stored files and locale data above._
+
 - **The client stamps downloaded files with the digest's timestamp (tag 8).** `beam_mask.gtf` in the folder the client
   wrote into has mtime 2010-05-12 06:22:46 UTC, exactly the digest value; the untouched GitHub copy has a 2026 mtime.
   On the next run the client skipped the 140 files it had already received and resumed at `en_us_data.dat`.
@@ -137,15 +140,17 @@ response as a trailer that was not there, but that link is a **hypothesis**, not
 - Digest order: indexes 0-143 download first (the other locales `de_de`, `en_gb` are skipped), `en_us_data.dat` is
   index 144, `resources/itemdefinitions.txt` 302, `ui/scriptsbase.bin.sdat` 651, `game.self` 734.
 
-## Hypotheses, not yet tested in the emulator
+## The early hypotheses and how the runs resolved them
 
-- The `.zs` file is `zlib stream (or raw bytes) + 129-byte trailer`, the same shape as the digest.
-- The trailer's first byte (`0x01` in the digest) may identify the codec or signature type.
-- The remaining 128 bytes are not a plain MD5/SHA-1/SHA-2 digest of the digest body and look random.
-  They may be a signature (128 bytes = 1024-bit), which would only be verifiable with the
-  matching public key. Whether the client checks it for assets is unknown.
-- The stored-vs-compressed decision is probably "payload length equals size means raw", but the
-  client may use the trailer byte instead.
+| Hypothesis | Outcome |
+| :-- | :-- |
+| A `.zs` file is a zlib stream (or raw bytes) plus a 129-byte trailer, like the digest | **Confirmed** — accepted by the client (second RPCS3 run onward) |
+| The trailer's first byte selects the payload encoding | **Observed**: `0x01` = zlib, `0x00` = stored; stored files with `0x01` were rejected |
+| The other 128 trailer bytes are a signature the client checks | **Not supported**: zeroed bytes are accepted for assets, and an edited digest with its old trailer is accepted |
+| Stored-versus-compressed is "payload length equals size" | Consistent with every run; the decision is carried by the trailer byte |
+| The client verifies downloaded content | **Yes**: it re-requests a file whose decoded CRC32 differs from the `c=` value (third run) |
+
+Still open: what the 128 trailer bytes mean, and whether any other first-byte values exist.
 
 ## Editing the digest (`bootstrap/digest_edit.py`)
 
@@ -154,21 +159,5 @@ response as a trailer that was not there, but that link is a **hypothesis**, not
 - Header tag 21 equals the sum of all file sizes divided by 1024 (1,750,506 KiB); tag 27 = 748 records; tag 28 = `game.self`.
 - `--match-local` rewrites the size (tag 3), CRC32 (tag 4) and compressed length (tag 2) of records whose local file differs
   from the original build, and recomputes tag 21. Missing files, matching files and LF/CRLF-only differences are untouched.
-  The 129-byte trailer is copied unchanged, so it no longer matches the body; if it is a signature the client verifies, the
-  client will reject the digest (watch for the client not downloading anything, or failing before the first asset request).
-
-## Next experiments
-
-00. `--match-local`: serve a digest describing the files in `--client`. If the client skips `en_us_data.dat` and moves on,
-    the trailer is not verified for the digest. If it still requests `c=2714875455` (the old CRC), it either rejects the
-    edited digest or uses a different copy.
-
-0. `--serve-mismatch`: when no local file has the requested CRC, send the local file of that name anyway, padded to the
-   exact length the client asked for (`codec_candidates.pad_zlib`). Tests whether the client verifies content after the
-   download. Outcomes: client moves on = no content check (then the mismatch only matters to the game, not the
-   installer); client errors or re-requests = it checks CRC or size after decoding.
-
-1. `--codec zs-zlib-zero-trailer`: correct container, zeroed trailer. If the installer gets past
-   error 1004 and fails later with a different error, the trailer content is being checked.
-2. `--codec zs-zlib-digest-trailer`: the same container with the digest's own trailer bytes.
-3. Record the installer error and `ps3_protocol_trace.jsonl` after each run.
+  The 129-byte trailer is copied unchanged, so it no longer matches the body. The client accepted the edited digest (fourth
+  run), so the digest's trailer is not verified.
