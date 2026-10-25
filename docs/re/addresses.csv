@@ -53,3 +53,8 @@ address,query,name,role,expect
 0xc72f8,decomp,Client::ShowLoadingScreen,Starts the manager at client+0xc3c with the size of the screen; sets client+0x148d1,FUN_0014420c
 0xc73b4,decomp,Client::ShowLoadingScreenModal,"Shows the splash, then pumps the network until client+0x14bbd clears or its timeout passes, then hides it",0x14bbd
 0xec3dc,decomp,WaitForWorldReady,"Shows the splash at its start; every exit, including the success path after MarketingData.log, hides it (0xc5ca8)",FUN_000c5ca8
+0xecd68,list,WaitForWorldReady common exit,"Every exit of WaitForWorldReady lands here: r3 = client, then the call of HideLoadingScreen",bl 0x000c5ca8
+0xed91c,list,WaitForWorldReady: HUD:SetIsInStartingZone call,First thing after the two ClientLog lines are queued: the Lua call HUD:SetIsInStartingZone (0xe43ec),bl 0x000e43ec
+0xe43ec,decomp,HUD:SetIsInStartingZone caller,Calls the Lua function HUD:SetIsInStartingZone(flag) of the UI script,HUD:SetIsInStartingZone
+0x72714c,decomp,Lua VM main loop,"Big switch over opcodes; one of two RPCS3 shutdown samples of the main thread (0x727768) lies in it, the other (0x7200fc) in lua_getfield 0x71ff9c",FUN_0072714c
+0xeed40,list,first Cell vector load in fn_000ee7bc,lvlx in the file; Ghidra only decodes it after FrSetup.java rewrites it to lvx,"lvx v13,0,r10"

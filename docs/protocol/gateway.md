@@ -281,7 +281,7 @@ Observed on the stuck run (probe v14, all login packets accepted):
 - After FinishedLoading the client opens every `ui/uimodules/main/wnd*.xml` (the HUD windows) at about 0:40.
 - It then opens `resources/sky/sky_wilds_crossroads24.xml` at 0:42.7 (the default sky; ZoneDetails sends no sky).
 - After that there are no more file opens and no `CELL_ENOENT` for the next 60 seconds, while the main loop keeps
-  running (about 125 network reads a second). So it is not waiting on a missing file in the install.
+  running (about 125 network reads a second; **correction:** those reads belong to the UdpLibrary thread, see [`../re/zone-loading.md`](../re/zone-loading.md)). So it is not waiting on a missing file in the install.
   Terrain and textures come from the `assets_ps3_*.pack` files, which are read through already open handles and
   do not show up as opens.
 

@@ -264,8 +264,8 @@ A second loading mechanism exists: the **modal wait** `Client::ShowLoadingScreen
 function when `client+0x14bbd` is set. It shows the screen, pumps the network (object at `client+0xc44`) and waits until the
 flag clears or `client+0x14bc0` (60 in the setters) runs out. The flag is set by `0xa8a50`, `0xa97ec` and `0xaacb4` (each right
 after sending a request) and cleared by `0xaf584`, the handler of the housing-entry result (`HousingServerNotFound`,
-`HousingPermissionDenied`, ...), and by `0xc98ac` / `0xf18d4`. It looks tied to housing and zone-transfer requests and is probably
-not involved here; this is **not verified**. Note that the loading screen in `MarketingData.log` is `loadingscreen_housing01.gfx`.
+`HousingPermissionDenied`, ...), and by `0xc98ac` / `0xf18d4`. **Ruled out** by the shutdown samples below: its loop sleeps 10 ms
+per round (`0x1e040`), so the main thread would be inside `sys_timer_usleep` at shutdown and would use little CPU; it is neither.
 
 ### Next experiment: end the splash thread by force
 
@@ -277,9 +277,74 @@ thread loop (`0xb641a8`, `bl 0x7ea068`) with `li r3,1`, so every `LoadingScreenT
 | the world appears (or a black/empty world with the player) | the server side is complete enough; only the splash thread's stop path fails (explanations 1-3) |
 | still no world | the splash was hiding something else; the HUD overlay (`SetLoadingWorldAssets`) or the world itself is not ready |
 
+## Where the main thread is (RPCS3 shutdown listing, two real runs)
+
+When RPCS3 is closed it lists every thread that is inside a blocking call (`'sys_...' aborted`) and prints the program counter
+of the others. Two runs that reached `ClientLog`/`FinishedLoading` (`fr_test_20261025_104133` and `fr_manual`) say the same:
+
+| Thread | State at shutdown |
+|---|---|
+| `main_thread` | **not** in any system call; PC `0x727768` in one run (inside the opcode loop `0x72714c`) and `0x007200fc` in the other (inside `lua_getfield`, `0x71ff9c`, the C API that C++ code uses to look up a script function); 114.9 s and 93.5 s of CPU time in a run of 138 s and 119 s |
+| `LoadingScreenThread` (the second one) | in `sys_timer_usleep` at `0x1e06c`, i.e. the splash loop |
+| `UdpLibrary` | in `sys_timer_usleep` at `0x3d600c` |
+| `Deep Engine Renderer`, fios threads, SPURS | waiting on semaphores / condition variables / event queues (idle) |
+
+Both PCs lie in the Lua 5.1 runtime (`0x72714c` is the opcode switch with a computed jump, called from `luaD_call`-like `0x714324` and `0x72a2d4`;
+`0x71ff9c` is `lua_getfield`). So the main thread is **busy in script calls**, not asleep and not waiting for the server. Two samples cannot
+tell a normal per-frame UI update from a loop that never ends; the experiment below separates them. Over the same period the number of
+`sys_rsx_context_attribute` calls grows by about 37 per second, which is the splash thread's 40 Hz loop (`usleep(25 ms)`), and
+`sys_net_bnet_recvfrom` grows by about 180 per second; that is the `UdpLibrary` thread polling its socket (it sleeps between reads), so
+the earlier remark that the main loop "keeps running (about 125 network reads a second)" was wrong: it says nothing about the main thread.
+
+With the splash thread removed (`--stop-loading-thread`, run of 2026-10-25 15:42) the server side was identical, and the screen
+**froze on the player's character** after *Start Game*. So nobody but the splash thread presents frames once the zone change begins, and
+the splash was only hiding a main thread that does not get back to its render loop.
+
+What `WaitForWorldReady` does after its last wait loop (`0xec3dc`, re-read with the repaired disassembly, see below):
+
+```
+"waiting complete" -> ClientZoneTime.log -> MarketingData.log (queued as ClientLog packets, plus FinishedLoading)
+  -> FUN_007ced38(holder, 1)                       a call into the zone holder
+  -> FUN_000e43ec(client, flag)    0xed91c          Lua call HUD:SetIsInStartingZone(flag)   <- runs UI script code
+  -> FUN_00160dcc (only when client[0x517f] == 3)  walks a linked list
+  -> release the temporary strings, return 1
+  -> 0xecd68: Client::HideLoadingScreen            <- the only thing that ends the splash thread
+```
+
+So the two ClientLog lines prove that the wait loops ended, **not** that the function returned. The ordering fits what the server sees:
+the request `141/1` follows the logs 40 ms later (sent by UI script code), and after that the client sends nothing. If the main thread
+never reaches `0xecd68`, `Hide` never runs, the splash thread is never stopped or joined (the log shows exactly one
+`sys_ppu_thread_join`), and the render loop never resumes.
+
+`HUD:SetIsInStartingZone` itself (script function `[40,18]`, read with `tools/luadis.py`) has no loop: it sets two flags, may call
+`SetShowNormalState` (`[40,19]`: `hideMain`, `showMain`, `GameDock:SetMountButtonEnabledState`, `OnShowWelcomeScreen(...)`) and starts a client
+timer. The bundle has 3012 functions; 56 contain a `while`/`repeat` loop (per-frame candidates: the chat-bubble list in `Bub.lua`, the
+HUD indicator update `[40,14]`, the GAQ item list `[57,13]`, ...), none identified yet as the one that spins.
+
+### Next experiment: does the main thread ever reach the exit of WaitForWorldReady?
+
+`tools/run_test.py --fault-at 0xecd68` (or `tools/rpcs3_diag_patch.py --patch fault --address 0xecd68`) replaces the first instruction at
+the common exit with `lwz r0,0(0)`. The thread that reaches it dies, and RPCS3 writes its registers and call stack to `RPCS3.log`
+(`rpcs3_log_filtered.txt` keeps those lines).
+
+| After the patch | Meaning |
+|---|---|
+| a fatal-error entry for `main_thread` at `0x000ecd68` with a call stack | the exit is reached; `Hide` is then called and the splash thread must be stopped by something else failing (explanations 1 and 3 above); the call stack shows the caller |
+| no such entry in a minute | the main thread is stuck between the ClientLog lines and the exit (Lua call, `0x7ced38`, or `0x160dcc`); repeat with `--fault-at 0xed920` (right after the Lua call) to split the tail |
+
+### Repaired disassembly (why some earlier "no caller" results were unreliable)
+
+Ghidra's PowerPC language does not know the Cell-only vector loads `lvlx` / `lvrx`. It stops disassembling at the first one, so every
+function that contains one is cut off there (the decompiler prints `halt_baddata`). The executable has 469 of them (463 `lvlx`, 6 `lvrx`),
+among others in the per-frame function `fn_000ee7bc` (everything from `0xeed40` to `0xef09c` was missing). `tools/re/ghidra/FrSetup.java` now rewrites
+them to the plain AltiVec `lvx` in the Ghidra copy (same registers; each gets an end-of-line comment with the original word; the file on
+disk is unchanged) before the functions are created. All 59 rows of `addresses.csv` were verified again on the rebuilt project, and the call
+graph of the loading screen (callers of `0x7ea164`, `0x182834`, `0x1441b0`, `0xc5ca8`, `0xc72f8`, `0x14420c`) is the same as before.
+
 ## Not yet verified
 
 * The height of the ground at the chosen spawn (the server uses a fixed `y` of 400 and lets the player fall).
 * What holds the overlay now (see *Test results so far*): a gate byte, a terrain object that never becomes ready, tile
   objects that are not local, or the camera position.
 * What the client logs at runtime — the client's log sinks are a ring buffer / file / network, not RPCS3's TTY.
+* Which UI script function (or C++ call) the main thread is busy in after the ClientLog lines (see *Where the main thread is*).

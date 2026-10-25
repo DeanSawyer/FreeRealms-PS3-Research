@@ -101,6 +101,9 @@ def main():
     ap.add_argument("--stop-loading-thread", action="store_true",
                     help="DIAGNOSTIC: run with an RPCS3 patch that ends the native loading-screen thread at once, then remove it "
                          "(tools/rpcs3_diag_patch.py --patch loading-thread, docs/re/zone-loading.md)")
+    ap.add_argument("--fault-at", metavar="ADDR", type=lambda v: int(v, 0),
+                    help="diagnostic: the game thread that reaches this code address (for example 0xecd68) dies there and RPCS3 "
+                         "logs its call stack; the patch is removed again afterwards (tools/rpcs3_diag_patch.py)")
     ap.add_argument("--rpcs3", help="RPCS3 executable (default: RPCS3_TEST\\rpcs3.exe)")
     ap.add_argument("--elf", help="game.elf to start (default: inside RPCS3_TEST)")
     ap.add_argument("--bootstrap-args", default="", help="extra arguments for fr_ps3_bootstrap.py (or the C# server)")
@@ -167,6 +170,9 @@ def main():
         if args.stop_loading_thread:
             log(out_dir, "DIAGNOSTIC: the loading-screen thread ends at once for this run (patch added to %s)" % rpcs3_dir)
             rpcs3_diag_patch.apply(rpcs3_dir, which="loading-thread")
+        if args.fault_at is not None:
+            log(out_dir, "DIAGNOSTIC: the game dies on purpose when it reaches 0x%08x (patch added to %s)" % (args.fault_at, rpcs3_dir))
+            rpcs3_diag_patch.apply(rpcs3_dir, which="fault", address=args.fault_at)
         try:
             subprocess.run([rpcs3, "--no-gui", elf], check=False)
         except OSError as err:
@@ -178,6 +184,9 @@ def main():
             if args.stop_loading_thread:
                 rpcs3_diag_patch.apply(rpcs3_dir, remove=True, which="loading-thread")
                 log(out_dir, "diagnostic patch (loading-thread) removed again")
+            if args.fault_at is not None:
+                rpcs3_diag_patch.apply(rpcs3_dir, remove=True, which="fault", address=args.fault_at)
+                log(out_dir, "diagnostic patch (fault) removed again")
         log(out_dir, "RPCS3 closed")
         time.sleep(2)
 
@@ -198,7 +207,8 @@ def main():
     with open(os.path.join(out_dir, "rpcs3_log_tail.txt"), "w", encoding="utf-8") as f:
         f.write("".join(tail_lines(rpcs3_log, 3000)))
     # RPCS3 lines that show what the client opened (packs, tiles) and every patch line, kept in full.
-    keep = re.compile(r"PAT|patch|assets_ps3|\.gcnk|\.gzne|FabledRealms|\.cob|\.odd|FreeRealms\.log|GameRuntimeTerrain", re.I)
+    keep = re.compile(r"PAT|patch|assets_ps3|\.gcnk|\.gzne|FabledRealms|\.cob|\.odd|FreeRealms\.log|GameRuntimeTerrain"
+                      r"|fatal|terminated|Call stack|Registers|Access violation|main_thread|LoadingScreenThread", re.I)
     with open(os.path.join(out_dir, "rpcs3_log_filtered.txt"), "w", encoding="utf-8") as f:
         f.write("".join([ln for ln in tail_lines(rpcs3_log, 200000) if keep.search(ln)][-1500:]))
     # The patch files and RPCS3 settings (text only), so the diagnostic patch can use the exact same format.

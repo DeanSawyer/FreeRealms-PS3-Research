@@ -13,6 +13,10 @@ It separates the two remaining explanations:
     python tools/rpcs3_diag_patch.py --rpcs3 "C:\\Path\\To\\RPCS3_TEST"            # add and enable
     python tools/rpcs3_diag_patch.py --rpcs3 "C:\\Path\\To\\RPCS3_TEST" --remove   # take it out again
 
+A third kind, `--patch fault --address 0x...`, replaces one instruction with `lwz r0,0(0)` (a read from address 0), so the thread that
+executes it dies at once and RPCS3 writes its registers and call stack to the log. It answers one question per run: is this
+address ever reached? (docs/re/zone-loading.md, "Where the main thread is")
+
 A second patch, `--patch loading-thread`, makes the native LoadingScreenThread (the LOADSCREEN.DDS splash that WaitForWorldReady
 shows and hides) end at once: the call to its stop check inside the thread loop (0xb641a8, `bl 0x7ea068`) becomes `li r3,1`.
 It shows what is behind the splash: if the world appears, the splash is the only thing left (docs/re/zone-loading.md).
@@ -89,10 +93,38 @@ THREAD_CONFIG_ENTRY = f'''  {THREAD_NAME}:
           Enabled: true
 '''
 
+FAULT_WORD = 0x80000000   # lwz r0,0(0): a load from address 0, which is not mapped on the PS3
+
+
+def fault_patch(address):
+    """(name, patch.yml entry, patch_config.yml entry) of the "fault at <address>" diagnostic."""
+    if address is None or address < 0x10000 or address % 4:
+        raise ValueError("--address must be a 4-byte aligned code address (0x10000 or higher)")
+    name = "Free Realms diagnostic fault at 0x%08x" % address
+    entry = f'''  "{name}":
+    Games:
+      All:
+        All: [ All ]
+    Author: "FreeRealms-PS3-Research"
+    Patch Version: 1.0
+    Notes: "Diagnostic: the instruction at 0x{address:08x} becomes lwz r0,0(0), so the thread dies there and RPCS3 logs its call stack."
+    Patch:
+      - [ be32, 0x{address:08x}, 0x{FAULT_WORD:08x} ]
+'''
+    config = f'''  {name}:
+    All:
+      All:
+        All:
+          Enabled: true
+'''
+    return name, entry, config
+
+
 # patch choice -> (name, patch.yml entry, patch_config.yml entry, older entry versions to drop)
 PATCHES = {
     "overlay": (NAME, PATCH_ENTRY, CONFIG_ENTRY, OLD_PATCH_ENTRY, OLD_CONFIG_ENTRY),
     "loading-thread": (THREAD_NAME, THREAD_PATCH_ENTRY, THREAD_CONFIG_ENTRY, None, None),
+    "fault": None,   # built from --address by fault_patch()
 }
 
 BACKUP_SUFFIX = ".before-isloaded"
@@ -148,9 +180,13 @@ def edit(path, entry, remove, name, old_entry=None):
     return True
 
 
-def apply(rpcs3_dir, remove=False, which="overlay"):
-    """Add (or remove) a patch ("overlay" or "loading-thread") in the portable RPCS3 folder `rpcs3_dir`. True when both files were handled."""
-    name, patch_entry, config_entry, old_patch, old_config = PATCHES[which]
+def apply(rpcs3_dir, remove=False, which="overlay", address=None):
+    """Add (or remove) a patch ("overlay", "loading-thread" or "fault" at `address`) in the portable RPCS3 folder `rpcs3_dir`. True when both files were handled."""
+    if which == "fault":
+        name, patch_entry, config_entry = fault_patch(address)
+        old_patch = old_config = None
+    else:
+        name, patch_entry, config_entry, old_patch, old_config = PATCHES[which]
     rpcs3_dir = Path(rpcs3_dir)
     patches = rpcs3_dir / "patches" / "patch.yml"
     config = rpcs3_dir / "config" / "patch_config.yml"
@@ -163,13 +199,20 @@ def main():
     parser.add_argument("--rpcs3", required=True, type=Path, help="the portable RPCS3 folder (it holds patches\\ and config\\)")
     parser.add_argument("--remove", action="store_true", help="remove the diagnostic patch again")
     parser.add_argument("--patch", choices=sorted(PATCHES), default="overlay",
-                        help="overlay (default): the overlay check sees 'loaded'; loading-thread: the splash thread ends at once")
+                        help="overlay (default): the overlay check sees 'loaded'; loading-thread: the splash thread ends at once; "
+                             "fault: the thread that reaches --address dies there (its call stack goes to the log)")
+    parser.add_argument("--address", type=lambda v: int(v, 0), help="code address for --patch fault, for example 0xecd68")
     args = parser.parse_args()
-    if not apply(args.rpcs3, args.remove, args.patch):
+    try:
+        done = apply(args.rpcs3, args.remove, args.patch, args.address)
+    except ValueError as err:
+        parser.error(str(err))
+    if not done:
         return 1
     if not args.remove:
+        name = fault_patch(args.address)[0] if args.patch == "fault" else PATCHES[args.patch][0]
         print("Start the game from this RPCS3. The first start may take longer: RPCS3 recompiles the patched executable.")
-        print("RPCS3.log should show: PAT: Applied patch (... description='%s' ...)" % PATCHES[args.patch][0])
+        print("RPCS3.log should show: PAT: Applied patch (... description='%s' ...)" % name)
     return 0
 
 
