@@ -11,9 +11,9 @@ namespace Sanctuary.Ps3.Server;
 /// Console lines like the Python script's <c>%(asctime)s %(levelname)s %(message)s</c>: <c>2026-10-25 14:15:40,829 INFO text</c>. The test
 /// scripts search the log for words such as <c>WARNING</c> and <c>Traceback</c>, so the level names are the Python ones.
 /// </summary>
-public sealed class PythonStyleFormatter() : ConsoleFormatter(Name)
+public sealed class PythonStyleFormatter() : ConsoleFormatter(FormatterName)
 {
-    public const string Name = "python";
+    public const string FormatterName = "python";
 
     public override void Write<TState>(in LogEntry<TState> logEntry, IExternalScopeProvider? scopeProvider, TextWriter textWriter)
     {

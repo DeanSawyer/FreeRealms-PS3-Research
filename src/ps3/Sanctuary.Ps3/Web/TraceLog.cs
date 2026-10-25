@@ -2,11 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
 using Microsoft.Extensions.Logging;
+
+using Sanctuary.Ps3.Gateway;
 
 namespace Sanctuary.Ps3.Web;
 
@@ -113,9 +116,27 @@ public sealed class TraceLog
             var text = new StringBuilder();
 
             foreach (var (key, value) in fields)
-                text.Append(' ').Append(key).Append('=').Append(Convert.ToString(value, CultureInfo.InvariantCulture));
+                text.Append(' ').Append(key).Append('=').Append(Display(value));
 
             _logger.LogInformation("TRACE {Event}{Fields}", name, text.ToString());
+        }
+    }
+
+    /// <summary>A value the way the Python server's log line shows it: <c>None</c>, <c>True</c>, and lists as <c>['a', 'b']</c>.</summary>
+    private static string Display(object? value)
+    {
+        switch (value)
+        {
+            case null:
+                return "None";
+            case bool flag:
+                return flag ? "True" : "False";
+            case string text:
+                return text;
+            case IEnumerable<string> items:
+                return "[" + string.Join(", ", items.Select(Ps3Packets.PythonRepr)) + "]";
+            default:
+                return Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
         }
     }
 }

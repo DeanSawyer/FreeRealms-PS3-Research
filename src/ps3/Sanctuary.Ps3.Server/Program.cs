@@ -49,7 +49,7 @@ try
         {
             logging.SetMinimumLevel(LogLevel.Information);
             logging.AddFilter("Microsoft", LogLevel.Warning);
-            logging.AddConsole(options => options.FormatterName = PythonStyleFormatter.Name);
+            logging.AddConsole(options => options.FormatterName = PythonStyleFormatter.FormatterName);
             logging.AddConsoleFormatter<PythonStyleFormatter, ConsoleFormatterOptions>();
         });
 }
