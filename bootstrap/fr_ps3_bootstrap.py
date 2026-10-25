@@ -22,6 +22,8 @@ import lzma
 import zlib
 from urllib.parse import parse_qs
 
+import codec_candidates
+
 
 LOG = logging.getLogger("homecoming")
 DIGEST_ROUTE = "/patch/freerealms/ps3scelive/ps3-web/FreeRealms.soe"
@@ -149,7 +151,8 @@ def trace_event(event, **fields):
     LOG.info("TRACE %s %s", event, " ".join(f"{key}={value}" for key, value in fields.items()))
 
 
-def make_handler(ip, digest, server_list_variant, client_root):
+def make_handler(ip, digest, server_list_variant, client_root,
+                 codec=codec_candidates.DEFAULT_CODEC):
     config = app_config(ip)
     asset_root = (client_root / "USRDIR").resolve()
     patch_prefix = "/patch/freerealms/ps3scelive/ps3-web/"
@@ -222,17 +225,18 @@ def make_handler(ip, digest, server_list_variant, client_root):
                              "text/plain", close=True)
                 return True
 
-            encoded = lzma.compress(raw, format=lzma.FORMAT_ALONE, preset=6)
-            # A meaningful checksum/roundtrip test, NOT a declaration of PS3 compatibility.
-            assert lzma.decompress(encoded, format=lzma.FORMAT_ALONE) == raw
+            encoded = codec_candidates.encode(codec, raw)
+            if codec == "lzma-alone":
+                # A meaningful checksum/roundtrip test, NOT a declaration of PS3 compatibility.
+                assert lzma.decompress(encoded, format=lzma.FORMAT_ALONE) == raw
             query = parse_qs(urlsplit(self.path).query)
             manifest_length = int(query["l"][0]) if query.get("l", [""])[0].isdigit() else None
             trace_event("lzma_terrain_response", route=route, source=str(source),
-                        decoded_bytes=len(raw), decoded_crc32=hex(crc),
+                        codec=codec, decoded_bytes=len(raw), decoded_crc32=hex(crc),
                         lzma_bytes=len(encoded), manifest_compressed_bytes=manifest_length,
                         matches_manifest_length=(len(encoded) == manifest_length))
-            LOG.warning("EXPERIMENTAL LZMA: %s encoded=%d bytes, manifest=%s bytes. "
-                        "No PS3 codec compatibility is claimed.", source, len(encoded), manifest_length)
+            LOG.warning("EXPERIMENTAL %s: %s encoded=%d bytes, manifest=%s bytes. "
+                        "No PS3 codec compatibility is claimed.", codec, source, len(encoded), manifest_length)
             self.respond(200, encoded, "application/octet-stream", close=True)
             return True
 
@@ -339,6 +343,10 @@ def main():
     parser.add_argument("--client", type=Path, required=True, help="NPUA30048 directory")
     parser.add_argument("--server-list-variant", choices=("baseline", "zone"), default="baseline",
                         help="Choose the original XML or experimental Zone response")
+    parser.add_argument("--codec", default=codec_candidates.DEFAULT_CODEC,
+                        choices=codec_candidates.codec_names(), metavar="NAME",
+                        help="Experimental encoding for the terrain asset (hypothesis only; "
+                             "see tools/codec_sizes.py for names). Default keeps the preserved baseline.")
     parser.add_argument("--advertise", default="127.0.0.1", help="IPv4 address PS3 clients connect to (default: 127.0.0.1)")
     parser.add_argument("--upstream", default="1.1.1.1", help="DNS forwarder for unrelated hosts")
     parser.add_argument("--no-dns", action="store_true", help="Use existing Acrylic DNS")
@@ -370,7 +378,8 @@ def main():
             threading.Thread(target=dns.serve_forever, daemon=True).start()
             LOG.info("DNS listening on %s:53; hosts -> %s; upstream=%s",
                      args.bind, address, args.upstream)
-        with ThreadingHTTPServer((args.bind, args.port), make_handler(str(address), digest, args.server_list_variant, args.client)) as http:
+        with ThreadingHTTPServer((args.bind, args.port), make_handler(str(address), digest, args.server_list_variant, args.client,
+                                                  args.codec)) as http:
             LOG.info("Server-list response variant: %s (experimental Zone field: %s)",
                      args.server_list_variant, args.server_list_variant == "zone")
             LOG.info("HTTP listening on %s:%d; AppConfig=%d bytes; digest=%d bytes",

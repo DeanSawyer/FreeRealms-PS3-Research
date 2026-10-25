@@ -27,6 +27,17 @@ python .\bootstrap\fr_ps3_bootstrap.py --client "C:\Path\To\NPUA30048" --bind 0.
 
 If another DNS service already handles name resolution, pass `--no-dns`.
 
+## Codec experiments
+
+`--codec NAME` changes how the single terrain asset is encoded (default `lzma-alone`, the preserved baseline). Names come from `codec_candidates.py` and are hypotheses only. Before spending an RPCS3 run on one, compare sizes offline:
+
+```powershell
+python .\tools\codec_sizes.py "C:\Path\To\terraincalendardefinitions.txt"
+python .\tools\analyze_digest.py "C:\Path\To\NPUA30048\USRDIR\Digests\NPUA30048.soe"
+```
+
+`codec_sizes.py` shows which candidate reproduces the manifest's 373-byte length. `analyze_digest.py` locates the asset's record in the digest and dumps its bytes so the record layout can be read directly.
+
 ## Limitations and safety
 
 - The current experimental terrain asset response uses LZMA. Its format is **not verified compatible** with the PS3 client's decoder; an observed test resulted in installer error **1004**.
