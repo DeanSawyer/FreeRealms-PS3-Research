@@ -69,4 +69,7 @@ reported with `Status` 2 (`--account-status 2`, the default); `Status` 1 needs a
 - What `Status` values other than 1 mean for `checkName` (the client has separate messages for taken,
   profane, invalid and wrong-length names).
 - The meaning and format of `GatewayAddress`/`GatewayTicket`/`Key`. After `character/login` the client
-  connects to the game gateway, and no gateway server exists in this project.
+  starts the SOE UdpLibrary against the gateway. `bootstrap/gateway_probe.py` listens there and logs the
+  client's packets, but no game server exists in this project. The reply currently carries
+  `GatewayAddress="<advertise address>:<--gateway-port>"`; whether the client expects `host:port` is unconfirmed
+  until a packet arrives.

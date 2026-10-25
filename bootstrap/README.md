@@ -74,3 +74,13 @@ The `/ps3ws/*.action` replies are built from the formats recovered from the decr
 `docs/ps3ws-replies.md`. The key facts: values are XML attributes (`--xml-style elements` is the fallback), and `Status` must
 be `1` for the client to treat a reply as successful. By default `account/info` reports an empty account so the client goes to character creation;
 `--existing-character` reports one sample character instead.
+
+## Game-server probe (UDP)
+
+After `character/login` the client starts the SOE UdpLibrary against `GatewayAddress`. The server now listens on that
+address (`--gateway-port`, default `20260`; `0` turns it off) with `gateway_probe.py`. The probe completes the UdpLibrary
+handshake with no CRC and no encryption, acknowledges reliable packets, and logs every packet as hex. It never sends game
+data, so the game still cannot enter the world; its job is to show what the PS3 client sends (protocol name and version,
+first reliable payload). It also writes `ps3_gateway_trace.jsonl` next to the script (ignored by Git).
+
+Packet layouts follow the UdpLibrary port in the Clover server (`Sanctuary.UdpLibrary`, AGPL-3.0).

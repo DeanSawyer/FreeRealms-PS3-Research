@@ -24,6 +24,7 @@ from urllib.parse import parse_qs
 
 import codec_candidates
 import digest_edit
+import gateway_probe
 
 
 LOG = logging.getLogger("homecoming")
@@ -60,7 +61,8 @@ def element(tag, fields=None, children=(), style="attributes"):
     return f"<{tag}>{inner}{kids}</{tag}>"
 
 
-def build_replies(style="attributes", account_status=2, existing_character=False, zone=False):
+def build_replies(style="attributes", account_status=2, existing_character=False, zone=False,
+                  gateway="127.0.0.1:20260"):
     """Return {kind: bytes} for every ps3ws reply the stub answers."""
     def reply(root, fields=None, children=(), status=1, message="Success"):
         head = {"Status": status, "StatusMessage": message, **(fields or {})}
@@ -87,8 +89,8 @@ def build_replies(style="attributes", account_status=2, existing_character=False
         "account_info": account_reply,
         "check_name": reply("CheckNameReply", children=[el("Suggestions")]),
         "character_create": reply("CharacterCreateReply", {"Guid": 1}),
-        # Placeholder gateway: no game server exists yet, so the client fails after this.
-        "character_login": reply("CharacterLoginReply", {"GatewayAddress": "127.0.0.1:20260",
+        # The client connects to GatewayAddress over UDP (see gateway_probe.py); nothing serves game data yet.
+        "character_login": reply("CharacterLoginReply", {"GatewayAddress": gateway,
                                                          "GatewayTicket": "0", "Key": "0"}),
         "character_delete": reply("CharacterDeleteReply"),
         "friends_list": reply("CharacterFriendsReply", children=[el("Friends")]),
@@ -198,10 +200,11 @@ def trace_event(event, **fields):
 
 def make_handler(ip, digest, server_list_variant, client_root,
                  codec=codec_candidates.DEFAULT_CODEC, extra_clients=(), serve_mismatch=False,
-                 existing_character=False, account_status=2, xml_style="attributes"):
+                 existing_character=False, account_status=2, xml_style="attributes",
+                 gateway="127.0.0.1:20260"):
     config = app_config(ip)
     replies = build_replies(xml_style, account_status, existing_character,
-                            zone=(server_list_variant == "zone"))
+                            zone=(server_list_variant == "zone"), gateway=gateway)
     asset_root = (client_root / "USRDIR").resolve()
     # Extra game folders searched (in order) for a file whose CRC32 matches.
     asset_roots = [asset_root] + [(Path(p) / "USRDIR").resolve() for p in extra_clients]
@@ -519,6 +522,9 @@ def main():
                         help="Status for an account with no characters. 2 (default) = the client's 'No "
                              "existing character found' result; 1 = success with an empty list, which "
                              "crashes the client (null character pointer, see docs/ps3ws-replies.md)")
+    parser.add_argument("--gateway-port", type=int, default=20260, metavar="PORT",
+                        help="UDP port of the game-server probe that CharacterLoginReply points the client "
+                             "at (0 disables the probe)")
     parser.add_argument("--xml-style", choices=("attributes", "elements"), default="attributes",
                         help="How simple values are written in ps3ws replies. The client reads "
                              "attributes (default); 'elements' is the earlier child-element form")
@@ -605,7 +611,10 @@ def main():
                                                   args.codec, args.extra_client,
                                                   args.serve_mismatch,
                                                   args.existing_character,
-                                                  args.account_status, args.xml_style)) as http:
+                                                  args.account_status, args.xml_style,
+                                                  f"{address}:{args.gateway_port}")) as http:
+            if args.gateway_port:
+                gateway_probe.GatewayProbe(args.bind, args.gateway_port).start()
             LOG.info("ps3ws replies: xml-style=%s, empty account -> Status %d%s", args.xml_style,
                      args.account_status, " (existing-character sample)" if args.existing_character else "")
             LOG.info("Server-list response variant: %s (experimental Zone field: %s)",
