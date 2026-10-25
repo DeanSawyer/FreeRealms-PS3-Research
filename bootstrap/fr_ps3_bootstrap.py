@@ -36,12 +36,21 @@ HOSTS = {
     "ps3.freerealms.com",
     "fr.patch.station.sony.com",  # clientconfig.ini [AssetDelivery]
 }
-SERVER_LIST = (
-    b'<?xml version="1.0" encoding="utf-8"?>\r\n'
-    b'<ServerListReply><Status>0</Status><StatusMessage>Success</StatusMessage>'
-    b'<Servers><Server><Name>NorthForge</Name><Online>1</Online><Locked>0</Locked>'
-    b'</Server></Servers></ServerListReply>\r\n'
-)
+# Reply formats, recovered from the decrypted client (game.elf) -- see docs/ps3ws-replies.md.
+# Every ps3ws reply is XML read by TinyXML. The client treats a reply as successful only when
+# <Status> is exactly 1; any other value takes its failure path (a localized error dialog).
+XML_DECL = b'<?xml version="1.0" encoding="utf-8"?>\r\n'
+
+
+def ps3ws_reply(root, body=b"", status=1, message=b"Success"):
+    return (XML_DECL + b"<" + root + b"><Status>" + str(status).encode() + b"</Status>"
+            b"<StatusMessage>" + message + b"</StatusMessage>" + body + b"</" + root + b">\r\n")
+
+
+# Server entries: Name (text), Online (0/1, default 0), Locked (0/1, default 1 when missing).
+SERVER_LIST = ps3ws_reply(
+    b"ServerListReply",
+    b"<Servers><Server><Name>NorthForge</Name><Online>1</Online><Locked>0</Locked></Server></Servers>")
 # Experimental variant: one extra Zone field. The value and placement are
 # deliberately hypotheses; neither has been verified against the PS3 parser.
 SERVER_LIST_ZONE = SERVER_LIST.replace(
@@ -49,20 +58,34 @@ SERVER_LIST_ZONE = SERVER_LIST.replace(
     b'<Name>NorthForge</Name><Zone>1</Zone>', 1
 )
 
-ACCOUNT_INFO = (
-    b'<?xml version="1.0" encoding="utf-8"?>\r\n'
-    b'<AccountInfoReply><Status>0</Status><StatusMessage>Success</StatusMessage>'
-    b'<Account><Member>0</Member><MaxCharacters>3</MaxCharacters><Admin>0</Admin></Account>'
-    b'<Characters><Character><HeadshotUrl></HeadshotUrl><Details><Guid>1</Guid>'
-    b'<Name>NorthForge</Name></Details><Model>0</Model><Head></Head><Hair></Hair>'
-    b'<ModelCustomization></ModelCustomization><FacePaint></FacePaint>'
-    b'<SkinTone></SkinTone><EyeColor>0</EyeColor><HairColor>0</HairColor>'
-    b'<Attachments></Attachments></Character></Characters></AccountInfoReply>\r\n'
-)
-GENERIC_REPLY = (
-    b'<?xml version="1.0" encoding="utf-8"?>\r\n'
-    b'<Response><Status>0</Status><StatusMessage>Success</StatusMessage></Response>\r\n'
-)
+# Account: Member, MaxCharacters, Admin (integers). No <Character> entries makes the client report
+# "No existing character found on the server" and go to character creation.
+ACCOUNT_BODY = b"<Account><Member>1</Member><MaxCharacters>3</MaxCharacters><Admin>0</Admin></Account>"
+ACCOUNT_INFO = ps3ws_reply(b"AccountInfoReply", ACCOUNT_BODY + b"<Characters></Characters>")
+# Sample existing character (--existing-character); the field layout of <Character> is still a guess.
+ACCOUNT_INFO_WITH_CHARACTER = ps3ws_reply(
+    b"AccountInfoReply",
+    ACCOUNT_BODY + b"<Characters><Character><HeadshotUrl></HeadshotUrl><Details><Guid>1</Guid>"
+    b"<Name>NorthForge</Name></Details><Model>0</Model><Head></Head><Hair></Hair>"
+    b"<ModelCustomization></ModelCustomization><FacePaint></FacePaint>"
+    b"<SkinTone></SkinTone><EyeColor>0</EyeColor><HairColor>0</HairColor>"
+    b"<Attachments></Attachments></Character></Characters>")
+CHECK_NAME = ps3ws_reply(b"CheckNameReply", b"<Suggestions></Suggestions>")
+CHARACTER_CREATE = ps3ws_reply(b"CharacterCreateReply", b"<Guid>1</Guid>")
+# Placeholder gateway: no game server exists yet, so the client fails after this.
+CHARACTER_LOGIN = ps3ws_reply(
+    b"CharacterLoginReply",
+    b"<GatewayAddress>127.0.0.1:20260</GatewayAddress><GatewayTicket>0</GatewayTicket><Key>0</Key>")
+CHARACTER_DELETE = ps3ws_reply(b"CharacterDeleteReply")
+CHARACTER_FRIENDS = ps3ws_reply(b"CharacterFriendsReply", b"<Friends></Friends>")
+GENERIC_REPLY = ps3ws_reply(b"Response")
+REPLIES = {
+    "/ps3ws/character/checkName.action": ("check_name", CHECK_NAME),
+    "/ps3ws/character/create.action": ("character_create", CHARACTER_CREATE),
+    "/ps3ws/character/login.action": ("character_login", CHARACTER_LOGIN),
+    "/ps3ws/character/delete.action": ("character_delete", CHARACTER_DELETE),
+    "/ps3ws/character/friendsList.action": ("friends_list", CHARACTER_FRIENDS),
+}
 
 
 def app_config(ip):
@@ -155,7 +178,8 @@ def trace_event(event, **fields):
 
 
 def make_handler(ip, digest, server_list_variant, client_root,
-                 codec=codec_candidates.DEFAULT_CODEC, extra_clients=(), serve_mismatch=False):
+                 codec=codec_candidates.DEFAULT_CODEC, extra_clients=(), serve_mismatch=False,
+                 existing_character=False):
     config = app_config(ip)
     asset_root = (client_root / "USRDIR").resolve()
     # Extra game folders searched (in order) for a file whose CRC32 matches.
@@ -442,18 +466,22 @@ def make_handler(ip, digest, server_list_variant, client_root,
             LOG.info("POST %s host=%s body_bytes=%d", self.path,
                      self.headers.get("Host", ""), length)
             if route == "/ps3ws/game/serverList.action":
-                reply = SERVER_LIST_ZONE if server_list_variant == "zone" else SERVER_LIST
+                reply, kind = (SERVER_LIST_ZONE if server_list_variant == "zone" else SERVER_LIST), "server_list"
             elif route == "/ps3ws/account/info.action":
-                reply = ACCOUNT_INFO
+                reply, kind = (ACCOUNT_INFO_WITH_CHARACTER if existing_character else ACCOUNT_INFO), "account_info"
+            elif route in REPLIES:
+                kind, reply = REPLIES[route]
             elif route.startswith("/ps3ws/"):
-                reply = GENERIC_REPLY
+                reply, kind = GENERIC_REPLY, "generic"
             else:
                 self.respond(501, b"Not implemented\r\n", "text/plain", close=True)
                 return
-            trace_event("ps3_reply", route=route, http_status=200,
-                        body_bytes=len(reply), reply_kind=("server_list" if route.endswith("serverList.action")
-                        else "account_info" if route.endswith("info.action") else "generic"),
-                        server_list_variant=(server_list_variant if route.endswith("serverList.action") else None))
+            # Field names only; values (session, account, character data) are never logged.
+            fields = sorted(parse_qs(body.decode("latin-1"), keep_blank_values=True))
+            trace_event("ps3_reply", route=route, http_status=200, body_bytes=len(reply),
+                        reply_kind=kind, request_fields=fields,
+                        server_list_variant=(server_list_variant if kind == "server_list" else None))
+            LOG.info("%s request fields: %s", kind, ", ".join(fields) or "(none)")
             self.respond(200, reply, "text/xml; charset=utf-8", close=True)
             LOG.info("200 test reply for %s (%d bytes)", route, len(reply))
 
@@ -465,6 +493,9 @@ def main():
     parser.add_argument("--client", type=Path, required=True, help="NPUA30048 directory")
     parser.add_argument("--server-list-variant", choices=("baseline", "zone"), default="baseline",
                         help="Choose the original XML or experimental Zone response")
+    parser.add_argument("--existing-character", action="store_true",
+                        help="Report one sample character on the account (character select) "
+                             "instead of an empty account (character creator, the default)")
     parser.add_argument("--extra-client", type=Path, action="append", default=[], metavar="DIR",
                         help="Additional NPUA30048 folder to search for a file whose CRC32 matches "
                              "what the client requests (repeatable). Only used with --codec zs-*.")
@@ -546,7 +577,8 @@ def main():
                      args.bind, address, args.upstream)
         with ThreadingHTTPServer((args.bind, args.port), make_handler(str(address), digest, args.server_list_variant, args.client,
                                                   args.codec, args.extra_client,
-                                                  args.serve_mismatch)) as http:
+                                                  args.serve_mismatch,
+                                                  args.existing_character)) as http:
             LOG.info("Server-list response variant: %s (experimental Zone field: %s)",
                      args.server_list_variant, args.server_list_variant == "zone")
             LOG.info("HTTP listening on %s:%d; AppConfig=%d bytes; digest=%d bytes",

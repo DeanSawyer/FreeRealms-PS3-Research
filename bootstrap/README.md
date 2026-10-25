@@ -67,3 +67,10 @@ if the client does not verify the digest's trailer.
 - This test server has no authentication or production hardening. Do not expose ports 53 or 80 to the public internet.
 - The script writes `ps3_protocol_trace.jsonl` next to itself. This file is ignored by Git and may contain local addresses or file paths.
 - Keep the known-working experiment separate from this published, local-default variant until behavior has been revalidated.
+
+## Web-service replies
+
+The `/ps3ws/*.action` replies are built from the formats recovered from the decrypted client; see
+`docs/ps3ws-replies.md`. The key fact: `<Status>` must be `1` for the client to treat a reply as
+successful. By default `account/info` reports an empty account so the client goes to character creation;
+`--existing-character` reports one sample character instead.
