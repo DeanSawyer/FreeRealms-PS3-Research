@@ -472,6 +472,10 @@ def main():
                         help="EXPERIMENT: when no local file matches the client's CRC32, send the "
                              "local file of that name anyway (padded to the expected length) "
                              "instead of replying 409. Only used with --codec zs-*.")
+    parser.add_argument("--digest", type=Path, default=None, metavar="FILE",
+                        help="Original digest to serve (default: USRDIR/Digests/NPUA30048.soe inside "
+                             "--client). The client overwrites that file with whatever digest it last "
+                             "received, so keep a copy of the original 21466-byte file and pass it here.")
     parser.add_argument("--match-local", action="store_true",
                         help="EXPERIMENT: serve a digest whose size/CRC/length entries describe the "
                              "files actually in --client, for files that differ from the original "
@@ -492,10 +496,16 @@ def main():
         ipaddress.IPv4Address(args.upstream)
     except ipaddress.AddressValueError as exc:
         parser.error(str(exc))
-    path = args.client / "USRDIR" / "Digests" / "NPUA30048.soe"
+    path = args.digest or (args.client / "USRDIR" / "Digests" / "NPUA30048.soe")
     digest = path.read_bytes()
+    try:
+        digest_edit.split_digest(digest)
+    except zlib.error as exc:
+        parser.error(f"{path} is not a valid digest ({exc})")
     if len(digest) != 21466:
-        parser.error(f"Expected original 21466-byte digest; got {len(digest)} at {path}")
+        print(f"WARNING: {path} is {len(digest)} bytes, not the original 21466 (the client replaces it "
+              f"with the digest it last downloaded). Continuing; pass --digest with the original file "
+              f"if you have one.", flush=True)
 
     # The digest is a zlib stream followed by a 129-byte trailer; keep the
     # trailer for the --codec zs-zlib-digest-trailer experiment.
