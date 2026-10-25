@@ -135,6 +135,14 @@ With the fragmented player data and the world-ready packets, a run went: Login, 
 list and matchmaking queues. So the client believes it is in the world. Not answered yet: 102/1, 141/1 and everything
 that makes the character appear. After three minutes of silence the client sent Terminate.
 
+## The connection times out after three minutes of silence
+
+In the run above the client sent `Terminate` with reason 2 (UdpLibrary's timeout: it heard nothing from us) exactly three
+minutes after our last packet, then exited; RPCS3 then reported an unhandled Win32 exception (`0xC0000005`, on a host
+thread, not a PPU thread) while tearing the game down, which looks like an emulator exit crash rather than a game
+bug. The probe now sends a KeepAlive packet (`00 06`) every five seconds to every connected peer, and logs the
+reason of any Terminate it receives (6 = the client closed it itself).
+
 ## The loading step: WaitForWorldReady
 
 The client has a loading step that logs (format string at `0xdec970`): `WaitForWorldReady Status:

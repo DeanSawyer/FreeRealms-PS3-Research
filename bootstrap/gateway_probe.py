@@ -44,6 +44,7 @@ PACKET_NAMES = {
 }
 MAX_LOGGED_BYTES = 160
 READY_FALLBACK_SECONDS = 20
+KEEPALIVE_SECONDS = 5
 
 
 def _trace(event, **fields):
@@ -102,6 +103,10 @@ def _int(value, default=0):
     except ValueError:
         return default
 
+
+TERMINATE_REASONS = {0: "none", 1: "ICMP error", 2: "timeout (heard nothing)", 3: "other side terminated",
+                     4: "manager deleted", 5: "connect failed", 6: "application closed it",
+                     8: "unacknowledged timeout", 15: "corrupt packet", 16: "protocol mismatch"}
 
 INNER_NAMES = {10: "FinishedLoading", 13: "ClientIsReady", 88: "SetLocale", 109: "ClientLog",
                169: "ClientInitializationDetails"}
@@ -279,7 +284,10 @@ class GatewayProbe:
                 self.handle(data[pos:pos + length], addr, depth + 1)
                 pos += length
         elif kind == 5:
-            LOG.info("gateway Terminate from %s: %s", addr, data[2:].hex())
+            self.sessions.pop(addr, None)                # stop keeping this peer alive
+            reason = struct.unpack(">H", data[6:8])[0] if len(data) >= 8 else -1
+            LOG.info("gateway Terminate from %s: %s (reason %d: %s)", addr, data[2:].hex(), reason,
+                     TERMINATE_REASONS.get(reason, "?"))
             _trace("terminate", peer=addr[0], hex=data.hex())
         elif kind in (6, 28):
             pass                                          # KeepAlive / PortAlive
@@ -326,9 +334,19 @@ class GatewayProbe:
             self.send_reliable(addr, packet, channel)
 
     def resend_loop(self):
+        last_keepalive = time.monotonic()
         while True:
             time.sleep(0.5)
             now = time.monotonic()
+            if now - last_keepalive >= KEEPALIVE_SECONDS:
+                # The client's UdpLibrary closes the connection (Terminate, reason 2 = timeout) when it hears
+                # nothing for three minutes; a real server keeps talking. A KeepAlive packet is just 00 06.
+                last_keepalive = now
+                for peer in list(self.sessions):
+                    try:
+                        self.sock.sendto(b"\x00\x06", peer)
+                    except OSError:
+                        return
             for key, item in list(self.pending.items()):
                 if now - item[1] >= 1.0:
                     if item[2] >= 8:
