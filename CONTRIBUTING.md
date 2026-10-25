@@ -40,6 +40,10 @@ Open an [issue](https://github.com/DeanSawyer/FreeRealms-PS3-Research/issues/new
 
 * Commit messages: a short imperative summary line, then a paragraph on what changed and why.
 
+## License of contributions
+
+By submitting a change you agree that it is licensed under the repository's license, **AGPL-3.0-or-later** (see [`LICENSE`](LICENSE)).
+
 ## What we will not accept
 
 Game content or keys of any kind, code copied from a source with an incompatible licence, and claims about the client that

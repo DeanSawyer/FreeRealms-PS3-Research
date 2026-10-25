@@ -10,6 +10,8 @@ A local test server, documented protocols, and tools to study the client — not
 ![Title ID](https://img.shields.io/badge/title%20ID-NPUA30048%20(build%201.77)-374151?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776ab?style=flat-square)
 ![Focus](https://img.shields.io/badge/focus-digital%20preservation-16803c?style=flat-square)
+![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue?style=flat-square)
+[![Checks](https://github.com/DeanSawyer/FreeRealms-PS3-Research/actions/workflows/checks.yml/badge.svg)](https://github.com/DeanSawyer/FreeRealms-PS3-Research/actions/workflows/checks.yml)
 
 [Status](#current-status) · [How it works](#how-it-fits-together) · [Quick start](#quick-start) · [Layout](#repository-layout) · [Documentation](#documentation) · [Roadmap](#roadmap) · [Contributing](#contributing)
 
@@ -141,9 +143,11 @@ finding, what to include, and what must never be committed. Security notes for t
 
 ## License
 
-No license has been chosen yet, so all rights are reserved by the author for now. Two helpers
-([`tools/undat.py`](tools/undat.py), [`tools/sdat_patch_loading.py`](tools/sdat_patch_loading.py)) are derived from RPCS3 and
-stay under **GPL-2.0-or-later**; they use only the generic container constants published in RPCS3's source.
+Copyright © 2026 the FreeRealms-PS3-Research contributors. Licensed under the **GNU Affero General Public License v3.0 or later**
+([`LICENSE`](LICENSE)). The same terms keep the repository consistent with its sources: two helpers
+([`tools/undat.py`](tools/undat.py), [`tools/sdat_patch_loading.py`](tools/sdat_patch_loading.py)) are derived from RPCS3
+(GPL-2.0-or-later, which allows use under version 3), and the packet layouts follow the Clover server (AGPL-3.0). The helpers use only the
+generic container constants published in RPCS3's source. The license covers this repository's code and text, not *Free Realms* itself.
 
 ## Legal & preservation notice
 
