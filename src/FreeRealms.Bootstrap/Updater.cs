@@ -32,7 +32,7 @@ internal static class Updater
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
                 MessageBox.Show(owner,
-                    "No accessible GitHub Release was found. The repository is currently private, and private release downloads are not available through anonymous requests.\n\nA release must be accessible to the application before in-app updating can work.",
+                    "No GitHub Release was found. Either none has been published yet, or the repository is private (private releases cannot be read without signing in).\n\nA published release must be readable by the application before in-app updating can work.",
                     "Updates unavailable", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }

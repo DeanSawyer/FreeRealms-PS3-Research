@@ -44,7 +44,7 @@ ends that process. All Python modules of `bootstrap/` are copied into the publis
 
 * **Check GitHub** looks at the latest GitHub Release, and if it is newer offers to download `FreeRealmsPS3Bootstrap-Setup.exe`
   (HTTPS from github.com only), checks its SHA-256 when GitHub supplies one, and runs it. It needs a Release built from a `v*` tag
-  and a repository readable without login, so it reports "unavailable" while the repository is private.
+  and a repository readable without login; it reports "unavailable" if no release has been published or the repository is private.
 * No Python means no server: the earlier C# HTTP/DNS engine does not implement the asset or gateway behaviour.
 
 ## Build pipeline
