@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Read the documentation first
+    url: https://github.com/DeanSawyer/FreeRealms-PS3-Research/blob/main/docs/README.md
+    about: Many questions about the install, the protocol and the loading screen are answered in the docs.

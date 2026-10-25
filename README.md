@@ -1,16 +1,17 @@
 <div align="center">
 
-# Free Realms
-### PlayStation 3 Research & Preservation
+# Free Realms — PlayStation 3 Research & Preservation
 
-**Independent technical research into the PlayStation 3 release of Free Realms**
+**Independent reverse-engineering and preservation work on the PlayStation 3 release of *Free Realms*.**
+A local test server, documented protocols, and tools to study the client — nothing proprietary included.
 
-[![Project Status](https://img.shields.io/badge/status-active%20research-2563eb?style=flat-square)](https://github.com/DeanSawyer/FreeRealms-PS3-Research)
-![Platform](https://img.shields.io/badge/platform-PlayStation%203-374151?style=flat-square)
-![Title ID](https://img.shields.io/badge/title%20ID-NPUA30048-374151?style=flat-square)
-![Preservation](https://img.shields.io/badge/focus-digital%20preservation-16803c?style=flat-square)
+[![Status](https://img.shields.io/badge/status-active%20research-2563eb?style=flat-square)](#current-status)
+![Platform](https://img.shields.io/badge/platform-PlayStation%203%20%2F%20RPCS3-374151?style=flat-square)
+![Title ID](https://img.shields.io/badge/title%20ID-NPUA30048%20(build%201.77)-374151?style=flat-square)
+![Python](https://img.shields.io/badge/python-3.10%2B-3776ab?style=flat-square)
+![Focus](https://img.shields.io/badge/focus-digital%20preservation-16803c?style=flat-square)
 
-[Overview](#overview) · [Research Status](#research-status) · [Technical Findings](#technical-findings) · [Roadmap](#research-roadmap) · [Contributing](#contributing)
+[Status](#current-status) · [How it works](#how-it-fits-together) · [Quick start](#quick-start) · [Layout](#repository-layout) · [Documentation](#documentation) · [Roadmap](#roadmap) · [Contributing](#contributing)
 
 </div>
 
@@ -18,169 +19,141 @@
 
 ## Overview
 
-**FreeRealms-PS3-Research** is an independent preservation and reverse-engineering initiative focused on understanding the original PlayStation 3 edition of *Free Realms*, the online multiplayer game developed by Sony Online Entertainment.
+*Free Realms* (Sony Online Entertainment, 2009) was an online multiplayer game that also shipped on the PlayStation 3.
+Its servers are gone. This project works out, from the client itself, **what the PS3 client expects from its servers** and
+provides an independently written stand-in so the client can be studied and eventually run again.
 
-The project studies client initialization, legacy service interactions, the original patching and asset installation system, and the technical dependencies required to reproduce observable startup behavior in a controlled research environment.
-
-Our approach is **evidence-driven and reproducible**: preserve original observations, isolate variables, document unsuccessful tests, and distinguish confirmed behavior from hypotheses.
+The approach is evidence-driven: findings are read from the client binary or measured in an emulator, written down with
+addresses and test runs, and separated clearly from hypotheses.
 
 > [!IMPORTANT]
-> **This is a research repository, not a playable game release.** Full client operation, asset installation, and connection to a replacement game server have **not** been demonstrated.
+> **This is a research repository, not a playable release.** The client gets as far as logging in, picking a character and
+> reaching the loading screen of the game world; the world itself does not appear yet (see [Current status](#current-status)).
+> No game client, asset, executable or key is distributed here — you need your own legally obtained copy.
 
-## Research Scope
+## Current status
 
-| Workstream | Objective |
-| :--- | :--- |
-| **Client initialization** | Document boot sequencing, module loading, installer lifecycle, and transition points. |
-| **Network services** | Investigate the startup configuration, DNS dependencies, HTTP endpoints, and protocol expectations. |
-| **Patch delivery** | Characterize manifests, asset requests, validation fields, compression, and extraction behavior. |
-| **Binary analysis** | Trace relevant behavior in the PS3 installer and other components using reproducible methods. |
-| **Preservation tooling** | Build independently authored test servers, validation utilities, and diagnostic workflows. |
-| **Technical documentation** | Maintain a clear record of confirmed findings, open questions, and experimental limitations. |
+Last updated: **25 October 2026.** Everything below was observed in RPCS3 with the local server in this repository.
 
-## Research Status
-
-**Baseline recorded: October 12, 2026**
-
-The current local test environment has demonstrated successful progression through the initial configuration and patch-manifest requests, followed by entry into the installer's asset-loading state.
-
-| Component | Status | Evidence / qualification |
+| Stage | State | Where it is documented |
 | :--- | :--- | :--- |
-| Local DNS routing | **Observed working** | Selected legacy hostnames resolved to an experimental local endpoint. |
-| Startup configuration | **Observed working** | Client requested and received an AppConfig response. |
-| Patch manifest retrieval | **Observed working** | HTTP requests for `FreeRealms.soe` completed. |
-| Installer state progression | **Observed** | `init → status → statusDone → loading`. |
-| Asset download and decode | **Blocked** | Client reported error `1004` and `Unknown codec reading`. |
-| Complete game startup | **Not verified** | No successful end-to-end boot into a playable environment. |
+| DNS redirect and HTTP bootstrap (`AppConfig`, digest, web-service calls) | ✅ Working | [`bootstrap/README.md`](bootstrap/README.md) |
+| Patch digest and `.zs` asset container (zlib stream + 129-byte trailer) decoded | ✅ Working — installer reaches 100 % | [`docs/install/digest-format.md`](docs/install/digest-format.md) |
+| Client boots after install (`game.elf` decrypted with RPCS3) | ✅ Working | [`docs/install/digest-format.md`](docs/install/digest-format.md) |
+| Web-service replies (`serverList`, `account/info`, characters, login) | ✅ Working | [`docs/protocol/ps3ws-replies.md`](docs/protocol/ps3ws-replies.md) |
+| Game-server connection (SOE UDP gateway, login, zone, player data, `AddPc`) | ✅ Client reaches *FinishedLoading* | [`docs/protocol/gateway.md`](docs/protocol/gateway.md) |
+| Pack and manifest formats, asset-name hash | ✅ Verified on a real install (54,146 of 54,146 names) | [`docs/re/assets.md`](docs/re/assets.md) |
+| **Loading screen drops and the world appears** | 🔶 **Open** — screen stays up after *FinishedLoading* | [`docs/re/zone-loading.md`](docs/re/zone-loading.md) |
+| Character visible, movement, chat, gameplay | ⬜ Not started | — |
 
-### Preserved installer baseline
+**Where it stops today.** After *FinishedLoading* the client keeps its loading overlay until a per-frame check
+(`IsLoaded` around the camera) succeeds. The zone name and the spawn tile have been ruled out; the remaining suspects and
+the next diagnostic step are written up in [`docs/re/zone-loading.md`](docs/re/zone-loading.md).
 
-One captured RPCS3 session recorded these transitions:
-
-```text
-01:04.122  init       → status
-01:04.282  status     → statusDone → loading
-01:35.364  loading    → error
-
-Installer error 1004: Unknown codec reading
-```
-
-**Observed loading interval: approximately 31.08 seconds.**
-
-This measurement describes a particular test, **not** a guaranteed 30-second startup period or a successful asset installation. A separate local preservation snapshot contained **993 files**, whose SHA-256 hashes matched the then-current original files; that snapshot is not distributed here.
-
-## Technical Findings
-
-### 1. Legacy startup and patch workflow
-
-The PS3 client was observed accessing a startup configuration endpoint and a patch manifest endpoint:
+## How it fits together
 
 ```text
-GET  /app/appconfig.php?game=frps3&server=live
-HEAD /patch/freerealms/ps3scelive/ps3-web/FreeRealms.soe
-GET  /patch/freerealms/ps3scelive/ps3-web/FreeRealms.soe
+ PS3 client (in RPCS3)                         this repository: bootstrap/
+ ─────────────────────                         ───────────────────────────
+ resolves ps3.freerealms.com   ──DNS :53──▶    fr_ps3_bootstrap.py   DNS redirect for the game's hostnames
+ AppConfig / digest / .zs      ──HTTP :80──▶   fr_ps3_bootstrap.py   serves the patch digest and assets from
+ /ps3ws/*.action calls                                                your own install, answers web-service calls
+ SOE UdpLibrary connection     ──UDP :20260─▶  gateway_probe.py      handshake, Login, ZoneDetails, player data
+ terrain, models, textures     (read from its own packs)             assetlib.py reads the same packs to pick a
+                                                                      zone and spawn the client can really load
 ```
 
-The local service answered these requests, after which the installer advanced to its asset-loading phase. This validates a portion of the initial handshake only; it does **not** validate the remaining asset pipeline or game-server protocol.
+## Quick start
 
-### 2. Outstanding asset decoder failure
+**You need**
 
-The installer requested an asset under the following path:
+* Windows with [RPCS3](https://rpcs3.net/) and **your own** Free Realms PS3 client folder (`NPUA30048`, with `USRDIR\Digests\NPUA30048.soe`).
+  Tests so far used a decrypted `game.elf` (RPCS3 → *Utilities → Decrypt PS3 Binaries*) and RPCS3's game patch
+  *“Free Realms PS3 select exceptfds compatibility”*.
+* Python 3.10 or newer. The server and reports use only the standard library; two SDAT helpers also need `pip install cryptography`.
+* An **Administrator** PowerShell (the server binds ports 53 and 80) on an isolated test network.
+
+**Run one complete test** — starts the server, starts RPCS3, and packs the logs into a zip on your Desktop when you close RPCS3:
+
+```powershell
+python tools\run_test.py --install "C:\Path\To\TestFolder"      # folder that holds NPUA30048 and RPCS3_TEST
+```
+
+**Or start the server by hand**
+
+```powershell
+python bootstrap\fr_ps3_bootstrap.py --client "C:\Path\To\NPUA30048" --codec zs-zlib-zero-trailer --match-local
+```
+
+All options, the zone/spawn switches and the safety notes are in [`bootstrap/README.md`](bootstrap/README.md).
+Never expose ports 53 or 80 to the internet; the server is a research tool with no hardening.
+
+## Repository layout
 
 ```text
-/patch/freerealms/ps3scelive/ps3-web/FreeRealms.zs/
-  art/environments/terraincalendardefinitions.txt.zs
+.
+├── bootstrap/     Local test server (DNS, HTTP, UDP gateway) and the readers for the client's packs
+├── tools/         Command-line utilities: install checks, asset and zone reports, binary analysis, Ghidra workspace
+├── docs/          Findings, grouped by topic (see the index below)
+│   ├── install/     Patch digest, .zs container, installer behaviour
+│   ├── protocol/    Web-service replies and the UDP gateway protocol
+│   ├── re/          Reverse engineering of game.elf: assets, zone loading, address table
+│   └── history/     Earlier experiments kept for the record
+├── src/           Windows manager (C#/WPF preview) that wraps the Python server
+├── installer/     Inno Setup script for the Windows manager
+└── .github/       CI workflow, issue and pull-request templates
 ```
 
-The experimental response led to:
+## Documentation
 
-```text
-ErrorID: 1004
-ErrExtra: Unknown codec reading ...
-```
+Start at the [documentation index](docs/README.md). The main documents:
 
-Recorded local test values:
-
-| Field | Value |
+| Topic | Document |
 | :--- | :--- |
-| Asset | `terraincalendardefinitions.txt` |
-| Uncompressed test input | `403 bytes` |
-| Calculated CRC32 | `0x912D54DE` |
-| CRC32 decimal | `2435667166` |
-| Experimental LZMA payload | `251 bytes` |
-| Manifest-indicated compressed length | `373 bytes` |
-| Outcome | **Rejected by the client** |
+| How the installer and the patch digest work | [`docs/install/digest-format.md`](docs/install/digest-format.md) |
+| HTTP web-service formats | [`docs/protocol/ps3ws-replies.md`](docs/protocol/ps3ws-replies.md) |
+| UDP gateway protocol and the session log | [`docs/protocol/gateway.md`](docs/protocol/gateway.md) |
+| Packs, manifest, name hash, request path | [`docs/re/assets.md`](docs/re/assets.md) |
+| Zone loading and the loading overlay | [`docs/re/zone-loading.md`](docs/re/zone-loading.md) |
+| Every code address the notes rely on (machine-checked) | [`docs/re/addresses.csv`](docs/re/addresses.csv) |
+| The first failed experiment (installer error 1004) | [`docs/history/installer-baseline.md`](docs/history/installer-baseline.md) |
 
-**Interpretation:** The test establishes a decoder compatibility failure, not the original format. The actual framing, codec identifier, and decompression rules for these patch assets remain under investigation. References to ZIP, zlib/Deflate, or LZMA must not be treated as proof of the wire format without an authenticated compressed sample or a verified decoder trace.
+Tools are indexed in [`tools/README.md`](tools/README.md).
 
-### 3. Binary investigation
+## Roadmap
 
-Research also examines the original PS3 installer module to identify the code paths responsible for codec selection, error generation, and asset processing. Static observations should be accompanied by binary identity, addresses, cross-references, and runtime verification where possible.
+- [x] Intercept the client's startup requests locally
+- [x] Decode the patch digest and `.zs` container; complete the install in RPCS3
+- [x] Boot the client and answer its web-service calls
+- [x] Complete the UDP gateway handshake and reach *FinishedLoading*
+- [x] Read the pack and manifest formats and choose a zone and spawn from the real install
+- [ ] **Find what holds the loading overlay and bring the world up**
+- [ ] Make the character appear and respond (movement, basic world packets)
+- [ ] Decode the remaining server packets the client sends after loading
+- [ ] Package a documented, repeatable setup for other owners of the game
 
-No unmodified proprietary executable or original game asset is included in this repository.
-
-## Research Roadmap
-
-- [x] Establish local interception of selected startup service requests.
-- [x] Capture a successful AppConfig and manifest exchange.
-- [x] Record installer state transitions and the first blocking asset error.
-- [x] Create and hash-verify a local baseline preservation snapshot.
-- [ ] Document a minimal, repeatable local test setup using original research code.
-- [ ] Identify and verify the PS3 patch asset container and codec.
-- [ ] Reproduce successful decode and installation of a permitted test asset.
-- [ ] Map subsequent client initialization and server handshake stages.
-- [ ] Publish structured technical notes and regression tests.
-- [ ] Evaluate progress toward a functional, independently operated preservation environment.
-
-Completion marks reflect **specific observations**, not full implementation of a game feature.
-
-## Repository Layout
-
-The following structure is a **target organization** as publishable project material is developed; directories may not exist yet.
-
-```text
-FreeRealms-PS3-Research/
-├── bootstrap/       # Independently developed local test services
-├── docs/            # Research papers, findings, and protocol notes
-├── diagnostics/     # Redacted logs and reproducible test fixtures
-├── tools/           # Original inspection and verification utilities
-└── README.md
-```
-
-Private preservation copies, emulator installations, original manifests, and proprietary game binaries remain outside the repository.
-
-## Reproducibility Standards
-
-Every new technical finding should, wherever practical, document:
-
-1. **Environment:** emulator version, title ID, test setup, and relevant configuration.
-2. **Inputs:** request paths, response characteristics, and hashes where permissible.
-3. **Procedure:** exact sequence of actions needed to repeat the observation.
-4. **Results:** timestamps, state changes, error messages, and measurable outcomes.
-5. **Interpretation:** clearly separated facts, hypotheses, and remaining uncertainties.
-
-Avoid publishing credentials, account identifiers, private addresses, or copyrighted file contents. Redact logs before sharing them.
+A tick means a specific observation, not a finished game feature.
 
 ## Contributing
 
-Technical contributions and independently verifiable findings are welcome through [Issues](https://github.com/DeanSawyer/FreeRealms-PS3-Research/issues) and [Pull Requests](https://github.com/DeanSawyer/FreeRealms-PS3-Research/pulls), subject to repository access settings.
+Evidence-backed findings, corrections and tooling are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to report a
+finding, what to include, and what must never be committed. Security notes for the test server are in [`SECURITY.md`](SECURITY.md).
 
-Particularly valuable contributions include decoder research, original patch-container analysis, documented PS3 control-flow investigation, independently authored tooling, and historical technical references with reliable provenance.
+## License
 
-**Contribution principles:** provide supporting evidence, identify the software version or artifact analyzed, mark uncertain conclusions explicitly, and submit only material you are permitted to redistribute.
+No license has been chosen yet, so all rights are reserved by the author for now. Two helpers
+([`tools/undat.py`](tools/undat.py), [`tools/sdat_patch_loading.py`](tools/sdat_patch_loading.py)) are derived from RPCS3 and
+stay under **GPL-2.0-or-later**; they use only the generic container constants published in RPCS3's source.
 
-## Legal & Preservation Notice
+## Legal & preservation notice
 
-*Free Realms* and related trademarks, game content, and intellectual property belong to their respective rights holders. This is an **unofficial, independent, noncommercial technical research effort** and is not affiliated with or endorsed by Sony Online Entertainment, Daybreak Game Company, Sony Interactive Entertainment, or any successor or related entity.
+*Free Realms* and related trademarks, content and intellectual property belong to their respective rights holders. This is an
+**unofficial, independent, non-commercial** research effort, not affiliated with or endorsed by Sony Online Entertainment,
+Daybreak Game Company, Sony Interactive Entertainment or any related entity.
 
-**No original game client, copyrighted asset archive, proprietary executable, encryption key, or copyrighted patch payload is supplied here.** Users and contributors must obtain any relevant software lawfully and comply with applicable law and permissions.
+**No game client, copyrighted asset, proprietary executable, game-specific key or patch payload is included.** Users and
+contributors must obtain any software lawfully and follow applicable law.
 
 ---
 
-<div align="center">
-
-**Preserve the evidence. Reproduce the behavior. Document what we learn.**
-
-[View Research Repository](https://github.com/DeanSawyer/FreeRealms-PS3-Research)
-
-</div>
+<div align="center"><sub>Preserve the evidence · Reproduce the behaviour · Document what we learn</sub></div>

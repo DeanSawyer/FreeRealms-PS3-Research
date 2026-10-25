@@ -1,0 +1,21 @@
+name: Bug in the tools or server
+description: A script crashes, a report is wrong, or the server behaves unexpectedly
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The command, the full error message and what you expected instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Commit or version
+      placeholder: "output of: git rev-parse --short HEAD"
+  - type: input
+    id: system
+    attributes:
+      label: Python and Windows version
+      placeholder: "Python 3.12, Windows 11"

@@ -1,6 +1,6 @@
 """Read, edit and re-serialize the PS3 digest (NPUA30048.soe).
 
-Layout (see docs/digest-format.md): zlib stream + 129-byte trailer. The decompressed body is
+Layout (see docs/install/digest-format.md): zlib stream + 129-byte trailer. The decompressed body is
 a tag/length/value tree. Length prefix: < 0x80 one byte; 0x80-0xFE two bytes (15 bits);
 0xFF four more bytes. Top level: header fields, then tag 2 = root directory. Inside a
 directory: tag 1 name, tag 2 child directory, tag 3 file record, tag 0xFE child counts.

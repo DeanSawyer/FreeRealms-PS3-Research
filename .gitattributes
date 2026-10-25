@@ -1,0 +1,22 @@
+# Normalise line endings. Text is stored with LF; Windows-only scripts keep CRLF in the working tree.
+* text=auto
+*.sh   text eol=lf
+*.java text eol=lf
+*.py   text eol=lf
+*.md   text eol=lf
+*.csv  text eol=lf
+*.yml  text eol=lf
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+# Game and binary data must never be rewritten (a CRLF to LF conversion once corrupted a locale file).
+*.dat   binary
+*.dir   binary
+*.pack  binary
+*.zs    binary
+*.soe   binary
+*.self  binary
+*.elf   binary
+*.sdat  binary
+*.gcnk  binary
+*.gzne  binary

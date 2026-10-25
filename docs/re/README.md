@@ -10,8 +10,8 @@ Goal: a working PS3 client against a local server ("restore the client first"). 
 | [`zone-loading.md`](zone-loading.md) | ZoneDetails → terrain load → the loading overlay; GZNE header; failure table; test plan |
 | [`assets.md`](assets.md) | Pack and manifest formats, the name hash, the request path |
 | [`addresses.csv`](addresses.csv) | Every function/data address the notes rely on, with a text check |
-| [`../ps3-gateway.md`](../ps3-gateway.md) | Wire protocol of the gateway (UDP 20260) and the session log of findings |
-| [`../ps3ws-replies.md`](../ps3ws-replies.md), [`../digest-format.md`](../digest-format.md) | HTTP replies and the `.soe` digest |
+| [`../protocol/gateway.md`](../protocol/gateway.md) | Wire protocol of the gateway (UDP 20260) and the session log of findings |
+| [`../protocol/ps3ws-replies.md`](../protocol/ps3ws-replies.md), [`../install/digest-format.md`](../install/digest-format.md) | HTTP replies and the `.soe` digest |
 
 ## Workspace
 

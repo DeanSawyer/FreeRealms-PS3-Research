@@ -64,6 +64,6 @@ Consequences used elsewhere:
 ## Open questions
 
 * Download of an asset that is in the manifest but not (or stale) in the packs goes through the HTTP asset service;
-  its URL layout and compression (`.z` flag) are covered by `docs/ps3ws-replies.md` and have not been re-derived here.
+  its URL layout and compression (`.z` flag) are covered by `docs/protocol/ps3ws-replies.md` and have not been re-derived here.
 * The Jenkins-style hash used for in-memory pack lookup is documented only as far as `assetlib.name_hash` needs
   (it is not needed to read packs from disk).

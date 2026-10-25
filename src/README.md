@@ -1,51 +1,53 @@
-# Windows Bootstrap Manager (C# preview)
+# Windows manager (C# preview)
 
-An experimental **.NET 10 WPF** desktop application that combines a local HTTP service, optional DNS responder, editable server settings, and a live log window. No Python terminal is needed to run this C# version.
+A **.NET 10 / WPF** desktop wrapper around the Python [bootstrap server](../bootstrap/README.md): editable settings
+(client folder, bind and advertised address, port, DNS on/off), **Start/Stop** buttons and a live log window.
 
 > [!WARNING]
-> **Preview / unverified:** The first Windows CI build has not yet been confirmed successful. The C# engine does not implement all routes or the exact asset behavior of the preserved Python baseline. Do not replace the known 31-second test environment with this build.
+> **Preview.** The installer builds successfully in CI, but the manager has not been validated end to end against RPCS3.
+> It starts `bootstrap/fr_ps3_bootstrap.py` with the settings above and does not pass `--match-local` or `--digest`; for a full
+> test use [`tools/run_test.py`](../tools/README.md) instead.
 
-## Downloading a CI installer
+## Requirements
 
-1. Open [Windows installer workflow](https://github.com/DeanSawyer/FreeRealms-PS3-Research/actions/workflows/windows-build.yml).
-2. Open a **successful** run.
-3. Under **Artifacts**, download `FreeRealmsPS3Bootstrap-Windows-Setup`.
-4. Extract the artifact ZIP and run `FreeRealmsPS3Bootstrap-Setup.exe`.
+* Windows, **Python 3 on `PATH`** (`python` or `py`) — the installer does not bundle it.
+* Administrator rights to bind ports 53 and 80; close any other service using them first.
+* Your own `NPUA30048` client folder. No game files are packaged.
 
-GitHub may require repository access and login. If there is no successful run, the installer is **not available yet**.
+## Download a CI installer
 
-## Running from source
+1. Open the [Windows installer workflow](https://github.com/DeanSawyer/FreeRealms-PS3-Research/actions/workflows/windows-build.yml).
+2. Open a **successful** run and download the artifact `FreeRealmsPS3Bootstrap-Windows-Setup`.
+3. Extract the ZIP and run `FreeRealmsPS3Bootstrap-Setup.exe`.
 
-On Windows with .NET 10 SDK:
+GitHub requires repository access and a login to download artifacts. If there is no successful run, no installer is available.
+
+## Run from source
+
+With the .NET 10 SDK:
 
 ```powershell
 dotnet run --project src/FreeRealms.Bootstrap/FreeRealms.Bootstrap.csproj
 ```
 
-Choose the local `NPUA30048` client directory. The application reads the manifest from `USRDIR\Digests\NPUA30048.soe`; no original assets are packaged.
+Choose the local `NPUA30048` folder. The manager reads the digest from `USRDIR\Digests\NPUA30048.soe`.
 
-**Default addresses:** Bind `127.0.0.1`, advertise `127.0.0.1`, HTTP `80`, optional DNS `53`. Binding to privileged or reserved ports may need administrator permissions or an appropriate URL reservation. For separate LAN devices, use `0.0.0.0` only as a bind address and your actual reachable IPv4 as the advertised address.
+**Addresses.** Defaults are bind `127.0.0.1`, advertise `127.0.0.1`, HTTP `80`, DNS `53` (optional). When RPCS3 or a PS3 reaches the
+server over the network, bind `0.0.0.0` and advertise your real LAN IPv4; `0.0.0.0` is a bind address only.
 
-## Current limitations
+## How it works
 
-- HTTP includes AppConfig and digest handling, but **asset codec/decompression responses are intentionally unimplemented** in this first C# preview.
-- The built-in DNS responder currently answers only selected Free Realms hostnames; it **does not forward unrelated DNS queries**. Use it only in an isolated test environment or disable DNS.
-- The **Check GitHub** button opens the project's Releases page. **Automatic downloading and installing of updates is not implemented yet**; this is a follow-up feature.
-- CI is configured to publish a self-contained Windows executable and package it with **Inno Setup**, using a GitHub Actions artifact rather than a public GitHub Release.
-- No proprietary PS3 game code or assets are distributed.
+`PythonProcessHost.cs` launches the bundled Python script as a hidden child process and shows its output in the log panel; **Stop**
+ends that process. All Python modules of `bootstrap/` are copied into the publish output by `FreeRealms.Bootstrap.csproj`.
+
+## Limitations
+
+* The **Check GitHub** button opens the project's Releases page; automatic updating is not implemented, and a private
+  repository cannot be read anonymously for releases.
+* No Python means no server: the earlier C# HTTP/DNS engine does not implement the asset or gateway behaviour.
 
 ## Build pipeline
 
-`windows-build.yml` publishes the WPF application for `win-x64`, invokes the Inno Setup script in `installer/FreeRealmsBootstrap.iss`, and uploads `FreeRealmsPS3Bootstrap-Setup.exe` as a workflow artifact.
-
-For safe iteration, leave the original Python bootstrap and verified client snapshot unchanged until equivalent HTTP/DNS traces and installer state transitions are reproduced by this C# version.
-
-## v0.3.0 — Python baseline inside the manager
-
-The Windows manager now launches the preserved `bootstrap/fr_ps3_bootstrap.py` as a hidden child process, rather than using the incomplete C# DNS/HTTP engine. The Python script is included in the installer/publish output automatically. Its stdout and stderr are displayed inside the manager's live activity panel, and **Stop Services** terminates the owned Python process. This is intended to reproduce the research baseline, but has not yet been validated against RPCS3.
-
-**Requirement:** Python 3 must already be installed and discoverable as `python` or `py`. The installer does not bundle the Python runtime. Administrator rights may be required to bind ports 53 and 80. Close any pre-existing Python bootstrap or other service on these ports before starting the manager.
-
-**Network mode:** use a reachable LAN address for the advertised IP when RPCS3 is not using host loopback. `0.0.0.0` is a bind address only.
-
-**Updates:** GitHub Actions generates a downloadable artifact when a build succeeds. The app's release-based updater cannot anonymously access releases from a private repository; download successful Actions artifacts manually until an authenticated channel is available.
+[`windows-build.yml`](../.github/workflows/windows-build.yml) publishes the app for `win-x64`, runs the Inno Setup script
+[`installer/FreeRealmsBootstrap.iss`](../installer/FreeRealmsBootstrap.iss) and uploads `FreeRealmsPS3Bootstrap-Setup.exe` as a
+workflow artifact (and as a release asset when a `v*` tag is pushed).

@@ -317,8 +317,8 @@ type 2) comes from the PC game (Clover). Whether the PS3 packs contain terrain f
 
 ### Update: a refused zone name fails silently (read from `game.elf`)
 
-The full chain is in [`re/zone-loading.md`](re/zone-loading.md) and the pack and manifest formats in
-[`re/assets.md`](re/assets.md). The points that change what we test:
+The full chain is in [`re/zone-loading.md`](../re/zone-loading.md) and the pack and manifest formats in
+[`re/assets.md`](../re/assets.md). The points that change what we test:
 
 - The zone name becomes three asset requests: `<zone>.gzne` (terrain header), `<zone>.cob`, `<zone>.odd`.
 - A request is accepted only if the name is in `assets_ps3_manifest.bin` (CRC-64 of the upper-cased name, `0x802828`).

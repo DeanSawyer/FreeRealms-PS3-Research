@@ -1,0 +1,33 @@
+name: Finding or test result
+description: Report something you observed in the client, the emulator or the test server
+labels: [finding]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please **do not attach game files, keys or unredacted logs.** Remove user names, local paths and addresses first.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: RPCS3 version, title ID and build, how the client was installed, the command you ran.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: What you observed
+      description: Screen state, timestamps, relevant (redacted) log lines, packets or file requests.
+    validations:
+      required: true
+  - type: textarea
+    id: interpretation
+    attributes:
+      label: Interpretation
+      description: What you think it means. Label guesses as guesses.

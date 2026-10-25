@@ -1,112 +1,125 @@
-# PS3 research bootstrap server
+# Bootstrap server
 
-This is an **experimental**, independently authored DNS/HTTP server for studying the startup behavior of a legally obtained Free Realms PlayStation 3 installation. It is not a production server or a complete game-server emulator.
+An **experimental**, independently written server that stands in for the game's former servers, so the PS3 client can be
+studied on a test machine. It is not a production server and not a complete game-server emulator. Python 3.10+, standard
+library only.
+
+| Layer | Port | What it does | Code |
+| :--- | :--- | :--- | :--- |
+| DNS | 53/udp | Redirects the game's hostnames to this machine; forwards everything else upstream (`--no-dns` to turn off) | `fr_ps3_bootstrap.py` |
+| HTTP | 80/tcp | `AppConfig`, the patch digest, the `/ps3ws/*.action` web-service replies, and `.zs` asset downloads from your own install | `fr_ps3_bootstrap.py` |
+| UDP gateway | 20260/udp | SOE UdpLibrary handshake, `Login`/`LoginReply`, `ZoneDetails`, player data, `AddPc` | `gateway_probe.py` |
 
 ## Requirements
 
-- Python 3.10+ (standard library only).
-- Your own separately obtained `NPUA30048` client directory, including `USRDIR/Digests/NPUA30048.soe`. **Do not commit this directory or manifest.**
-- Administrator privileges or equivalent permissions may be needed to bind DNS port 53 and HTTP port 80.
-- A dedicated test network/environment.
+* Your own copy of the client folder `NPUA30048`, including `USRDIR/Digests/NPUA30048.soe`. **Never commit it.**
+* Administrator rights (ports 53 and 80) and an isolated test network.
+* Optional: a second client folder (`--extra-client`) to supply files your main copy lacks or has damaged.
 
-## Local-only startup
+## Start
+
+The easiest way is the one-command test, which also starts RPCS3 and packs the logs:
 
 ```powershell
-python .\bootstrap\fr_ps3_bootstrap.py --client "C:\Path\To\NPUA30048"
+python .\tools\run_test.py        # Administrator PowerShell, from the repository folder
 ```
 
-Defaults: `--bind 127.0.0.1`, `--advertise 127.0.0.1`, `--upstream 1.1.1.1`, `--port 80`.
+It restores the original `scriptsbase.bin.sdat`, runs `zone_report.py` and `tile_report.py`, starts this server and RPCS3, waits
+until RPCS3 is closed, then writes `Desktop\fr_test_<time>.zip` with the reports, the server log, the interesting lines and the
+ends of the RPCS3 log and the gateway trace (`--no-restore` leaves the scripts alone).
 
-For an RPCS3 test that uses a separate guest-network path or for a physical PS3, use a **real, reachable LAN address** and allow only the necessary traffic on your firewall:
+To start only the server:
+
+```powershell
+python .\bootstrap\fr_ps3_bootstrap.py --client "C:\Path\To\NPUA30048" --match-local
+```
+
+Defaults: `--bind 127.0.0.1`, `--advertise 127.0.0.1`, `--upstream 1.1.1.1`, `--port 80`, `--gateway-port 20260`.
+
+For RPCS3 on a separate network path, or a physical PS3, use a **reachable LAN address** and allow only the traffic you need:
 
 ```powershell
 python .\bootstrap\fr_ps3_bootstrap.py --client "C:\Path\To\NPUA30048" --bind 0.0.0.0 --advertise YOUR_LAN_IPV4
 ```
 
-**`0.0.0.0` means listen on all IPv4 interfaces. It is not a destination address to advertise to the PS3.** `127.0.0.1` only works when the client can reach the server through the same host's loopback network. For separate devices, replace `YOUR_LAN_IPV4` at runtime, without committing that value.
+`0.0.0.0` means *listen on every IPv4 interface*; it is never an address to give to the client. If another DNS service already
+answers the game's hostnames, pass `--no-dns`.
 
-If another DNS service already handles name resolution, pass `--no-dns`.
+## Options
 
-## Codec experiments
+| Option | Meaning |
+| :--- | :--- |
+| `--client DIR` | The `NPUA30048` folder (required). |
+| `--codec NAME` | How `.zs` assets are encoded. Default `zs-zlib-zero-trailer`, the container the client accepts. Other names are the early experiments; `lzma-alone` reproduces installer error 1004. |
+| `--digest FILE` | The original 21,466-byte digest to serve. The client overwrites the local copy with whatever it last received, so keep the original and pass it here. |
+| `--match-local` | Serve a digest rewritten to describe the files actually in `--client` (for builds that differ from the original digest). The client does not verify the digest's trailer, so this works. Each change is printed as `DIGEST-REWRITE`. |
+| `--extra-client DIR` | Another client folder to search for a file whose CRC32 matches the request (repeatable). |
+| `--serve-mismatch` | Experiment, **rejected by the client**: send a local file of the right name but a different CRC. Kept to reproduce the result. |
+| `--existing-character` | Report one sample character instead of an empty account (character select instead of creator). |
+| `--account-status N` | Status for an account with no characters (default 2, the client's “No existing character found”; 1 crashes the client). |
+| `--xml-style attributes\|elements` | How values are written in web-service replies; the client reads attributes (default). |
+| `--server-list-variant baseline\|zone` | Original server-list XML or an experimental zone response. |
+| `--gateway-port PORT` | UDP port of the gateway (`0` turns it off). |
+| `--advertise IP`, `--bind IP`, `--port N`, `--upstream IP`, `--no-dns` | Network settings, see above. |
 
-`--codec NAME` changes how the single terrain asset is encoded (default `lzma-alone`, the preserved baseline). Names come from `codec_candidates.py` and are hypotheses only. Before spending an RPCS3 run on one, compare sizes offline:
+### Environment switches (gateway)
+
+| Variable | Effect |
+| :--- | :--- |
+| `FR_ZONE`, `FR_ZONE_TYPE` | Override the zone name and type sent in `ZoneDetails` (default: chosen from your install, type `2`). |
+| `FR_SPAWN="x,y,z"`, `FR_SPAWN_Y` | Override the spawn position, or only its height (default 400). |
+| `FR_ADDPC` | Which character `AddPc` adds: `other` (default), `self`, `both`, `none`. |
+| `FR_EXTRA=1` | Also send hit points, mana, game settings and an empty item list (layouts from the PC server, untested on the PS3 client). |
+| `FR_WELCOME=0`, `FR_TIME=0` | Leave out the welcome-screen packet or the game-time reply. |
+
+## Which zone and spawn the server sends
+
+At login the gateway sends `ZoneDetails` with a zone name. The client turns it into `<zone>.gzne`, `<zone>.cob` and `<zone>.odd`,
+and keeps its loading screen until the terrain around the player has loaded ([`docs/re/zone-loading.md`](../docs/re/zone-loading.md)).
+On start the server reads the pack indexes and the manifest of `--client` ([`assetlib.py`](assetlib.py)), picks a zone whose files are
+all present (preferring `FabledRealms`) and a spawn in the centre of a terrain tile whose neighbourhood is stored locally. The choice is
+logged as `ZoneDetails: zone=… type=2` and `spawn: x=… z=…`.
 
 ```powershell
-python .\tools\codec_sizes.py "C:\Path\To\terraincalendardefinitions.txt"
-python .\tools\analyze_digest.py "C:\Path\To\NPUA30048\USRDIR\Digests\NPUA30048.soe"
+python .\tools\zone_report.py "C:\Path\To\NPUA30048\USRDIR"          # which zones the install can load
+python .\tools\tile_report.py "C:\Path\To\NPUA30048\USRDIR"          # terrain tiles near the player and the picked spawn
+python .\tools\gzne_info.py   "C:\Path\To\NPUA30048\USRDIR" ZoneName  # terrain box and cell size
 ```
 
-**Current best lead:** the digest shows each `.zs` asset is a zlib stream plus a 129-byte trailer (see `docs/digest-format.md`). Next RPCS3 run, try:
+## The patch digest and asset downloads
 
-```powershell
-python .\bootstrap\fr_ps3_bootstrap.py --client "C:\Path\To\NPUA30048" --codec zs-zlib-zero-trailer
-```
-
-If the installer still reports error 1004, repeat with `--codec zs-zlib-digest-trailer` and send `ps3_protocol_trace.jsonl` plus the installer error. The default `lzma-alone` is kept only as the preserved baseline; it cannot match the manifest length.
-
-`verify_client.py` compares a whole game folder against the digest and reports which files are missing or a different build (read-only). `parse_digest.py` lists every file in the digest with its size, compressed length and CRC. `codec_sizes.py` shows which candidate reproduces the manifest's 373-byte length. `analyze_digest.py` locates the asset's record in the digest and dumps its bytes so the record layout can be read directly.
-
-## Files that differ from the digest (`--serve-mismatch`)
-
-If your game folder is a different build than the digest describes (`verify_client.py` shows `size`/`crc` rows), the
-client asks for a CRC no local file has and the server answers 409. For an experiment, add `--serve-mismatch`: the server
-then sends your local file of that name anyway, as a valid zlib stream padded to exactly the length the client asked for.
-Every such response is logged as `SERVE-MISMATCH` and traced as `zs_serving_mismatch`. This only helps if the client does
-not verify content after downloading; the run shows which.
-
-`--serve-mismatch` was tried and the client rejected the mismatched content (it re-requested the file), so the client does
-verify what it downloads. The alternative is `--match-local`: the served digest is rewritten so that its size/CRC/length
-entries describe the files actually in `--client` (`bootstrap/digest_edit.py`; only for files that differ from the original
-digest, the 129-byte trailer is kept as is). Every rewritten entry is printed as `DIGEST-REWRITE` at startup. It works only
-if the client does not verify the digest's trailer.
-
-## Limitations and safety
-
-- The default terrain asset response still uses LZMA (the preserved baseline), which cannot match the manifest length and gave installer error **1004**. Use `--codec zs-zlib-zero-trailer` for the zlib-plus-trailer experiment; it is **not yet verified** against the PS3 client.
-- Other asset responses depend on client files on disk; none are bundled with this repository.
-- This test server has no authentication or production hardening. Do not expose ports 53 or 80 to the public internet.
-- The script writes `ps3_protocol_trace.jsonl` next to itself. This file is ignored by Git and may contain local addresses or file paths.
-- Keep the known-working experiment separate from this published, local-default variant until behavior has been revalidated.
+The client downloads each missing file as a `.zs` container (a zlib stream plus a 129-byte trailer) and checks the decoded CRC32.
+The formats, the test runs that established them and the way the digest is edited are in
+[`docs/install/digest-format.md`](../docs/install/digest-format.md); `tools/verify_client.py` compares a game folder against the
+digest (read-only), and `tools/parse_digest.py` lists every file in it.
 
 ## Web-service replies
 
-The `/ps3ws/*.action` replies are built from the formats recovered from the decrypted client; see
-`docs/ps3ws-replies.md`. The key facts: values are XML attributes (`--xml-style elements` is the fallback), and `Status` must
-be `1` for the client to treat a reply as successful. By default `account/info` reports an empty account so the client goes to character creation;
-`--existing-character` reports one sample character instead.
+The `/ps3ws/*.action` replies follow the formats recovered from the decrypted client
+([`docs/protocol/ps3ws-replies.md`](../docs/protocol/ps3ws-replies.md)): values are XML attributes, and `Status` must be `1` for the
+client to treat a reply as successful.
 
-## Game-server probe (UDP)
+## The UDP gateway
 
-After `character/login` the client starts the SOE UdpLibrary against `GatewayAddress`. The server now listens on that
-address (`--gateway-port`, default `20260`; `0` turns it off) with `gateway_probe.py`. The probe completes the UdpLibrary
-handshake with no CRC and no encryption, acknowledges reliable packets, and logs every packet as hex. It decodes the
-client's gateway `Login` packet and answers it with a successful `LoginReply`; it sends no other game data, so the game
-still cannot enter the world. Its job is to show what the PS3 client sends next. Findings are in `docs/ps3-gateway.md`. It also writes `ps3_gateway_trace.jsonl` next to the script (ignored by Git).
+After `character/login` the client starts the SOE UdpLibrary against the `GatewayAddress` it was given. `gateway_probe.py`
+completes the handshake (no CRC, no encryption), acknowledges reliable packets, decodes the client's `Login` and answers it, then
+sends the packets that get the client to *FinishedLoading* and logs every packet as hex. Packet layouts and findings are in
+[`docs/protocol/gateway.md`](../docs/protocol/gateway.md); the layouts follow the UdpLibrary port in the Clover server
+(`Sanctuary.UdpLibrary`, AGPL-3.0).
 
-Packet layouts follow the UdpLibrary port in the Clover server (`Sanctuary.UdpLibrary`, AGPL-3.0).
+## Modules
 
-## Which zone the server sends
+| File | Role |
+| :--- | :--- |
+| `fr_ps3_bootstrap.py` | Entry point: DNS, HTTP, web-service replies, asset serving |
+| `gateway_probe.py` | UDP gateway and the packets sent into the world |
+| `assetlib.py` | Readers for the client's packs, manifest and `.gzne`; zone and spawn choice |
+| `digest_edit.py` | Read, edit and re-serialise the digest (`--match-local`) |
+| `codec_candidates.py` | The `.zs` encoders, including the experiments that failed |
 
-At login the gateway sends `ZoneDetails` with a zone name; the client turns it into `<zone>.gzne`, `<zone>.cob` and
-`<zone>.odd` and the loading screen drops only when that terrain has loaded (`docs/re/zone-loading.md`). On start the
-server reads the pack indexes and the manifest of `--client` and picks a zone whose files are all present
-(`bootstrap/assetlib.py`), preferring `FabledRealms`; the choice is logged as `ZoneDetails: zone=… type=2`.
+## Files written, safety
 
-```powershell
-python .\tools\zone_report.py "C:\Path\To\NPUA30048\USRDIR"        # which zones exist (writes zone_report.txt)
-python .\tools\gzne_info.py   "C:\Path\To\NPUA30048\USRDIR" ZoneName  # terrain box and cell size
-$env:FR_ZONE = "ZoneName"; $env:FR_ZONE_TYPE = "2"                  # override the automatic choice
-```
-
-The player's spawn position matters too: the loading screen waits for the terrain tiles around it, and only tiles stored in
-the packs can be provided. The server picks the centre of a tile whose neighbourhood is local (logged as `spawn: x=… z=…`);
-`$env:FR_SPAWN = "x,y,z"` sets it by hand and `$env:FR_SPAWN_Y` only the height (default 400).
-
-## One-command test run
-
-```powershell
-python .\tools\run_test.py        # Administrator PowerShell, from the repo folder
-```
-Restores the original `scriptsbase.bin.sdat`, runs `zone_report.py` and `tile_report.py`, starts this server and RPCS3, waits until
-RPCS3 is closed, then writes `Desktop\fr_test_<time>.zip` with the reports, the server log, the interesting lines, the end of the RPCS3
-log and the end of the gateway trace. `--no-restore` leaves the scripts alone.
+* The server writes `ps3_protocol_trace.jsonl` and `ps3_gateway_trace.jsonl` next to itself. They are ignored by Git and may
+  contain local addresses and paths; redact before sharing.
+* No authentication, no hardening. Do not expose ports 53, 80 or 20260 to the internet. See [`SECURITY.md`](../SECURITY.md).
+* Other asset responses depend on client files on disk; none are bundled with this repository.

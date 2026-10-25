@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Parse the PS3 digest (NPUA30048.soe) into a file table and test the .zs size rule.
 
-Observed (see docs/digest-format.md):
+Observed (see docs/install/digest-format.md):
   * the .soe is a zlib stream followed by a 129-byte trailer
   * the decompressed body is a tag/length/value tree; file records carry
     tag 1 name (NUL-terminated), tag 2 compressed length, tag 3 size,

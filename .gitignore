@@ -35,3 +35,12 @@ venv/
 config.local.*
 secrets.*
 *.key
+
+# Output of the test and report tools
+fr_test_*/
+fr_test_*.zip
+zone_report.txt
+tile_report.txt
+gzne_info.txt
+*.orig
+*.lf-copy

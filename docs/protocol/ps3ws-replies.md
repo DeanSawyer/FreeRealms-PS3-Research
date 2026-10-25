@@ -69,4 +69,4 @@ reported with `Status` 2 (`--account-status 2`, the default); `Status` 1 needs a
 - What `Status` values other than 1 mean for `checkName` (the client has separate messages for taken,
   profane, invalid and wrong-length names).
 - Whether `Key` is used to encrypt the game connection. `GatewayAddress` is `host:port` and `GatewayTicket` comes back
-  as the ticket in the client's first gateway packet; see `docs/ps3-gateway.md`.
+  as the ticket in the client's first gateway packet; see `docs/protocol/gateway.md`.
