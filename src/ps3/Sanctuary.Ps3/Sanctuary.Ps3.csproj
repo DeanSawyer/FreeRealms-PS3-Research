@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Sanctuary.Ps3</RootNamespace>
+    <AssemblyName>Sanctuary.Ps3</AssemblyName>
+    <Description>Server side of the PlayStation 3 Free Realms client for the Sanctuary emulator family.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>

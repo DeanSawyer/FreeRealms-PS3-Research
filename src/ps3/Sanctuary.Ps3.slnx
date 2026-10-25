@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Sanctuary.Ps3/Sanctuary.Ps3.csproj" />
+  <Project Path="Sanctuary.Ps3.Tests/Sanctuary.Ps3.Tests.csproj" />
+</Solution>

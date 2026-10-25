@@ -305,6 +305,6 @@ def pick_spawn(usrdir, zone):
                                    or ((t[0] + dx * edge, t[1] + dz * edge) not in in_box)
                                    for dx in (-1, 0, 1) for dz in (-1, 0, 1))]
     pool, what = (full, "3 x 3 tiles around it are local") if full else (sorted(local), "only the tile itself is local")
-    best = min(pool, key=dist)
+    best = min(pool, key=lambda t: (dist(t), t))     # ties: the smaller (x, z), so the choice never depends on set order
     x, z = centre(best)
     return x, z, best, "%s_%d_%d.gcnk, %s (%d of %d tiles are local)" % (zone, best[0], best[1], what, len(local), len(in_box))

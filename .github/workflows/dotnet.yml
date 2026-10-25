@@ -1,0 +1,73 @@
+name: C# server (Sanctuary.Ps3)
+
+# Builds and tests the C# port in src/ps3. The tests compare the C# code with answers recorded from the Python
+# reference (tools/gen_ps3_vectors.py), so the two implementations cannot drift apart unnoticed.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/ps3/**"
+      - "bootstrap/**"
+      - "tools/gen_ps3_vectors.py"
+      - ".github/workflows/dotnet.yml"
+  pull_request:
+    paths:
+      - "src/ps3/**"
+      - "bootstrap/**"
+      - "tools/gen_ps3_vectors.py"
+      - ".github/workflows/dotnet.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/ps3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: src/ps3/global.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Reference vectors are up to date
+        working-directory: .
+        run: python tools/gen_ps3_vectors.py --check
+
+      - name: Restore
+        run: dotnet restore Sanctuary.Ps3.slnx
+
+      # Job logs are not always readable from outside, so compiler errors are repeated as annotations.
+      - name: Build
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet build Sanctuary.Ps3.slnx --no-restore -nologo -clp:NoSummary 2>&1 | tee build.log || status=$?
+          if [ "${status:-0}" != "0" ]; then
+            errors=$(grep -E ': error ' build.log | sort -u | head -40 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+            echo "::error title=dotnet build failed::${errors}"
+            exit 1
+          fi
+          warnings=$(grep -E ': warning ' build.log | sort -u | head -20 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+          if [ -n "$warnings" ]; then echo "::warning title=dotnet build warnings::${warnings}"; fi
+
+      - name: Test
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet test --no-build --nologo --logger "console;verbosity=normal" 2>&1 | tee test.log || status=$?
+          summary=$(grep -E 'Passed!|Failed!|Total tests|Failed |Error Message|Assert\.|Expected|Actual|\[FAIL\]' test.log | head -60 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+          if [ "${status:-0}" != "0" ]; then
+            echo "::error title=dotnet test failed::${summary}"
+            exit 1
+          fi
+          echo "::notice title=dotnet test::${summary}"

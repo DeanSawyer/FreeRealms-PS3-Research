@@ -1,0 +1,8 @@
+<Project>
+
+  <!-- Versions match the Sanctuary (Clover) solution so these projects can be moved into it unchanged. -->
+  <ItemGroup>
+    <PackageVersion Include="MSTest" Version="4.2.3" />
+  </ItemGroup>
+
+</Project>
