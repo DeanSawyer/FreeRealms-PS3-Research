@@ -363,6 +363,15 @@ def main():
     if len(digest) != 21466:
         parser.error(f"Expected original 21466-byte digest; got {len(digest)} at {path}")
 
+    # The digest is a zlib stream followed by a 129-byte trailer; keep the
+    # trailer for the --codec zs-zlib-digest-trailer experiment.
+    _probe = zlib.decompressobj()
+    try:
+        _probe.decompress(digest)
+        codec_candidates.set_digest_trailer(_probe.unused_data)
+    except zlib.error:
+        pass
+
     trace_event("bootstrap_start", advertise=args.advertise, port=args.port,
                 client=str(args.client), digest_bytes=len(digest),
                 server_list_variant=args.server_list_variant)

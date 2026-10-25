@@ -36,11 +36,19 @@ python .\tools\codec_sizes.py "C:\Path\To\terraincalendardefinitions.txt"
 python .\tools\analyze_digest.py "C:\Path\To\NPUA30048\USRDIR\Digests\NPUA30048.soe"
 ```
 
-`codec_sizes.py` shows which candidate reproduces the manifest's 373-byte length. `analyze_digest.py` locates the asset's record in the digest and dumps its bytes so the record layout can be read directly.
+**Current best lead:** the digest shows each `.zs` asset is a zlib stream plus a 129-byte trailer (see `docs/digest-format.md`). Next RPCS3 run, try:
+
+```powershell
+python .\bootstrap\fr_ps3_bootstrap.py --client "C:\Path\To\NPUA30048" --codec zs-zlib-zero-trailer
+```
+
+If the installer still reports error 1004, repeat with `--codec zs-zlib-digest-trailer` and send `ps3_protocol_trace.jsonl` plus the installer error. The default `lzma-alone` is kept only as the preserved baseline; it cannot match the manifest length.
+
+`parse_digest.py` lists every file in the digest with its size, compressed length and CRC. `codec_sizes.py` shows which candidate reproduces the manifest's 373-byte length. `analyze_digest.py` locates the asset's record in the digest and dumps its bytes so the record layout can be read directly.
 
 ## Limitations and safety
 
-- The current experimental terrain asset response uses LZMA. Its format is **not verified compatible** with the PS3 client's decoder; an observed test resulted in installer error **1004**.
+- The default terrain asset response still uses LZMA (the preserved baseline), which cannot match the manifest length and gave installer error **1004**. Use `--codec zs-zlib-zero-trailer` for the zlib-plus-trailer experiment; it is **not yet verified** against the PS3 client.
 - Other asset responses depend on client files on disk; none are bundled with this repository.
 - This test server has no authentication or production hardening. Do not expose ports 53 or 80 to the public internet.
 - The script writes `ps3_protocol_trace.jsonl` next to itself. This file is ignored by Git and may contain local addresses or file paths.
