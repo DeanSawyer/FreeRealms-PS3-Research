@@ -4,6 +4,9 @@ An **experimental**, independently written server that stands in for the game's 
 studied on a test machine. It is not a production server and not a complete game-server emulator. Python 3.10+, standard
 library only.
 
+> This Python server is the **reference**. A C# port with the same options, replies and log wording lives in
+> [`src/ps3`](../src/ps3/README.md); CI compares the two.
+
 | Layer | Port | What it does | Code |
 | :--- | :--- | :--- | :--- |
 | DNS | 53/udp | Redirects the game's hostnames to this machine; forwards everything else upstream (`--no-dns` to turn off) | `fr_ps3_bootstrap.py` |

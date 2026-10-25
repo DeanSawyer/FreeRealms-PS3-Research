@@ -1,16 +1,17 @@
 # Windows manager (C# preview)
 
-A **.NET 10 / WPF** desktop wrapper around the Python [bootstrap server](../bootstrap/README.md): editable settings
-(client folder, bind and advertised address, port, DNS on/off), **Start/Stop** buttons and a live log window.
+A **.NET 10 / WPF** desktop wrapper around the PS3 bootstrap server: editable settings
+(client folder, bind and advertised address, port, DNS on/off, describe local files in the digest), **Start/Stop** buttons and a live
+log window. It runs the C# server ([`ps3/`](ps3/README.md)) inside the manager; a checkbox switches to the Python
+[reference server](../bootstrap/README.md), which needs Python 3 on `PATH`.
 
 > [!WARNING]
 > **Preview.** The installer builds successfully in CI, but the manager has not been validated end to end against RPCS3.
-> It starts `bootstrap/fr_ps3_bootstrap.py` with the settings above and does not pass `--match-local` or `--digest`; for a full
-> test use [`tools/run_test.py`](../tools/README.md) instead.
+> It does not pass `--digest` or `--extra-client`; for a full test use [`tools/run_test.py`](../tools/README.md) (Python server).
 
 ## Requirements
 
-* Windows, **Python 3 on `PATH`** (`python` or `py`) — the installer does not bundle it.
+* Windows. Python 3 on `PATH` (`python` or `py`) is needed only for the Python reference server option; the installer does not bundle it.
 * Administrator rights to bind ports 53 and 80; close any other service using them first.
 * Your own `NPUA30048` client folder. No game files are packaged.
 
@@ -37,15 +38,18 @@ server over the network, bind `0.0.0.0` and advertise your real LAN IPv4; `0.0.0
 
 ## How it works
 
-`PythonProcessHost.cs` launches the bundled Python script as a hidden child process and shows its output in the log panel; **Stop**
-ends that process. All Python modules of `bootstrap/` are copied into the publish output by `FreeRealms.Bootstrap.csproj`.
+`NativeServerHost.cs` starts `Sanctuary.Ps3` in the manager's own process and shows its log in the panel; the trace files are written to
+`%LOCALAPPDATA%\FreeRealmsPS3Bootstrap\traces`. With the Python option, `PythonProcessHost.cs` launches the bundled script as a hidden
+child process instead; **Stop** ends it. All Python modules of `bootstrap/` are copied into the publish output by
+`FreeRealms.Bootstrap.csproj`.
 
 ## Limitations
 
 * **Check GitHub** looks at the latest GitHub Release, and if it is newer offers to download `FreeRealmsPS3Bootstrap-Setup.exe`
   (HTTPS from github.com only), checks its SHA-256 when GitHub supplies one, and runs it. It needs a Release built from a `v*` tag
   and a repository readable without login; it reports "unavailable" if no release has been published or the repository is private.
-* No Python means no server: the earlier C# HTTP/DNS engine does not implement the asset or gateway behaviour.
+* The C# server has been checked against the Python one by tests, not yet as often against the real PS3 client; if a run works with the
+  Python option and not with the default, please report it (see [`ps3/README.md`](ps3/README.md#differences-from-the-python-script)).
 
 ## Build pipeline
 

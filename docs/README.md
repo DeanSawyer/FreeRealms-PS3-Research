@@ -22,6 +22,11 @@ New to the project? Read these in order: the [README](../README.md) for the curr
 | `re/` | [`addresses.csv`](re/addresses.csv) | Every function and data address the notes rely on, each with a text check that `tools/re/verify_addresses.py` runs |
 | `history/` | [`installer-baseline.md`](history/installer-baseline.md) | The first measured installer result (error 1004), kept for the record |
 
+## Implementations
+
+The findings above are implemented twice: in Python under [`bootstrap/`](../bootstrap/README.md) (the reference) and in C# under
+[`src/ps3`](../src/ps3/README.md) (the port, checked against the reference by CI).
+
 ## Conventions
 
 * Addresses are virtual addresses in `game.elf` (file offset + `0x10000`); functions appear as `fn_00xxxxxx` or by address.

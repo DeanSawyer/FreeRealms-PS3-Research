@@ -87,6 +87,15 @@ python tools\run_test.py --install "C:\Path\To\TestFolder"      # folder that ho
 python bootstrap\fr_ps3_bootstrap.py --client "C:\Path\To\NPUA30048" --codec zs-zlib-zero-trailer --match-local
 ```
 
+**Or run the C# port** (same options and switches; needs the .NET 10 SDK):
+
+```powershell
+dotnet run --project src\ps3\Sanctuary.Ps3.Server -- --client "C:\Path\To\NPUA30048" --match-local
+```
+
+The Python server is the reference; the C# port is checked against it by CI ([`src/ps3/README.md`](src/ps3/README.md)) and is what the
+Windows manager starts by default.
+
 All options, the zone/spawn switches and the safety notes are in [`bootstrap/README.md`](bootstrap/README.md).
 Never expose ports 53 or 80 to the internet; the server is a research tool with no hardening.
 
@@ -94,14 +103,16 @@ Never expose ports 53 or 80 to the internet; the server is a research tool with 
 
 ```text
 .
-├── bootstrap/     Local test server (DNS, HTTP, UDP gateway) and the readers for the client's packs
+├── bootstrap/     Local test server in Python (DNS, HTTP, UDP gateway): the reference, plus the readers for the client's packs
 ├── tools/         Command-line utilities: install checks, asset and zone reports, binary analysis, Ghidra workspace
 ├── docs/          Findings, grouped by topic (see the index below)
 │   ├── install/     Patch digest, .zs container, installer behaviour
 │   ├── protocol/    Web-service replies and the UDP gateway protocol
 │   ├── re/          Reverse engineering of game.elf: assets, zone loading, address table
 │   └── history/     Earlier experiments kept for the record
-├── src/           Windows manager (C#/WPF preview) that wraps the Python server
+├── src/           C# code
+│   ├── ps3/         Sanctuary.Ps3: the C# port of the server, its console host and tests (see src/ps3/README.md)
+│   └── FreeRealms.Bootstrap/  Windows manager (C#/WPF preview) that runs the C# server, or the Python one
 ├── installer/     Inno Setup script for the Windows manager
 └── .github/       CI workflow, issue and pull-request templates
 ```
@@ -119,6 +130,7 @@ Start at the [documentation index](docs/README.md). The main documents:
 | Zone loading and the loading overlay | [`docs/re/zone-loading.md`](docs/re/zone-loading.md) |
 | Every code address the notes rely on (machine-checked) | [`docs/re/addresses.csv`](docs/re/addresses.csv) |
 | The first failed experiment (installer error 1004) | [`docs/history/installer-baseline.md`](docs/history/installer-baseline.md) |
+| The C# port of the server, how it is checked against Python | [`src/ps3/README.md`](src/ps3/README.md) |
 
 Tools are indexed in [`tools/README.md`](tools/README.md).
 
@@ -132,6 +144,8 @@ Tools are indexed in [`tools/README.md`](tools/README.md).
 - [ ] **Find what holds the loading overlay and bring the world up**
 - [ ] Make the character appear and respond (movement, basic world packets)
 - [ ] Decode the remaining server packets the client sends after loading
+- [x] Port the server to C# (Sanctuary conventions), verified against the Python reference in CI
+- [ ] Offer the PS3 client as a second client option in the Clover server
 - [ ] Package a documented, repeatable setup for other owners of the game
 
 A tick means a specific observation, not a finished game feature.
@@ -146,7 +160,7 @@ finding, what to include, and what must never be committed. Security notes for t
 Copyright © 2026 the FreeRealms-PS3-Research contributors. Licensed under the **GNU Affero General Public License v3.0 or later**
 ([`LICENSE`](LICENSE)). The same terms keep the repository consistent with its sources: two helpers
 ([`tools/undat.py`](tools/undat.py), [`tools/sdat_patch_loading.py`](tools/sdat_patch_loading.py)) are derived from RPCS3
-(GPL-2.0-or-later, which allows use under version 3), and the packet layouts follow the Clover server (AGPL-3.0). The helpers use only the
+(GPL-2.0-or-later, which allows use under version 3), and the packet layouts follow the Clover server (AGPL-3.0); see [`CREDITS.md`](CREDITS.md). The helpers use only the
 generic container constants published in RPCS3's source. The license covers this repository's code and text, not *Free Realms* itself.
 
 ## Legal & preservation notice

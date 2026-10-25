@@ -12,6 +12,12 @@ Run any tool with `-h` or read the docstring at the top of the file for its opti
 | [`run_test.py`](run_test.py) | One-command test (Administrator PowerShell): restores the original scripts, starts the server and RPCS3, then packs reports and logs into a zip on the Desktop. |
 | [`rpcs3_diag_patch.py`](rpcs3_diag_patch.py) | Adds (or `--remove`s) an RPCS3 patch that makes the loading-overlay check see `IsLoaded` as true, to tell whether the loading overlay is held by that check or by a gate object ([`docs/re/zone-loading.md`](../docs/re/zone-loading.md)). |
 
+## C# reference vectors
+
+| Tool | Purpose |
+| :--- | :--- |
+| [`gen_ps3_vectors.py`](gen_ps3_vectors.py), [`gen_ps3_web_vectors.py`](gen_ps3_web_vectors.py), [`gen_ps3_gateway_vectors.py`](gen_ps3_gateway_vectors.py) | Run the Python reference and write what it answers as C# test data (`src/ps3/Sanctuary.Ps3.Tests/*.g.cs`). `--check` fails when a file is out of date; CI runs it. See [`src/ps3/README.md`](../src/ps3/README.md). |
+
 ## Install and digest
 
 | Tool | Purpose |
