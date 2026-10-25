@@ -95,6 +95,7 @@ def tunneled(inner, reliable=True):
 # 2 is set up at startup).
 DEFAULT_ZONE = "FabledRealms"
 _install_zone = None
+_install_spawn = None   # (x, z, tile origin, note) from assetlib.pick_spawn()
 
 
 def choose_zone_from_install(usrdir):
@@ -111,6 +112,18 @@ def choose_zone_from_install(usrdir):
         return None
     _install_zone = zone
     LOG.info("zone: %s; %d complete zones in the packs: %s", note, len(complete), ", ".join(complete[:12]))
+    global _install_spawn
+    try:
+        picked = assetlib.pick_spawn(str(usrdir), zone)
+    except Exception as err:
+        LOG.warning("could not pick a spawn position from the tiles: %s", err)
+        picked = None
+    if picked:
+        _install_spawn = picked
+        LOG.info("spawn: x=%.1f z=%.1f in tile %s: %s", picked[0], picked[1], picked[2], picked[3])
+    else:
+        LOG.warning("spawn: no local terrain tile found for %r; using the PC game's position, whose tile may have "
+                    "to be downloaded", zone)
     if zone.lower() != DEFAULT_ZONE.lower():
         LOG.warning("zone: %r is not in the PS3 packs, using %r instead (set FR_ZONE to choose another)",
                     DEFAULT_ZONE, zone)
@@ -231,7 +244,30 @@ def send_self_to_client(character=None):
     return struct.pack("<Hi", 12, len(blob)) + blob
 
 
-SPAWN = (-1904.883, -39.7098, 412.6024, 1.0)
+SPAWN = (-1904.883, -39.7098, 412.6024, 1.0)   # the PC game's position (Clover); its tile is not in the PS3 packs
+DEFAULT_SPAWN_Y = 400.0   # height used with a position picked from the packs; the terrain height there is unknown
+
+
+def configured_spawn():
+    """Where AddPc puts the player. The loading overlay waits for the terrain tiles around this position, so the
+    default is the centre of a tile whose neighbourhood is stored in the packs (docs/re/zone-loading.md).
+    FR_SPAWN="x,y,z" sets it outright; FR_SPAWN_Y sets only the height."""
+    raw = os.environ.get("FR_SPAWN", "").strip()
+    if raw:
+        try:
+            x, y, z = (float(v) for v in raw.replace(";", ",").split(","))
+            return (x, y, z, 1.0)
+        except ValueError:
+            LOG.warning("FR_SPAWN=%r is not 'x,y,z'; ignored", raw)
+    if _install_spawn:
+        try:
+            y = float(os.environ.get("FR_SPAWN_Y", DEFAULT_SPAWN_Y))
+        except ValueError:
+            y = DEFAULT_SPAWN_Y
+        return (_install_spawn[0], y, _install_spawn[1], 1.0)
+    return SPAWN
+
+
 SPAWN_ROTATION = (0.5531712, 0.0, 0.8330676, 0.0)
 
 
@@ -247,7 +283,7 @@ def add_pc(character=None, guid=2, first_name="Helper", last_name="", offset=(2.
     head = f"<race>_<gender>_head_{HEAD_NAMES.get(_int(c.get('Head'), 1), 'caucasian')}.adr"
     hair = "<race>_<gender>_hair_eyebrows_bald.adr"
     skin = f"skintone{_int(c.get('SkinTone'), 1) or 1}"
-    x, y, z, w = SPAWN
+    x, y, z, w = configured_spawn()
     out = bytearray()
     out += struct.pack("<HHQ", 35, 1, guid)
     out += struct.pack("<iii", 0, 0, 0) + _string(first_name) + _string(last_name)   # name ids, names

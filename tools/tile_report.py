@@ -96,6 +96,36 @@ def report(usrdir, zone, probes, radius):
                 loc += name.lower() in by_name
         out("every tile of the box (%d): .gcnk in the manifest %d, in the packs %d" % (total, man, loc))
 
+    if manifest and header["edge"]:
+        out("")
+        out("map of the terrain box, one character per tile (rows = z from low to high, columns = x from low to high):")
+        out("  # stored in the packs   + only in the manifest (download)   . in neither   P = PC spawn tile, O = origin")
+        pc_tile = tuple(assetlib.tile_origin(assetlib._floor_cell(v, cs), edge) for v in (-1904.883, 412.6024))
+        o_tile = (assetlib.tile_origin(0, edge), assetlib.tile_origin(0, edge))
+        for oz in range(header["min_z"], header["min_z"] + header["ext_z"], edge):
+            row = ""
+            for ox in range(header["min_x"], header["min_x"] + header["ext_x"], edge):
+                name = "%s_%d_%d.gcnk" % (zone, ox, oz)
+                ch = "#" if name.lower() in by_name else ("+" if manifest.find(name) else ".")
+                if (ox, oz) == pc_tile:
+                    ch = "P"
+                elif (ox, oz) == o_tile:
+                    ch = "O"
+                row += ch
+            out("  z %4d  %s" % (oz, row))
+        out("  columns start at x = %d, one per %d cells" % (header["min_x"], edge))
+
+    picked = assetlib.pick_spawn(usrdir, zone)
+    if picked:
+        out("")
+        out("spawn the server now picks: x=%.1f z=%.1f, tile %s - %s" % (picked[0], picked[1], picked[2], picked[3]))
+        got = assetlib.read_asset(usrdir, "%s_%d_%d.gcnk" % (zone, picked[2][0], picked[2][1]))
+        if got:
+            data = got[0]
+            out("  that tile: %d bytes, first 64 bytes: %s" % (len(data), data[:64].hex(" ")))
+
+    if picked:
+        probes = list(probes) + [("spawn the server now picks", (picked[0], picked[1]))]
     for label, (px, pz) in probes:
         for r in radius:
             out("")
@@ -119,11 +149,11 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("usrdir")
     ap.add_argument("--zone", default="FabledRealms")
-    ap.add_argument("--x", type=float, default=-1904.883, help="world x of the player (server spawn by default)")
-    ap.add_argument("--z", type=float, default=412.6024, help="world z of the player (server spawn by default)")
+    ap.add_argument("--x", type=float, default=-1904.883, help="world x of the PC game spawn")
+    ap.add_argument("--z", type=float, default=412.6024, help="world z of the PC game spawn")
     ap.add_argument("-o", "--out", default="tile_report.txt")
     args = ap.parse_args()
-    probes = [("server spawn", (args.x, args.z)), ("world origin", (0.0, 0.0))]
+    probes = [("PC game spawn (the old server default)", (args.x, args.z)), ("world origin", (0.0, 0.0))]
     text = "\n".join(report(args.usrdir, args.zone, probes, [RADIUS_HIDE])) + "\n"
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(text)

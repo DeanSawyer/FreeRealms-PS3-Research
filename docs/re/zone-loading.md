@@ -89,6 +89,14 @@ The camera position at that moment is `*(client[0x20e] + 0x30) + 0x40` (see `Cam
 it already equals the spawn position when the check first runs is **not verified**. `tools/tile_report.py` therefore
 reports both the spawn and the world origin.
 
+A tile is loaded (`0x7d3d78`, the same function that writes `Tile at lng:%d lat:%d waiting on ...` into the log
+string) only when all of this is true: the `.gcnk` was parsed (`0x7e84a4` -> `0x7e7628`), `CreateAll()` and
+`CreateObjects()` have run, and every object placed in the tile is itself loaded. The parser (`0x7e7628`) reads 16
+sub-chunks of 0x40c bytes and an object table; the objects' own assets (models, textures) are further requests.
+The `.gck2` request is only made when the tile's flag (`+0x4278`) is set, which `0x7e66c8` does when the settings
+table passed in has the key `RuntimeTerrainFallback` (a hash lookup in `0x34520`). The user's packs hold no `.gck2`
+at all, so in the default setup only `.gcnk` is expected.
+
 The float-to-cell conversion (`0x449030`) behaves like a floor (it adjusts negative values); treat tiles one step away
 from the computed ones as relevant too.
 
@@ -114,7 +122,13 @@ from the PC game). It is **not yet confirmed** on the user's install: run `tools
 names are found in the manifest by the CRC-64 (this confirms the pack and manifest formats and the hash), and
 `FabledRealms.gzne/.cob/.odd` are present in packs and manifest. So the zone name is **not** the cause of the stuck
 screen. The manifest lists about 82,000 assets that are not in the packs: those are only available by download.
-The next check is whether the tiles around the player are among the local ones (`tools/tile_report.py`).
+`tools/tile_report.py` then showed: tile edge 4 cells, cell size 64 (a tile is 256 world units), terrain box x -32..48,
+z -48..16 cells (320 tiles); 198 `.gcnk` are in the packs and all 320 in the manifest; no `.gck2` is stored.
+The PC game's spawn (-1904.9, 412.6) lies in tile (-32, 4), which is **only in the manifest** (23,370 bytes), so the
+client has to download it. The four tiles around the world origin are all local. Since an origin camera would
+have dropped the overlay, the camera is probably at the player's spawn (not proven). The server therefore now spawns
+the player in the centre of a tile whose 3 x 3 neighbourhood is local (`assetlib.pick_spawn`); `FR_SPAWN="x,y,z"`
+overrides it. The height of the ground there is unknown; the default `y` is 400 (`FR_SPAWN_Y`).
 
 ## How the server decides
 

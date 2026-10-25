@@ -257,3 +257,54 @@ def tile_file_names(zone, ox, oz):
     """Asset names the client requests for one tile (0x7e71bc): '<zone>_<x>_<z>.gcnk' always, and
     '<zone>_<x>_<z>.gck2' when the tile object has its extra-data flag set."""
     return ["%s_%d_%d.gcnk" % (zone, ox, oz), "%s_%d_%d.gck2" % (zone, ox, oz)]
+
+
+def local_tiles(entries, zone):
+    """Tile origins (x, z) whose <zone>_<x>_<z>.gcnk file is stored in the packs."""
+    import re
+    pat = re.compile(r"^" + re.escape(zone) + r"_(-?\d+)_(-?\d+)\.gcnk$", re.I)
+    out = set()
+    for e in entries:
+        m = pat.match(e[1])
+        if m:
+            out.add((int(m.group(1)), int(m.group(2))))
+    return out
+
+
+def pick_spawn(usrdir, zone):
+    """Choose a spawn position whose terrain tiles are all stored in the install's packs.
+
+    The loading overlay drops only when the tiles within 96 world units of the camera are loaded
+    (docs/re/zone-loading.md); a tile that is only in the manifest has to be downloaded, which this project's server
+    cannot serve. So pick a tile whose 3 x 3 neighbourhood is local, as near the world origin as possible, and
+    return its centre. Returns (x, z, tile origin, note) or None."""
+    packs, entries, _bad = load_packs(usrdir)
+    found = read_asset(usrdir, zone + ".gzne") if entries else None
+    header = gzne_header(found[0]) if found else None
+    if not header or not header["edge"]:
+        return None
+    local = local_tiles(entries, zone)
+    if not local:
+        return None
+    edge, cs = header["edge"], header["cell_size"]
+    x_range = range(header["min_x"], header["min_x"] + header["ext_x"], edge)
+    z_range = range(header["min_z"], header["min_z"] + header["ext_z"], edge)
+    in_box = {(x, z) for x in x_range for z in z_range}
+    local &= in_box          # a tile outside the terrain box is never requested
+    if not local:
+        return None
+
+    def centre(t):
+        return ((t[0] + edge / 2.0) * cs, (t[1] + edge / 2.0) * cs)
+
+    def dist(t):
+        cx, cz = centre(t)
+        return cx * cx + cz * cz
+
+    full = [t for t in local if all(((t[0] + dx * edge, t[1] + dz * edge) in local)
+                                   or ((t[0] + dx * edge, t[1] + dz * edge) not in in_box)
+                                   for dx in (-1, 0, 1) for dz in (-1, 0, 1))]
+    pool, what = (full, "3 x 3 tiles around it are local") if full else (sorted(local), "only the tile itself is local")
+    best = min(pool, key=dist)
+    x, z = centre(best)
+    return x, z, best, "%s_%d_%d.gcnk, %s (%d of %d tiles are local)" % (zone, best[0], best[1], what, len(local), len(in_box))

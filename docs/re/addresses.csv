@@ -41,3 +41,6 @@ address,query,name,role,expect
 0x7e5d54,decomp,Tile ctor,"Sets the tile vtable (0xee3328)",DAT_00ee3328
 0x7ded28,decomp,Terrain::GetCell (tile cache),"Creates and initialises the tile object for an in-range cell",FUN_007e66c8
 0xef650,list,Overlay hide radius,"IsLoaded called with f1 = float at 0xde9d08 (96.0)",lfs f1
+0x7d3d78,decomp,Tile::IsLoaded,"A tile counts as loaded after CreateAll(), CreateObjects() and when every object of the tile is loaded; otherwise writes 'Tile at lng:%d lat:%d waiting on ...'",waiting on object
+0x7e84a4,decomp,Tile asset-ready listener,"Dispatches by asset kind (1 = .gcnk parser 0x7e7628, 2 = .gck2 parser 0x7e81fc); a failed parse calls 0x7dea50",FUN_007e7628
+0x7e7628,decomp,Tile::ParseGcnk,"Reads the .gcnk contents: 16 sub-chunks (0x40c bytes each), then the object table named 'Chunk_<zone>_<x>_<z>'",Chunk_%s_%d_%d

@@ -97,3 +97,7 @@ python .\tools\zone_report.py "C:\Path\To\NPUA30048\USRDIR"        # which zones
 python .\tools\gzne_info.py   "C:\Path\To\NPUA30048\USRDIR" ZoneName  # terrain box and cell size
 $env:FR_ZONE = "ZoneName"; $env:FR_ZONE_TYPE = "2"                  # override the automatic choice
 ```
+
+The player's spawn position matters too: the loading screen waits for the terrain tiles around it, and only tiles stored in
+the packs can be provided. The server picks the centre of a tile whose neighbourhood is local (logged as `spawn: x=… z=…`);
+`$env:FR_SPAWN = "x,y,z"` sets it by hand and `$env:FR_SPAWN_Y` only the height (default 400).
