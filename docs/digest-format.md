@@ -94,6 +94,19 @@ response as a trailer that was not there, but that link is a **hypothesis**, not
   its index (`en_us_data.dat` is the LF-collapsed copy).
 - `tools/elf_strings.py` lists strings near a pattern in `game.elf` to recover the tag names the client parses.
 
+## Locale data restored exactly (22:12)
+
+- `locale/en_us_data.dat` is a UTF-8 text file (BOM, then one `id<TAB>type<TAB>text` record per line, CRLF-terminated);
+  `en_us_data.dir` is its text index: a `## key: value` header (`Count`, `MD5Checksum` of the original `.dat`, ...) and one
+  `id<TAB>offset<TAB>length<TAB>flag` row per record. Offsets/lengths refer to the original CRLF file and the length excludes
+  the record's CRLF.
+- The GitHub copy has all CRLF turned into LF (5,652,016 bytes, 92,509 LFs). A blind LF-to-CRLF fails because 21 records hold
+  a bare LF inside their text. Walking the index (record i ends `length` bytes after its start, then LF becomes CRLF) rebuilds
+  the file: 5,744,504 bytes, CRC32 0xA1D1B63F, MD5 DCE1D769... = the index's `MD5Checksum`. `tools/restore_locale.py` does this
+  (verifies the MD5 before writing, keeps a `.lf-copy` backup).
+- Consequence: `en_us_data.dat` was never a different build, only a line-ending casualty, and the game was reading the original
+  `.dir` against the collapsed `.dat` (offsets off by up to 92,488 bytes) when the blank message box appeared.
+
 ## Digest layout (parsed by `tools/parse_digest.py`)
 
 - Tag/length/value tree. Length byte `< 0x80` is one byte, `0x80-0xFE` starts a 15-bit two-byte length, `0xFF` is
