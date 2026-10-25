@@ -3,14 +3,14 @@ using System.IO;
 
 namespace FreeRealms.Bootstrap;
 
-/// <summary>Runs the preserved Python research server without a console window.</summary>
-public sealed class PythonProcessHost
+/// <summary>Runs the Python reference server without a console window.</summary>
+public sealed class PythonProcessHost : IServerHost
 {
     public event Action<string>? Log;
     private Process? process;
     private bool stopping;
 
-    public async Task StartAsync(string client, string bind, string advertise, int port, bool enableDns)
+    public async Task StartAsync(ServerSettings settings)
     {
         if (process is { HasExited: false })
             throw new InvalidOperationException("Bootstrap already running.");
@@ -35,11 +35,12 @@ public sealed class PythonProcessHost
             if (executable == "py.exe") info.ArgumentList.Add("-3");
             info.ArgumentList.Add("-u");
             info.ArgumentList.Add(script);
-            info.ArgumentList.Add("--client"); info.ArgumentList.Add(client);
-            info.ArgumentList.Add("--bind"); info.ArgumentList.Add(bind);
-            info.ArgumentList.Add("--advertise"); info.ArgumentList.Add(advertise);
-            info.ArgumentList.Add("--port"); info.ArgumentList.Add(port.ToString());
-            if (!enableDns) info.ArgumentList.Add("--no-dns");
+            info.ArgumentList.Add("--client"); info.ArgumentList.Add(settings.Client);
+            info.ArgumentList.Add("--bind"); info.ArgumentList.Add(settings.Bind);
+            info.ArgumentList.Add("--advertise"); info.ArgumentList.Add(settings.Advertise);
+            info.ArgumentList.Add("--port"); info.ArgumentList.Add(settings.Port.ToString());
+            if (!settings.Dns) info.ArgumentList.Add("--no-dns");
+            if (settings.MatchLocal) info.ArgumentList.Add("--match-local");
 
             Process? candidate = null;
             try
