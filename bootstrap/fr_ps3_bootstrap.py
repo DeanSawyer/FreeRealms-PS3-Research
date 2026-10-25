@@ -37,55 +37,73 @@ HOSTS = {
     "fr.patch.station.sony.com",  # clientconfig.ini [AssetDelivery]
 }
 # Reply formats, recovered from the decrypted client (game.elf) -- see docs/ps3ws-replies.md.
-# Every ps3ws reply is XML read by TinyXML. The client treats a reply as successful only when
-# <Status> is exactly 1; any other value takes its failure path (a localized error dialog).
-XML_DECL = b'<?xml version="1.0" encoding="utf-8"?>\r\n'
+# Every ps3ws reply is XML read by the client's own reader. The reader has two modes for "simple" values
+# (Status, StatusMessage, Name, Online, ...): attributes of the current element, or child elements. The
+# client's constructor switches attribute mode ON, so the default here is attributes. The client treats a
+# reply as successful only when Status is exactly 1; any other value takes its failure path.
+XML_DECL = '<?xml version="1.0" encoding="utf-8"?>\r\n'
 
 
-def ps3ws_reply(root, body=b"", status=1, message=b"Success"):
-    return (XML_DECL + b"<" + root + b"><Status>" + str(status).encode() + b"</Status>"
-            b"<StatusMessage>" + message + b"</StatusMessage>" + body + b"</" + root + b">\r\n")
+def _esc(value):
+    return (str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace('"', "&quot;"))
 
 
-# Server entries: Name (text), Online (0/1, default 0), Locked (0/1, default 1 when missing).
-SERVER_LIST = ps3ws_reply(
-    b"ServerListReply",
-    b"<Servers><Server><Name>NorthForge</Name><Online>1</Online><Locked>0</Locked></Server></Servers>")
-# Experimental variant: one extra Zone field. The value and placement are
-# deliberately hypotheses; neither has been verified against the PS3 parser.
-SERVER_LIST_ZONE = SERVER_LIST.replace(
-    b'<Name>NorthForge</Name>',
-    b'<Name>NorthForge</Name><Zone>1</Zone>', 1
-)
+def element(tag, fields=None, children=(), style="attributes"):
+    """Render <tag> with simple values `fields` as attributes or child elements, plus nested elements."""
+    fields = fields or {}
+    kids = "".join(children)
+    if style == "attributes":
+        attrs = "".join(f' {k}="{_esc(v)}"' for k, v in fields.items())
+        return f"<{tag}{attrs}/>" if not kids else f"<{tag}{attrs}>{kids}</{tag}>"
+    inner = "".join(f"<{k}>{_esc(v)}</{k}>" for k, v in fields.items())
+    return f"<{tag}>{inner}{kids}</{tag}>"
 
-# Account: Member, MaxCharacters, Admin (integers). For an account with no characters the client has two
-# paths (--account-status): Status 1 with an empty <Characters> list, or Status 2, which it logs as
-# "No existing character found on the server". Which one reaches the character creator is untested.
-ACCOUNT_BODY = b"<Account><Member>1</Member><MaxCharacters>3</MaxCharacters><Admin>0</Admin></Account>"
-ACCOUNT_INFO = ps3ws_reply(b"AccountInfoReply", ACCOUNT_BODY + b"<Characters></Characters>")
-# Sample existing character (--existing-character); the field layout of <Character> is still a guess.
-ACCOUNT_INFO_WITH_CHARACTER = ps3ws_reply(
-    b"AccountInfoReply",
-    ACCOUNT_BODY + b"<Characters><Character><HeadshotUrl></HeadshotUrl><Details><Guid>1</Guid>"
-    b"<Name>NorthForge</Name></Details><Model>0</Model><Head></Head><Hair></Hair>"
-    b"<ModelCustomization></ModelCustomization><FacePaint></FacePaint>"
-    b"<SkinTone></SkinTone><EyeColor>0</EyeColor><HairColor>0</HairColor>"
-    b"<Attachments></Attachments></Character></Characters>")
-CHECK_NAME = ps3ws_reply(b"CheckNameReply", b"<Suggestions></Suggestions>")
-CHARACTER_CREATE = ps3ws_reply(b"CharacterCreateReply", b"<Guid>1</Guid>")
-# Placeholder gateway: no game server exists yet, so the client fails after this.
-CHARACTER_LOGIN = ps3ws_reply(
-    b"CharacterLoginReply",
-    b"<GatewayAddress>127.0.0.1:20260</GatewayAddress><GatewayTicket>0</GatewayTicket><Key>0</Key>")
-CHARACTER_DELETE = ps3ws_reply(b"CharacterDeleteReply")
-CHARACTER_FRIENDS = ps3ws_reply(b"CharacterFriendsReply", b"<Friends></Friends>")
-GENERIC_REPLY = ps3ws_reply(b"Response")
-REPLIES = {
-    "/ps3ws/character/checkName.action": ("check_name", CHECK_NAME),
-    "/ps3ws/character/create.action": ("character_create", CHARACTER_CREATE),
-    "/ps3ws/character/login.action": ("character_login", CHARACTER_LOGIN),
-    "/ps3ws/character/delete.action": ("character_delete", CHARACTER_DELETE),
-    "/ps3ws/character/friendsList.action": ("friends_list", CHARACTER_FRIENDS),
+
+def build_replies(style="attributes", account_status=1, existing_character=False, zone=False):
+    """Return {kind: bytes} for every ps3ws reply the stub answers."""
+    def reply(root, fields=None, children=(), status=1, message="Success"):
+        head = {"Status": status, "StatusMessage": message, **(fields or {})}
+        return (XML_DECL + element(root, head, children, style) + "\r\n").encode("utf-8")
+
+    def el(tag, fields=None, children=()):
+        return element(tag, fields, children, style)
+
+    server = {"Name": "NorthForge", "Online": 1, "Locked": 0}
+    if zone:  # experimental: one extra Zone field, unverified against the parser
+        server["Zone"] = 1
+    account = el("Account", {"Member": 1, "MaxCharacters": 3, "Admin": 0})
+    sample = el("Character", {"HeadshotUrl": ""},  # sample layout is a guess, see the docs
+                [el("Details", {"Guid": 1, "Name": "NorthForge"})])
+    if existing_character:
+        account_reply = reply("AccountInfoReply", children=[account, el("Characters", children=[sample])])
+    elif account_status != 1:
+        account_reply = reply("AccountInfoReply", children=[account], status=account_status,
+                              message="No characters")
+    else:
+        account_reply = reply("AccountInfoReply", children=[account, el("Characters")])
+    return {
+        "server_list": reply("ServerListReply", children=[el("Servers", children=[el("Server", server)])]),
+        "account_info": account_reply,
+        "check_name": reply("CheckNameReply", children=[el("Suggestions")]),
+        "character_create": reply("CharacterCreateReply", {"Guid": 1}),
+        # Placeholder gateway: no game server exists yet, so the client fails after this.
+        "character_login": reply("CharacterLoginReply", {"GatewayAddress": "127.0.0.1:20260",
+                                                         "GatewayTicket": "0", "Key": "0"}),
+        "character_delete": reply("CharacterDeleteReply"),
+        "friends_list": reply("CharacterFriendsReply", children=[el("Friends")]),
+        "generic": reply("Response"),
+    }
+
+
+ROUTE_KINDS = {
+    "/ps3ws/game/serverList.action": "server_list",
+    "/ps3ws/account/info.action": "account_info",
+    "/ps3ws/character/checkName.action": "check_name",
+    "/ps3ws/character/create.action": "character_create",
+    "/ps3ws/character/login.action": "character_login",
+    "/ps3ws/character/delete.action": "character_delete",
+    "/ps3ws/character/friendsList.action": "friends_list",
 }
 
 
@@ -180,8 +198,10 @@ def trace_event(event, **fields):
 
 def make_handler(ip, digest, server_list_variant, client_root,
                  codec=codec_candidates.DEFAULT_CODEC, extra_clients=(), serve_mismatch=False,
-                 existing_character=False, account_status=1):
+                 existing_character=False, account_status=1, xml_style="attributes"):
     config = app_config(ip)
+    replies = build_replies(xml_style, account_status, existing_character,
+                            zone=(server_list_variant == "zone"))
     asset_root = (client_root / "USRDIR").resolve()
     # Extra game folders searched (in order) for a file whose CRC32 matches.
     asset_roots = [asset_root] + [(Path(p) / "USRDIR").resolve() for p in extra_clients]
@@ -466,21 +486,9 @@ def make_handler(ip, digest, server_list_variant, client_root,
                          self.headers.get("Content-Type", ""))
             LOG.info("POST %s host=%s body_bytes=%d", self.path,
                      self.headers.get("Host", ""), length)
-            if route == "/ps3ws/game/serverList.action":
-                reply, kind = (SERVER_LIST_ZONE if server_list_variant == "zone" else SERVER_LIST), "server_list"
-            elif route == "/ps3ws/account/info.action":
-                if existing_character:
-                    reply = ACCOUNT_INFO_WITH_CHARACTER
-                elif account_status != 1:
-                    reply = ps3ws_reply(b"AccountInfoReply", ACCOUNT_BODY, status=account_status,
-                                        message=b"No characters")
-                else:
-                    reply = ACCOUNT_INFO
-                kind = "account_info"
-            elif route in REPLIES:
-                kind, reply = REPLIES[route]
-            elif route.startswith("/ps3ws/"):
-                reply, kind = GENERIC_REPLY, "generic"
+            if route.startswith("/ps3ws/"):
+                kind = ROUTE_KINDS.get(route, "generic")
+                reply = replies[kind]
             else:
                 self.respond(501, b"Not implemented\r\n", "text/plain", close=True)
                 return
@@ -488,7 +496,8 @@ def make_handler(ip, digest, server_list_variant, client_root,
             fields = sorted(parse_qs(body.decode("latin-1"), keep_blank_values=True))
             trace_event("ps3_reply", route=route, http_status=200, body_bytes=len(reply),
                         reply_kind=kind, request_fields=fields,
-                        server_list_variant=(server_list_variant if kind == "server_list" else None))
+                        server_list_variant=(server_list_variant if kind == "server_list" else None),
+                        xml_style=xml_style)
             LOG.info("%s request fields: %s", kind, ", ".join(fields) or "(none)")
             self.respond(200, reply, "text/xml; charset=utf-8", close=True)
             LOG.info("200 test reply for %s (%d bytes)", route, len(reply))
@@ -507,6 +516,9 @@ def main():
     parser.add_argument("--account-status", type=int, default=1, metavar="N",
                         help="Status for an account with no characters. 1 (default) = success with an "
                              "empty list; 2 = the client's 'No existing character found' result")
+    parser.add_argument("--xml-style", choices=("attributes", "elements"), default="attributes",
+                        help="How simple values are written in ps3ws replies. The client reads "
+                             "attributes (default); 'elements' is the earlier child-element form")
     parser.add_argument("--extra-client", type=Path, action="append", default=[], metavar="DIR",
                         help="Additional NPUA30048 folder to search for a file whose CRC32 matches "
                              "what the client requests (repeatable). Only used with --codec zs-*.")
@@ -590,7 +602,7 @@ def main():
                                                   args.codec, args.extra_client,
                                                   args.serve_mismatch,
                                                   args.existing_character,
-                                                  args.account_status)) as http:
+                                                  args.account_status, args.xml_style)) as http:
             LOG.info("Server-list response variant: %s (experimental Zone field: %s)",
                      args.server_list_variant, args.server_list_variant == "zone")
             LOG.info("HTTP listening on %s:%d; AppConfig=%d bytes; digest=%d bytes",

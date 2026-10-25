@@ -71,6 +71,6 @@ if the client does not verify the digest's trailer.
 ## Web-service replies
 
 The `/ps3ws/*.action` replies are built from the formats recovered from the decrypted client; see
-`docs/ps3ws-replies.md`. The key fact: `<Status>` must be `1` for the client to treat a reply as
-successful. By default `account/info` reports an empty account so the client goes to character creation;
+`docs/ps3ws-replies.md`. The key facts: values are XML attributes (`--xml-style elements` is the fallback), and `Status` must
+be `1` for the client to treat a reply as successful. By default `account/info` reports an empty account so the client goes to character creation;
 `--existing-character` reports one sample character instead.

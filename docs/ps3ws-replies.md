@@ -13,7 +13,26 @@ success flag (`OnRequest...: requestId=%d, result=%d`). Any other value takes th
 server answered `<Status>0</Status>`. Missing elements do not abort the parse: the reader sets an error
 flag and keeps going, and integer fields default to 0.
 
+## Attributes, not child elements
+
+The client's reply reader has two modes for plain values (`Status`, `StatusMessage`, `Name`, `Online`,
+`Guid`, ...): read them as attributes of the current element, or as child elements. The web-service
+object sets attribute mode in its constructor (`this+152 = 1`) and nothing in the code turns it off, so
+the replies are attribute style:
+
+```xml
+<ServerListReply Status="1" StatusMessage="Success"><Servers><Server Name="NorthForge" Online="1" Locked="0"/></Servers></ServerListReply>
+<AccountInfoReply Status="1" StatusMessage="Success"><Account Member="1" MaxCharacters="3" Admin="0"/><Characters/></AccountInfoReply>
+```
+
+Structural elements (`Servers`/`Server`, `Account`, `Characters`/`Character`, `Suggestions`, `Friends`)
+stay elements; they are entered by name. A reply written with child elements (`<Status>1</Status>`)
+finds no `Status`, reads 0, and takes the failure path, which is what the first versions of this server
+did. The server keeps the other form behind `--xml-style elements` in case this reading is wrong.
+
 ## Replies
+
+The field names below are the attributes (or child elements, in `elements` mode) read from each element.
 
 | Endpoint | Root element | Fields read |
 |---|---|---|
