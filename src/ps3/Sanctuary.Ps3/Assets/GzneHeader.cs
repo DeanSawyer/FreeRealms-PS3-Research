@@ -28,18 +28,31 @@ public sealed record GzneHeader(
         var version = BinaryPrimitives.ReadInt32BigEndian(data[4..]);
         var bigEndian = version is > 0 and < 256;
 
-        int Int(int offset) => bigEndian
-            ? BinaryPrimitives.ReadInt32BigEndian(data[offset..])
-            : BinaryPrimitives.ReadInt32LittleEndian(data[offset..]);
-
         var cellSize = bigEndian
             ? BinaryPrimitives.ReadSingleBigEndian(data[0x10..])
             : BinaryPrimitives.ReadSingleLittleEndian(data[0x10..]);
 
-        var a = Int(8);
-        var b = Int(12);
+        var a = ReadInt(data, 8, bigEndian);
+        var b = ReadInt(data, 12, bigEndian);
 
-        return new GzneHeader(Int(4), a, b, b != 0 ? FloorDivide(a, b) : 0, cellSize, Int(0x18), Int(0x1C), Int(0x20), Int(0x24), bigEndian);
+        return new GzneHeader(
+            ReadInt(data, 4, bigEndian),
+            a,
+            b,
+            b != 0 ? FloorDivide(a, b) : 0,
+            cellSize,
+            ReadInt(data, 0x18, bigEndian),
+            ReadInt(data, 0x1C, bigEndian),
+            ReadInt(data, 0x20, bigEndian),
+            ReadInt(data, 0x24, bigEndian),
+            bigEndian);
+    }
+
+    private static int ReadInt(ReadOnlySpan<byte> data, int offset, bool bigEndian)
+    {
+        return bigEndian
+            ? BinaryPrimitives.ReadInt32BigEndian(data[offset..])
+            : BinaryPrimitives.ReadInt32LittleEndian(data[offset..]);
     }
 
     /// <summary>Floor division like Python's <c>//</c>, done in 64 bits so int.MinValue / -1 cannot throw.</summary>
