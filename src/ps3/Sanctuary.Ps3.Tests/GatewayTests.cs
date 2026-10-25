@@ -379,4 +379,16 @@ public sealed class GatewayTests
         CollectionAssert.AreEqual(new byte[] { 0, 9, 0, 0, 2, 0, 1 }, reply);
         Assert.IsTrue(SpinWait.SpinUntil(() => gateway.Sessions.Count == 1, 2000));
     }
+
+    [TestMethod]
+    public void BytesAreShownLikePythonsRepr()
+    {
+        Assert.AreEqual("b'Session='", Ps3Packets.PythonBytesRepr("Session="u8));
+        Assert.AreEqual("b''", Ps3Packets.PythonBytesRepr([]));
+        Assert.AreEqual("b'a\\tb\\n\\r'", Ps3Packets.PythonBytesRepr("a\tb\n\r"u8));
+        Assert.AreEqual("b'\\\\'", Ps3Packets.PythonBytesRepr("\\"u8));
+        Assert.AreEqual("b'\\x00\\x7f\\xff'", Ps3Packets.PythonBytesRepr([0, 0x7f, 0xff]));
+        Assert.AreEqual("b\"it's\"", Ps3Packets.PythonBytesRepr("it's"u8));
+        Assert.AreEqual("b'it\\'s\"'", Ps3Packets.PythonBytesRepr("it's\""u8));
+    }
 }

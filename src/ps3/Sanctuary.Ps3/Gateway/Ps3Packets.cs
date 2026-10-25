@@ -278,6 +278,33 @@ public static class Ps3Packets
         return result.Append(quote).ToString();
     }
 
+    /// <summary>Bytes the way Python's <c>repr</c> shows them: <c>b'Session='</c>, non-printable bytes as <c>\xNN</c>.</summary>
+    public static string PythonBytesRepr(ReadOnlySpan<byte> data)
+    {
+        var hasSingle = data.Contains((byte)'\'');
+        var hasDouble = data.Contains((byte)'"');
+        var quote = hasSingle && !hasDouble ? '"' : '\'';
+        var result = new StringBuilder("b").Append(quote);
+
+        foreach (var b in data)
+        {
+            if (b == quote || b == '\\')
+                result.Append('\\').Append((char)b);
+            else if (b == '\n')
+                result.Append("\\n");
+            else if (b == '\r')
+                result.Append("\\r");
+            else if (b == '\t')
+                result.Append("\\t");
+            else if (b < 0x20 || b >= 0x7f)
+                result.Append("\\x").Append(b.ToString("x2", CultureInfo.InvariantCulture));
+            else
+                result.Append((char)b);
+        }
+
+        return result.Append(quote).ToString();
+    }
+
     private static string Utf8Slice(ReadOnlySpan<byte> data, long start, long length)
     {
         if (start >= data.Length)

@@ -20,7 +20,7 @@ client option. It does the same job as the Python scripts in [`bootstrap/`](../.
 | Project | What it is |
 | :--- | :--- |
 | `Sanctuary.Ps3` | The library: web front, DNS, digest and `.zs` container, pack/manifest/terrain readers, gateway state machine and packet builders, and the host (`Ps3Server.StartAsync`) that starts everything. Targets `net9.0` like the Sanctuary solution. |
-| `Sanctuary.Ps3.Server` | A console program around the library. Same options, defaults and log wording as the Python script. |
+| `Sanctuary.Ps3.Server` | A console program around the library. Same options and defaults as the Python script, and the same log lines (except Python's one-per-request `HTTP … 200 -` access line). |
 | `Sanctuary.Ps3.Tests` | MSTest project: unit tests, tests on loopback sockets, and the comparison with Python described below. |
 
 The Windows manager in [`src/FreeRealms.Bootstrap`](../FreeRealms.Bootstrap) runs this library in-process by default.

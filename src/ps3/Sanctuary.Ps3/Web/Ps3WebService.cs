@@ -6,6 +6,8 @@ using System.Text;
 
 using Microsoft.Extensions.Logging;
 
+using Sanctuary.Ps3.Gateway;
+
 namespace Sanctuary.Ps3.Web;
 
 /// <summary>
@@ -137,7 +139,7 @@ public sealed class Ps3WebService
                 ("content_type", request.ContentType),
                 ("header_names", (request.HeaderNames ?? []).Select(name => name.ToLowerInvariant()).Distinct().Order(StringComparer.Ordinal).ToList()));
 
-            _logger?.LogInformation("serverList request body={Body} content-type={ContentType}", Encoding.Latin1.GetString(head), request.ContentType);
+            _logger?.LogInformation("serverList request body={Body} content-type={ContentType}", Ps3Packets.PythonBytesRepr(head), Ps3Packets.PythonRepr(request.ContentType ?? string.Empty));
         }
 
         _logger?.LogInformation("POST {Target} host={Host} body_bytes={Bytes}", request.Target, request.Host, length);
