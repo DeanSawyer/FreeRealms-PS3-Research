@@ -181,6 +181,7 @@ Next:
 
 1. Learn which part of the per-frame check fails. Patch the game in RPCS3 so `IsLoaded` (`0x897db4`) returns true: if the
    overlay drops, the check is what fails and the four gate bytes are fine; if not, a gate byte is set or something else holds it.
+   `tools/rpcs3_diag_patch.py` adds that patch (`li r3,1; blr`) to a portable RPCS3 folder and removes it again.
 2. If the check itself fails: tile streaming and bubble readiness (`0x7da88c`, `0x7dafb0`, `0x7dad04`, `0x7e66c8`) and the
    assets the tile objects need (models and textures named in the `.odd`/`.gcnk`) — these need runtime data, not more static reading.
 
