@@ -51,6 +51,23 @@ response as a trailer that was not there, but that link is a **hypothesis**, not
   Serving a different build under the original digest's values cannot work.
 - Next hypothesis: the digest can instead describe the local build (`--match-local`, below).
 
+## Fourth RPCS3 run (21:15, `--match-local`): the edited digest is accepted
+
+- The client fetched the 21,468-byte rewritten digest and asked for `en_us_data.dat` with the **rewritten** values
+  (`c=3394664523` = 0xCA56784B, `l=2359127`). It accepted the response and moved on, so **the digest's 129-byte trailer is
+  not verified** (at least not against the body), and the digest can describe the local build.
+- `en_us_data.dir`: the local file was the LF-collapsed version of the original; LF-to-CRLF restored it exactly
+  (CRC 0x5C6C9D59), so the GitHub copy stores some binary files with CRLF turned into LF. For `en_us_data.dat` the same
+  conversion does not give the original (mixed line endings), so the English string data is probably not the original
+  bytes, and its `.dir` index is now the original: the game may misread it later (not an installer problem).
+- Next stall: `logs/logs.txt` (index 160, 9 bytes, listed with compressed length 138 = size + 129, i.e. stored raw). The CRC
+  in the request matched our data and the 138-byte response (raw bytes + `0x01` + 128 zero bytes) was rejected three times
+  (`cb=L`, `cb=LF`). Hypothesis: the first trailer byte selects the payload encoding (0x01 = zlib), so stored files need a
+  different value. 11 files are stored: `logs/logs.txt`, 8 small `resources/*.txt`, `loadingscreen.gfx`, `fr_logo.png`.
+- The server now varies the container on each retry of a stored file (`STORED_VARIANTS`: trailer byte 0x00, 0x02, 0x03,
+  0x04, 0x80, 0xFF, then a stored-block zlib stream) and remembers the variant after the client moves on to another file.
+  Look for `STORED ... attempt=N variant=...` in the log.
+
 ## Digest layout (parsed by `tools/parse_digest.py`)
 
 - Tag/length/value tree. Length byte `< 0x80` is one byte, `0x80-0xFE` starts a 15-bit two-byte length, `0xFF` is

@@ -118,6 +118,35 @@ def pad_zlib(raw, target, tail=96):
     return None
 
 
+_LEVELS = [9, 6, 1, 2, 3, 4, 5, 7, 8]
+
+
+def _stored_zlib(raw):
+    return b"\x78\x01" + _stored_blocks(raw, True) + struct.pack(">I", zlib.adler32(raw))
+
+
+_SIG = b"\x00" * 128
+
+# Files the digest lists with compressed length == size + 129 (payload == size) are stored
+# uncompressed. The first trailer byte probably says how the payload is encoded; 0x01 works for
+# zlib payloads, but the client rejected raw bytes + 0x01. These are tried in order, one per
+# retry (the client re-requests with a growing cb= suffix after a rejected download).
+STORED_VARIANTS = [
+    ("raw+trailer00", lambda raw: raw + b"\x00" + _SIG),
+    ("raw+trailer02", lambda raw: raw + b"\x02" + _SIG),
+    ("raw+trailer03", lambda raw: raw + b"\x03" + _SIG),
+    ("raw+trailer04", lambda raw: raw + b"\x04" + _SIG),
+    ("raw+trailer80", lambda raw: raw + b"\x80" + _SIG),
+    ("raw+trailerff", lambda raw: raw + b"\xff" + _SIG),
+    ("zlibstored+trailer01", lambda raw: _stored_zlib(raw) + b"\x01" + _SIG),
+]
+
+
+def encode_stored(index, raw):
+    label, make = STORED_VARIANTS[index % len(STORED_VARIANTS)]
+    return make(raw), label
+
+
 def _zs_payload(raw, target=None):
     """zlib stream, or the raw bytes when zlib does not make the file smaller.
 
@@ -129,9 +158,12 @@ def _zs_payload(raw, target=None):
         return bytes(raw)
     default = zlib.compress(raw, 9)
     if target is not None:
-        for level in (9, 6, 1, 2, 3, 4, 5, 7, 8):
+        for level in list(_LEVELS):
             candidate = zlib.compress(raw, level)
             if len(candidate) == target:
+                if _LEVELS[0] != level:  # try the level that worked last time first
+                    _LEVELS.remove(level)
+                    _LEVELS.insert(0, level)
                 return candidate
         padded = pad_zlib(raw, target)
         if padded is not None:

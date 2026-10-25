@@ -161,6 +161,8 @@ def make_handler(ip, digest, server_list_variant, client_root,
     # Extra game folders searched (in order) for a file whose CRC32 matches.
     asset_roots = [asset_root] + [(Path(p) / "USRDIR").resolve() for p in extra_clients]
     patch_prefix = "/patch/freerealms/ps3scelive/ps3-web/"
+    # Which STORED_VARIANTS index the client accepted last (inferred: it moved on to another file).
+    stored_state = {"learned": 0, "pending": None}
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -279,6 +281,12 @@ def make_handler(ip, digest, server_list_variant, client_root,
                 return int(value) if value.isdigit() else None
 
             want_crc, want_len = number("c"), number("l")
+            attempt = len(query.get("cb", [""])[0])
+            pending = stored_state["pending"]
+            if pending and pending[0] != decoded:
+                stored_state["learned"], stored_state["pending"] = pending[1], None
+                LOG.info("STORED variant %s was accepted (client moved on from %s)",
+                         codec_candidates.STORED_VARIANTS[pending[1]][0], pending[0])
             if not candidates:
                 trace_event("zs_source_missing", route=route, decoded=decoded,
                             expected_crc32=want_crc, manifest_length=want_len,
@@ -325,8 +333,17 @@ def make_handler(ip, digest, server_list_variant, client_root,
                 return True
             crc = zlib.crc32(raw)
             target = want_len - codec_candidates.ZS_TRAILER_LEN if want_len else None
-            encoded = codec_candidates.encode(codec, raw, target)
+            variant = ""
+            if codec in codec_candidates.ZS_CODECS and target is not None and target == len(raw):
+                # Stored (uncompressed) file: vary the container on each client retry.
+                index = (stored_state["learned"] + attempt) % len(codec_candidates.STORED_VARIANTS)
+                encoded, variant = codec_candidates.encode_stored(index, raw)
+                stored_state["pending"] = (decoded, index)
+                LOG.info("STORED %s attempt=%d variant=%s", decoded, attempt, variant)
+            else:
+                encoded = codec_candidates.encode(codec, raw, target)
             trace_event("zs_response", route=route, decoded=decoded, codec=codec, note=note,
+                        variant=variant, attempt=attempt,
                         source=str(chosen), decoded_bytes=len(raw), decoded_crc32=hex(crc),
                         bytes=len(encoded), manifest_length=want_len,
                         matches_manifest_length=(len(encoded) == want_len))
