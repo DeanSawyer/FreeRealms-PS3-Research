@@ -51,6 +51,19 @@ response as a trailer that was not there, but that link is a **hypothesis**, not
 - 741 downloadable files. Seven more records (`useroptions.ini`, `logs`, ...) carry only a flag (tag 6) and are
   client-generated.
 
+## Install-state findings (2026-10-24)
+
+- **The client stamps downloaded files with the digest's timestamp (tag 8).** `beam_mask.gtf` in the folder the client
+  wrote into has mtime 2010-05-12 06:22:46 UTC, exactly the digest value; the untouched GitHub copy has a 2026 mtime.
+  On the next run the client skipped the 140 files it had already received and resumed at `en_us_data.dat`.
+- `tools/verify_client.py` against the GitHub copy: 195 files identical, 524 identical after LF-to-CRLF conversion
+  (line endings rewritten by git), 18 missing, 3 different size, 1 same size but different CRC.
+- The 18 missing files are the other locales (`de_de`, `en_gb`, `es_*`, `fr_fr`, `ja_jp`, `ko_kr`, `zh_*`). The client
+  skipped them and requested `en_us` only.
+- Remaining real differences: `game.self` (+48 bytes locally) and `ui/scriptsbase.bin.sdat` (CRC differs).
+  `locale/en_us_data.dat` and `resources/itemdefinitions.txt` are suspected line-ending rewrites of files larger than the
+  old 4 MB fix limit (limit raised to 64 MB; unverified against the real files).
+
 ## Hypotheses, not yet tested in the emulator
 
 - The `.zs` file is `zlib stream (or raw bytes) + 129-byte trailer`, the same shape as the digest.

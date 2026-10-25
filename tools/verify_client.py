@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import parse_digest  # noqa: E402
 
 CHUNK = 4 * 1024 * 1024
-TEXT_FIX_LIMIT = 4 * 1024 * 1024
+TEXT_FIX_LIMIT = 64 * 1024 * 1024
 
 
 def crc32_of(path):

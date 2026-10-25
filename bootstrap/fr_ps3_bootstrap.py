@@ -26,6 +26,8 @@ import codec_candidates
 
 
 LOG = logging.getLogger("homecoming")
+# Largest file for which an LF -> CRLF rewrite is attempted when the CRC does not match.
+TEXT_FIX_LIMIT = 64 * 1024 * 1024
 DIGEST_ROUTE = "/patch/freerealms/ps3scelive/ps3-web/FreeRealms.soe"
 HOSTS = {
     "lpconfig.station.sony.com",
@@ -290,7 +292,7 @@ def make_handler(ip, digest, server_list_variant, client_root,
                 if want_crc is None or crc == want_crc:
                     raw, chosen = data, source
                     break
-                if len(data) <= 4 * 1024 * 1024:
+                if len(data) <= TEXT_FIX_LIMIT:
                     # Some tools rewrite line endings in text files (LF vs CRLF).
                     fixed = data.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
                     if zlib.crc32(fixed) == want_crc:
