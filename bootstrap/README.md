@@ -46,6 +46,14 @@ If the installer still reports error 1004, repeat with `--codec zs-zlib-digest-t
 
 `verify_client.py` compares a whole game folder against the digest and reports which files are missing or a different build (read-only). `parse_digest.py` lists every file in the digest with its size, compressed length and CRC. `codec_sizes.py` shows which candidate reproduces the manifest's 373-byte length. `analyze_digest.py` locates the asset's record in the digest and dumps its bytes so the record layout can be read directly.
 
+## Files that differ from the digest (`--serve-mismatch`)
+
+If your game folder is a different build than the digest describes (`verify_client.py` shows `size`/`crc` rows), the
+client asks for a CRC no local file has and the server answers 409. For an experiment, add `--serve-mismatch`: the server
+then sends your local file of that name anyway, as a valid zlib stream padded to exactly the length the client asked for.
+Every such response is logged as `SERVE-MISMATCH` and traced as `zs_serving_mismatch`. This only helps if the client does
+not verify content after downloading; the run shows which.
+
 ## Limitations and safety
 
 - The default terrain asset response still uses LZMA (the preserved baseline), which cannot match the manifest length and gave installer error **1004**. Use `--codec zs-zlib-zero-trailer` for the zlib-plus-trailer experiment; it is **not yet verified** against the PS3 client.

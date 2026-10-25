@@ -154,7 +154,7 @@ def trace_event(event, **fields):
 
 
 def make_handler(ip, digest, server_list_variant, client_root,
-                 codec=codec_candidates.DEFAULT_CODEC, extra_clients=()):
+                 codec=codec_candidates.DEFAULT_CODEC, extra_clients=(), serve_mismatch=False):
     config = app_config(ip)
     asset_root = (client_root / "USRDIR").resolve()
     # Extra game folders searched (in order) for a file whose CRC32 matches.
@@ -285,8 +285,11 @@ def make_handler(ip, digest, server_list_variant, client_root,
                 self.respond(404, b"Decoded source not found\r\n", "text/plain", close=True)
                 return True
             raw, chosen, note, tried = None, None, "", []
+            first = None
             for source in candidates:
                 data = source.read_bytes()
+                if first is None:
+                    first = (source, data)
                 crc = zlib.crc32(data)
                 tried.append({"source": str(source), "size": len(data), "crc32": hex(crc)})
                 if want_crc is None or crc == want_crc:
@@ -298,6 +301,19 @@ def make_handler(ip, digest, server_list_variant, client_root,
                     if zlib.crc32(fixed) == want_crc:
                         raw, chosen, note = fixed, source, "lf_to_crlf"
                         break
+            if raw is None and serve_mismatch:
+                # EXPERIMENT: the local file is a different build than the digest
+                # describes. Send it anyway, padded to the length the client expects,
+                # to find out whether the client verifies content after downloading.
+                chosen, raw = first
+                note = "served_crc_mismatch"
+                trace_event("zs_serving_mismatch", route=route, decoded=decoded,
+                            expected_crc32=hex(want_crc), expected_length=want_len,
+                            source=str(chosen), local_size=len(raw),
+                            local_crc32=hex(zlib.crc32(raw)))
+                LOG.warning("SERVE-MISMATCH %s: sending local copy (%d bytes, crc %s) although "
+                            "the client asked for crc %s", decoded, len(raw),
+                            hex(zlib.crc32(raw)), hex(want_crc))
             if raw is None:
                 trace_event("zs_source_crc_mismatch", route=route, decoded=decoded,
                             expected_crc32=hex(want_crc), tried=tried)
@@ -426,6 +442,10 @@ def main():
     parser.add_argument("--extra-client", type=Path, action="append", default=[], metavar="DIR",
                         help="Additional NPUA30048 folder to search for a file whose CRC32 matches "
                              "what the client requests (repeatable). Only used with --codec zs-*.")
+    parser.add_argument("--serve-mismatch", action="store_true",
+                        help="EXPERIMENT: when no local file matches the client's CRC32, send the "
+                             "local file of that name anyway (padded to the expected length) "
+                             "instead of replying 409. Only used with --codec zs-*.")
     parser.add_argument("--codec", default=codec_candidates.DEFAULT_CODEC,
                         choices=codec_candidates.codec_names(), metavar="NAME",
                         help="Experimental encoding for the terrain asset (hypothesis only; "
@@ -471,7 +491,8 @@ def main():
             LOG.info("DNS listening on %s:53; hosts -> %s; upstream=%s",
                      args.bind, address, args.upstream)
         with ThreadingHTTPServer((args.bind, args.port), make_handler(str(address), digest, args.server_list_variant, args.client,
-                                                  args.codec, args.extra_client)) as http:
+                                                  args.codec, args.extra_client,
+                                                  args.serve_mismatch)) as http:
             LOG.info("Server-list response variant: %s (experimental Zone field: %s)",
                      args.server_list_variant, args.server_list_variant == "zone")
             LOG.info("HTTP listening on %s:%d; AppConfig=%d bytes; digest=%d bytes",

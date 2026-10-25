@@ -63,6 +63,15 @@ response as a trailer that was not there, but that link is a **hypothesis**, not
 - Remaining real differences: `game.self` (+48 bytes locally) and `ui/scriptsbase.bin.sdat` (CRC differs).
   `locale/en_us_data.dat` and `resources/itemdefinitions.txt` are suspected line-ending rewrites of files larger than the
   old 4 MB fix limit (limit raised to 64 MB; unverified against the real files).
+- **Update (21:00 run): `en_us_data.dat` is not a line-ending issue.** `verify_client.py` reports it as a size mismatch
+  (digest 5,744,504 bytes, local 5,652,016) and the same for `resources/itemdefinitions.txt` (10,561,852 vs 10,503,926);
+  the GitHub copy is a different build of those files. No local file has the CRC the client asks for.
+- **Stamping the files with the digest timestamp does not stop the download.** After setting `LastWriteTimeUtc` on the four
+  mismatched files, the client still requested `en_us_data.dat` (CRC 0xa1d1b63f, length 2368100), got 409, and retried
+  seven times with `cb=` suffixes `L, LF, LFH, LFHB, LFHBD, LFHBDN`. The skip decision uses more than the timestamp
+  (size and/or CRC of the local file).
+- Digest order: indexes 0-143 download first (the other locales `de_de`, `en_gb` are skipped), `en_us_data.dat` is
+  index 144, `resources/itemdefinitions.txt` 302, `ui/scriptsbase.bin.sdat` 651, `game.self` 734.
 
 ## Hypotheses, not yet tested in the emulator
 
@@ -75,6 +84,11 @@ response as a trailer that was not there, but that link is a **hypothesis**, not
   client may use the trailer byte instead.
 
 ## Next experiments
+
+0. `--serve-mismatch`: when no local file has the requested CRC, send the local file of that name anyway, padded to the
+   exact length the client asked for (`codec_candidates.pad_zlib`). Tests whether the client verifies content after the
+   download. Outcomes: client moves on = no content check (then the mismatch only matters to the game, not the
+   installer); client errors or re-requests = it checks CRC or size after decoding.
 
 1. `--codec zs-zlib-zero-trailer`: correct container, zeroed trailer. If the installer gets past
    error 1004 and fails later with a different error, the trailer content is being checked.
