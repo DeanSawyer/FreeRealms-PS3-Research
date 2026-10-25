@@ -250,6 +250,8 @@ def world_packets():
     extra = []
     if os.environ.get("FR_EXTRA", "").strip() == "1":
         # Untested: Clover's ClientGameSettings (144) layout, sent before ZoneDetails as Clover does.
+        # InitializationParameters (166): u32 length + environment name; the client's handler consumes it exactly.
+        extra.append(tunneled(struct.pack("<Hi", 166, 4) + b"Live"))
         extra.append(tunneled(struct.pack("<HiiiBf", 144, 4, 7, 268, 1, 1.0)))
     return extra + [tunneled(zone_details()), tunneled(send_self_to_client(CHARACTER))]
 
