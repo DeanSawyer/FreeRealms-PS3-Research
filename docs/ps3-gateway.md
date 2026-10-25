@@ -227,3 +227,26 @@ from a partly built buffer, so you can look inside one list element, and `--only
 
     python3 tools/ppc_explore.py game.elf 0xb1e460 --reader --object 33200 \
         --stub 0xa44aac=alloc --stub 0x11834=alloc --stub 0x1dbe4=alloc
+
+## Loading screen stays up after FinishedLoading (open)
+
+Observed with the v8 probe: the client sends ClientIsReady, then FinishedLoading (inner 10) and the
+"Viewed loading screen ... for 3.23 seconds" ClientLog, then sends nothing more. The bar is one pixel
+short of full and the screen never drops. No crash, no Terminate.
+
+What the client code shows (`game.elf`, vaddrs):
+
+- `WaitForWorldReady` is the function at 0xec3e8. It has already returned by the time the "Viewed
+  loading screen" log is written (0xed8cc), so it is not what holds the screen.
+- The screen is a Scaleform movie driven by a Lua script (`ui/scriptsbase.bin.sdat`). The client calls
+  the Lua method `:IsLoadingFinished` (string at 0xdf0dc0, used at 0x14f2d4 and 0x14f4d0) every frame, and
+  drops the screen only when it answers true. That script is not available here, so what it checks is unknown.
+- The bar is set through `setLoadingBarPct` (0x185818). Nothing calls that function directly.
+- Clover answers FinishedLoading with only the toolbar (`AbilityPacketSetDefinition`); the PC client drops
+  the screen without anything else, so the missing piece is probably client-side state, not one packet.
+
+Not yet tried: the packets Clover sends in `OnClientIsReady` that this probe skips (hit points, mana,
+quick chat, reference data, coin store, welcome info), and the toolbar after FinishedLoading. Their PS3 layouts
+are not decoded yet.
+
+Next test: a screenshot of the stuck screen and the RPCS3 log lines after the "Viewed loading screen" entry.
