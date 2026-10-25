@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Add or remove the "IsLoaded forced true" diagnostic patch in a portable RPCS3 folder.
+"""Add or remove the "overlay check forced loaded" diagnostic patch in a portable RPCS3 folder.
 
-The loading overlay of the PS3 client stays up after FinishedLoading (docs/re/zone-loading.md). Its per-frame check asks
-Holder::IsLoaded (0x897db4) whether the terrain around the camera is loaded. This patch makes that function return true at
-once (`li r3,1; blr`), which separates the two remaining explanations:
+The loading overlay of the PS3 client stays up after FinishedLoading (docs/re/zone-loading.md). Its per-frame check
+(fn_000ee7bc) asks Holder::IsLoaded (0x897db4) whether the terrain around the camera is loaded. This patch replaces the two
+calls to IsLoaded *inside that check* (0xef660 and 0xf0504) with `li r3,1`, so only the overlay logic sees "loaded". (A first
+version patched IsLoaded itself; that changes three other callers as well and stopped the character creator from appearing.)
+It separates the two remaining explanations:
 
   * the overlay drops  -> IsLoaded was what stayed false (terrain around the camera never became ready);
   * the overlay stays  -> one of the four gate objects is not idle, so the check never runs.
@@ -22,9 +24,29 @@ import sys
 from pathlib import Path
 
 PPU_HASH = "PPU-5425f6d47ba410afbcbc7ce77f87f2ffcde68798"
-NAME = "Free Realms IsLoaded forced true"
+NAME = "Free Realms overlay check forced loaded"
+OLD_NAME = "Free Realms IsLoaded forced true"   # the first, too broad version; removed when found
 
 PATCH_ENTRY = f'''  "{NAME}":
+    Games:
+      All:
+        All: [ All ]
+    Author: "FreeRealms-PS3-Research"
+    Patch Version: 1.0
+    Notes: "Diagnostic: the two IsLoaded calls of the loading-overlay check (0xef660, 0xf0504) answer true, to see whether the overlay drops."
+    Patch:
+      - [ be32, 0x000ef660, 0x38600001 ]
+      - [ be32, 0x000f0504, 0x38600001 ]
+'''
+
+CONFIG_ENTRY = f'''  {NAME}:
+    All:
+      All:
+        All:
+          Enabled: true
+'''
+
+OLD_PATCH_ENTRY = '''  "Free Realms IsLoaded forced true":
     Games:
       All:
         All: [ All ]
@@ -36,7 +58,7 @@ PATCH_ENTRY = f'''  "{NAME}":
       - [ be32, 0x00897db8, 0x4e800020 ]
 '''
 
-CONFIG_ENTRY = f'''  {NAME}:
+OLD_CONFIG_ENTRY = '''  Free Realms IsLoaded forced true:
     All:
       All:
         All:
@@ -75,13 +97,16 @@ def remove_entry(text, entry):
     return text.replace(block, "", 1), True
 
 
-def edit(path, entry, remove):
+def edit(path, entry, remove, old_entry=None):
     if not path.is_file():
         print(f"missing: {path}")
         return False
     raw = path.read_bytes()
     text = raw.decode("utf-8")
     new, changed = remove_entry(text, entry) if remove else add_entry(text, entry)
+    if old_entry:
+        new, dropped = remove_entry(new, old_entry)       # the first, too broad version is never left behind
+        changed = changed or dropped
     if not changed:
         print(f"unchanged: {path} ({'entry not found' if remove else 'entry already there'})")
         return True
@@ -98,7 +123,8 @@ def apply(rpcs3_dir, remove=False):
     rpcs3_dir = Path(rpcs3_dir)
     patches = rpcs3_dir / "patches" / "patch.yml"
     config = rpcs3_dir / "config" / "patch_config.yml"
-    return edit(patches, PATCH_ENTRY, remove) and edit(config, CONFIG_ENTRY, remove)
+    return (edit(patches, PATCH_ENTRY, remove, OLD_PATCH_ENTRY)
+            and edit(config, CONFIG_ENTRY, remove, OLD_CONFIG_ENTRY))
 
 
 def main():
