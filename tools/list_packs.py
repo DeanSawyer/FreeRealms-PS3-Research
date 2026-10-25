@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
 """List the asset names stored in the client's assets_ps3_NNN.pack files (names only, no content).
 
-The client finds zone terrain, models and textures by name inside these packs. To know which zone name
-the server must send in ZoneDetails, we need the names the PS3 client really has.
-
-Pack layout assumed here (the layout the SOE Forgelight-era packs use, big endian):
-
-    chunk: u32 next_chunk_offset (0 = last) | u32 asset_count | asset_count x
-           { u32 name_length | name bytes | u32 offset | u32 length | u32 crc32 }
-
-If the first pack does not parse with that layout, the script writes the first 512 bytes of the file as hex
-so the real layout can be read from it. It never modifies the packs and writes no asset content.
+The client finds zone terrain, models and textures by name inside these packs. The index layout is documented in
+bootstrap/assetlib.py (read from game.elf). If a pack does not parse, the first 512 bytes of the first failing
+pack are written as hex so the real layout can be read from it. Packs are only read, never modified, and no asset
+content is written.
 
 Usage:
     python tools/list_packs.py <USRDIR folder or a single .pack> [output.txt]
@@ -21,72 +15,13 @@ import collections
 import glob
 import os
 import re
-import struct
 import sys
 
-INTERESTING = re.compile(r"terrain|zone|fabled|wilds|crossroads|tile|ground|world|geometry|\.rtt|\.tre|\.zone|town|station",
-                         re.I)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bootstrap"))
+import assetlib  # noqa: E402
 
-
-def read_index(path):
-    """Read only what is needed: chunks are followed by walking the next-chunk offsets with seeks."""
-    size = os.path.getsize(path)
-    out = []
-    with open(path, "rb") as f:
-        for endian in (">", "<"):
-            out = []
-            pos = 0
-            seen = set()
-            ok = True
-            while True:
-                if pos in seen or pos + 8 > size:
-                    ok = False
-                    break
-                seen.add(pos)
-                f.seek(pos)
-                head = f.read(8)
-                nxt, count = struct.unpack(endian + "II", head)
-                if count > 200000:
-                    ok = False
-                    break
-                # an index chunk is small; read generously and parse
-                f.seek(pos)
-                block = f.read(min(size - pos, 8 + count * 600))
-                parsed = parse_chunks_one(block, endian, size)
-                if parsed is None:
-                    ok = False
-                    break
-                out.extend(parsed)
-                if nxt == 0:
-                    break
-                if nxt > size:
-                    ok = False
-                    break
-                pos = nxt
-            if ok and out:
-                return endian, out
-    return None, None
-
-
-def parse_chunks_one(block, endian, filesize):
-    nxt, count = struct.unpack_from(endian + "II", block, 0)
-    p = 8
-    res = []
-    for _ in range(count):
-        if p + 4 > len(block):
-            return None
-        (nlen,) = struct.unpack_from(endian + "I", block, p)
-        if nlen == 0 or nlen > 512 or p + 4 + nlen + 12 > len(block):
-            return None
-        raw = block[p + 4:p + 4 + nlen]
-        if any(b < 32 or b > 126 for b in raw):
-            return None
-        off, length, crc = struct.unpack_from(endian + "III", block, p + 4 + nlen)
-        if off > filesize or off + length > filesize + 16:
-            return None
-        res.append((raw.decode("ascii"), off, length, crc))
-        p += 4 + nlen + 12
-    return res
+INTERESTING = re.compile(r"\.gzne|\.cob$|\.odd$|terrain|zone|fabled|wilds|crossroads|tile|ground|world|geometry|"
+                         r"\.rtt|\.tre|town|station", re.I)
 
 
 def main():
@@ -106,15 +41,13 @@ def main():
         print("No .pack files found in", args.path)
         return 1
 
-    all_entries = []
-    per_pack = []
-    failed = []
+    all_entries, per_pack, failed = [], [], []
     for pk in packs:
-        endian, entries = read_index(pk)
+        entries = assetlib.read_pack_index(pk)
         if entries is None:
             failed.append(pk)
             continue
-        per_pack.append((os.path.basename(pk), "big" if endian == ">" else "little", len(entries)))
+        per_pack.append((os.path.basename(pk), len(entries)))
         all_entries.extend((os.path.basename(pk), e) for e in entries)
 
     if failed:
@@ -142,8 +75,8 @@ def main():
     interesting = sorted({e[0] for _, e in all_entries if INTERESTING.search(e[0])})
     with open(args.out, "w", encoding="utf-8") as f:
         f.write("packs: %d   assets: %d\n\n" % (len(per_pack), len(all_entries)))
-        for n, endian, c in per_pack:
-            f.write("%-24s %-6s %d assets\n" % (n, endian, c))
+        for n, c in per_pack:
+            f.write("%-24s %d assets\n" % (n, c))
         f.write("\nassets by extension:\n")
         for ext, c in exts.most_common(40):
             f.write("  %-12s %d\n" % (ext, c))

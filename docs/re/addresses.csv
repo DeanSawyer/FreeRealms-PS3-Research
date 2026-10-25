@@ -1,0 +1,38 @@
+address,query,name,role,expect
+0x10cb84,decomp,ZoneDetails handler,"Reads the zone, calls Activate; on failure shows 'Failed to init the game world' and returns 0 before the world is set up",Failed to init the game world for: %s.  Exiting.
+0x8981c4,decomp,Holder::Activate,"Selects terrain implementation `type`, calls its Load(zone name), stores the result in the ok flag (holder+0x24)",0x7fffffff
+0x897db4,decomp,Holder::IsLoaded,"Returns 0 while the ok flag is 0, else asks the active implementation (vtable +0x4c)",0x4c
+0x897a2c,decomp,Holder::SetPosition,"Forwards a position to the active implementation (vtable +0x20)",0x20
+0x897e2c,decomp,Holder::PendingCount,"Forwards to the active implementation (vtable +0x40)",0x40
+0x7cfb7c,decomp,TerrainController ctor,"Requests TerrainCalendarDefinitions.txt, creates the 0x1078 and 0x1844 byte helper objects",TerrainCalendarDefinitions.txt
+0x7cf7b0,decomp,TerrainController::Load(zone),"Requests <zone>.cob and <zone>.odd, creates the terrain object, opens <zone>.gzne",%s.cob
+0x7cf0d8,decomp,TerrainController asset-ready listener,"Routes TerrainCalendarDefinitions.txt and *.cob data to their parsers",TerrainCalendarDefinitions.txt
+0x7cf398,decomp,TerrainController::Update,"Per frame: terrain update, creates the cell manager once the terrain is ready, bubble ready check",3600000
+0x7cfdd4,decomp,TerrainController::IsLoaded,"0 until the terrain is ready and every grid cell around the position is loaded",FUN_007ded28
+0x7cefdc,decomp,TerrainController::SetPosition,"Stores the interest position and moves the cell bubble",FUN_007dad04
+0x7cf684,decomp,TerrainController::SetRadius,"Sets the load radius in cells",0x34
+0x7de0dc,decomp,Terrain::Open,"Stores the name and helpers, calls vtable slot 6 (request <zone>.gzne), creates the 0xd0 byte loader",0xd0
+0x7df72c,decomp,Terrain::RequestHeader,"Requests '%s.gzne'; returns true only if the request is accepted",%s.gzne
+0x7db374,decomp,Terrain asset-ready listener,"Calls the parser (vtable +0x1c); on failure calls the failure stub (vtable +0x14)",0x1c
+0x7df87c,decomp,Terrain::ParseHeader,"Checks the GZNE magic, reads the header fields, sets the ready byte at +0x434",GZNE
+0x7ded28,decomp,Terrain::GetCell,"Cells outside the terrain bounds count as loaded (return 1)",return 1
+0x7da88c,decomp,CellManager bubble ready,"Logs 'Bubble not ready, TilesRequested/TilesRecieved' until the first tiles arrived",Bubble not ready
+0x7d13d8,decomp,ObjectDeployment::RequestOdd,"Requests '%s.odd'",%s.odd
+0x7d1294,decomp,ObjectDeployment::RequestGroups,"Requests TerrainObjectDeploymentGroups.txt",TerrainObjectDeploymentGroups.txt
+0x802828,decomp,AssetDeliveryIndirect::Request,"Manifest lookup; returns 1 and logs 'asset not in manifest' if the name is unknown",asset not in manifest
+0x801020,decomp,AssetDeliveryIndirect::IsLocalCurrent,"Manifest entry and pack entry must both exist and their crc must be equal",FUN_00a26f94
+0x7ff838,decomp,Manifest::Find (binary),"Upper-cases the name, CRC-64, binary search over 16-byte records",FUN_0001fac0
+0x7f7928,decomp,Asset name normaliser,"Swaps the extension for the local variant when that file exists",FUN_00a521d0
+0xa28f8c,decomp,PackFile::ReadIndex,"Reads 0x2000 bytes per index chunk and follows the next-chunk offsets",0x2000
+0xda46c4,decomp,PackFile chunk parser,"u32 next | u32 count | entries",-0x1120113
+0xda4368,decomp,PackFile entry parser,"Name then three u32 (offset +0xc, length +0x10, crc +0x14)",FUN_00da3020
+0xda3020,list,Stream length-prefix reader,"Endian test: stw 1 / lbz; data is always big endian",stw r0
+0xa24d30,decomp,PackFile::Read,"Reads length bytes at an offset from the pack",PackFile Error: pack file could not be read
+0xa26e24,decomp,PackFileGroup::Read,"Finds the pack with an entry for the name (case-insensitive hash) and reads it",PackFileGroup Error
+0xa27350,decomp,PackFile::Flush,"Writes the pending index block (writer side)",pack file could not be written
+0xdced8,decomp,HUD::SetLoadingWorldAssets,"Shows or hides the loading overlay, stores the state in client+0x2a2",0x2a2
+0xdcae8,decomp,HUD download indicator,"Shows the pending download size (kb/mb) via HUD:UpdateLoadingIndicator",%.1fmb
+0xef5e4,list,Main loop terrain check (overlay shown),"IsLoaded(camera position) false and overlay hidden: show overlay",bl 0x00897db4
+0xf0494,list,Main loop terrain check (overlay hidden),"IsLoaded(camera position) false and flag 0: SetLoadingWorldAssets(true)",bl 0x000dced8
+0x88ade8,decomp,Camera::Position,"Position used by the loaded check: *(camera+0x30)+0x40",0x40
+0x1fac0,decomp,CRC-64 (manifest key),"Table at 0xdb1f10, poly 0x95AC9329AC4BC9B5",DAT_00db1f10

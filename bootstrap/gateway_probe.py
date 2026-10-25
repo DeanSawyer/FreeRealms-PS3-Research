@@ -87,8 +87,51 @@ def tunneled(inner, reliable=True):
     return struct.pack("<HBI", 5, 1 if reliable else 0, len(inner)) + inner
 
 
-def zone_details(name="FabledRealms", zone_type=2, tutorial=0, unknown=0, sky="", arena=0, zone_id=1):
+# The client turns this name into the asset requests <name>.gzne, <name>.cob and <name>.odd, which must exist in
+# assets_ps3_manifest.bin and the packs, or the loading screen never goes away (docs/re/zone-loading.md).
+# Order of choice: FR_ZONE (PowerShell: $env:FR_ZONE="Name"), then the zone picked from the install's own packs by
+# choose_zone_from_install(), then DEFAULT_ZONE (the PC game's name, unverified for the PS3 packs).
+# FR_ZONE_TYPE picks the terrain implementation (0 TileStatic, 1 TileSeamless, 2 RuntimeSeamless, 3 Mesh; only
+# 2 is set up at startup).
+DEFAULT_ZONE = "FabledRealms"
+_install_zone = None
+
+
+def choose_zone_from_install(usrdir):
+    """Pick the ZoneDetails zone from the PS3 install's packs (bootstrap calls this once at startup)."""
+    global _install_zone
+    try:
+        import assetlib
+        zone, complete, note = assetlib.pick_zone(str(usrdir), DEFAULT_ZONE)
+    except Exception as err:   # never stop the server over this; the default stays
+        LOG.warning("could not read the packs in %s to pick a zone: %s", usrdir, err)
+        return None
+    if zone is None:
+        LOG.warning("zone: %s; sending %r", note, DEFAULT_ZONE)
+        return None
+    _install_zone = zone
+    LOG.info("zone: %s; %d complete zones in the packs: %s", note, len(complete), ", ".join(complete[:12]))
+    if zone.lower() != DEFAULT_ZONE.lower():
+        LOG.warning("zone: %r is not in the PS3 packs, using %r instead (set FR_ZONE to choose another)",
+                    DEFAULT_ZONE, zone)
+    return zone
+
+
+def configured_zone():
+    return os.environ.get("FR_ZONE", "").strip() or _install_zone or DEFAULT_ZONE
+
+
+def configured_zone_type():
+    try:
+        return int(os.environ.get("FR_ZONE_TYPE", "2").strip())
+    except ValueError:
+        return 2
+
+
+def zone_details(name=None, zone_type=None, tutorial=0, unknown=0, sky="", arena=0, zone_id=1):
     """Inner packet 43 as the PS3 client (build 1.77) reads it; it must consume every byte."""
+    name = configured_zone() if name is None else name
+    zone_type = configured_zone_type() if zone_type is None else zone_type
     return (struct.pack("<H", 43) + _string(name) + struct.pack("<iBB", zone_type, tutorial, unknown)
             + _string(sky) + struct.pack("<Bi", arena, zone_id))
 
@@ -482,6 +525,7 @@ class GatewayProbe:
             _trace("login", ticket=fields[0], guid=fields[1], version=fields[2], unknown=fields[3])
             if self.login_reply:
                 self.send_reliable(addr, struct.pack("<HB", 2, 1), channel)   # LoginReply(success)
+                LOG.info("ZoneDetails: zone=%r type=%d (set FR_ZONE / FR_ZONE_TYPE to change)", configured_zone(), configured_zone_type())
                 for packet in world_packets():
                     self.send_reliable(addr, packet, channel)
                 self.client_ready.discard(addr)

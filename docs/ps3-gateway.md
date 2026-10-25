@@ -314,3 +314,28 @@ per-frame check in the big update function (`0xee9c4`-`0xf09ec`):
 So the screen stays up while the zone's terrain header or tiles have not loaded. The zone name we send (`FabledRealms`,
 type 2) comes from the PC game (Clover). Whether the PS3 packs contain terrain for that name is not known yet;
 `tools/list_packs.py` lists the asset names in the `assets_ps3_NNN.pack` files to find out.
+
+### Update: a refused zone name fails silently (read from `game.elf`)
+
+The full chain is in [`re/zone-loading.md`](re/zone-loading.md) and the pack and manifest formats in
+[`re/assets.md`](re/assets.md). The points that change what we test:
+
+- The zone name becomes three asset requests: `<zone>.gzne` (terrain header), `<zone>.cob`, `<zone>.odd`.
+- A request is accepted only if the name is in `assets_ps3_manifest.bin` (CRC-64 of the upper-cased name, `0x802828`).
+  An unknown name is refused at once; `Terrain::RequestHeader` (`0x7df72c`) returns false, `Load` fails, the holder's
+  ok flag stays 0 and `IsLoaded` answers 0 for ever. The only trace is a message call - no error screen.
+- Earlier I read "no exit message seen" as "the header must have been accepted". That inference was wrong: the failure
+  path of the load is silent, so the missing message says nothing.
+- Cells outside the terrain's box count as loaded (`GetCell`, `0x7ded28`), so a spawn position outside the terrain
+  is **not** the cause either.
+
+So the server must send a zone whose `.gzne`, `.cob` and `.odd` exist in the user's content. The bootstrap server now
+looks in the install itself (`assetlib.pick_zone`) and logs the choice at login:
+
+    ZoneDetails: zone='…' type=2 (set FR_ZONE / FR_ZONE_TYPE to change)
+
+Override with `$env:FR_ZONE="Name"` (and `$env:FR_ZONE_TYPE`). Tools for the user's install, all read-only:
+
+    python tools\zone_report.py "<...>\NPUA30048\USRDIR"          # which zones exist; is the current one among them
+    python tools\gzne_info.py   "<...>\NPUA30048\USRDIR" <zone>   # terrain box and cell size of one zone
+    python tools\asset_manifest.py check <manifest> Name.gzne      # is a name in the manifest

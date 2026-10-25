@@ -84,3 +84,16 @@ client's gateway `Login` packet and answers it with a successful `LoginReply`; i
 still cannot enter the world. Its job is to show what the PS3 client sends next. Findings are in `docs/ps3-gateway.md`. It also writes `ps3_gateway_trace.jsonl` next to the script (ignored by Git).
 
 Packet layouts follow the UdpLibrary port in the Clover server (`Sanctuary.UdpLibrary`, AGPL-3.0).
+
+## Which zone the server sends
+
+At login the gateway sends `ZoneDetails` with a zone name; the client turns it into `<zone>.gzne`, `<zone>.cob` and
+`<zone>.odd` and the loading screen drops only when that terrain has loaded (`docs/re/zone-loading.md`). On start the
+server reads the pack indexes and the manifest of `--client` and picks a zone whose files are all present
+(`bootstrap/assetlib.py`), preferring `FabledRealms`; the choice is logged as `ZoneDetails: zone=… type=2`.
+
+```powershell
+python .\tools\zone_report.py "C:\Path\To\NPUA30048\USRDIR"        # which zones exist (writes zone_report.txt)
+python .\tools\gzne_info.py   "C:\Path\To\NPUA30048\USRDIR" ZoneName  # terrain box and cell size
+$env:FR_ZONE = "ZoneName"; $env:FR_ZONE_TYPE = "2"                  # override the automatic choice
+```

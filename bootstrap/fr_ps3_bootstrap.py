@@ -621,6 +621,8 @@ def main():
                                                   args.account_status, args.xml_style,
                                                   f"{address}:{args.gateway_port}")) as http:
             if args.gateway_port:
+                # The zone sent in ZoneDetails must exist in this install's packs (docs/re/zone-loading.md).
+                gateway_probe.choose_zone_from_install(args.client / "USRDIR")
                 gateway_probe.GatewayProbe(args.bind, args.gateway_port).start()
             LOG.info("ps3ws replies: xml-style=%s, empty account -> Status %d%s", args.xml_style,
                      args.account_status, " (existing-character sample)" if args.existing_character else "")
