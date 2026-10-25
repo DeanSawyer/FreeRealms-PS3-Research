@@ -81,3 +81,39 @@ jobs:
             exit 1
           fi
           echo "::notice title=dotnet test::${summary}"
+
+      # The console program itself: argument errors, start-up, an answer over HTTP, and a clean stop.
+      - name: Console program smoke test
+        shell: bash
+        run: |
+          set -u
+          dll=$(ls Sanctuary.Ps3.Server/bin/*/*/Sanctuary.Ps3.Server.dll | head -1)
+          client=$(mktemp -d)/client
+          mkdir -p "$client/USRDIR/Digests"
+          python3 - "$client/USRDIR/Digests/NPUA30048.soe" <<'PY'
+          import sys, zlib
+          open(sys.argv[1], "wb").write(zlib.compress(b"digest body " * 20, 9) + bytes(129))
+          PY
+
+          dotnet "$dll" --help | head -1 | grep -q '^usage:' || { echo "::error::--help did not print the usage"; exit 1; }
+
+          set +e
+          dotnet "$dll" --bogus >/dev/null 2>err.txt; code=$?
+          set -e
+          [ "$code" = 2 ] || { echo "::error::a wrong option should exit with 2, got $code"; exit 1; }
+
+          export FR_TRACE_DIR=$(mktemp -d)
+          dotnet "$dll" --client "$client" --no-dns --port 18080 --gateway-port 18081 > server.log 2>&1 &
+          pid=$!
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:18080/app/appconfig.php -o appconfig.xml && break; sleep 1; done
+          status=0
+          grep -q '<AppConfig>' appconfig.xml || status=1
+          curl -sf http://127.0.0.1:18080/patch/freerealms/ps3scelive/ps3-web/FreeRealms.soe -o digest.bin || status=1
+          [ "$(stat -c %s digest.bin)" -gt 129 ] || status=1
+          kill -TERM $pid
+          wait $pid; code=$?
+          echo "server exit code $code"
+          log=$(sed 's/%/%25/g' server.log | awk 'BEGIN{ORS="%0A"} {print}')
+          if [ "$status" != 0 ] || [ "$code" != 0 ]; then echo "::error title=console smoke test failed (exit $code)::$log"; exit 1; fi
+          grep -q 'HTTP listening on 127.0.0.1:18080' server.log || { echo "::error title=no start-up line::$log"; exit 1; }
+          echo "::notice title=console smoke test::$log"
