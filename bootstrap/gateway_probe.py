@@ -253,6 +253,13 @@ def world_packets():
         # InitializationParameters (166): u32 length + environment name; the client's handler consumes it exactly.
         extra.append(tunneled(struct.pack("<Hi", 166, 4) + b"Live"))
         extra.append(tunneled(struct.pack("<HiiiBf", 144, 4, 7, 268, 1, 1.0)))
+    if os.environ.get("FR_EXTRA", "").strip() == "1":
+        # Untested: PlayerUpdate sub 37 ItemDefinitions, empty list (u32 payload length 4, u32 count 0).
+        item_defs = tunneled(struct.pack("<HHii", 35, 37, 4, 0))
+    else:
+        item_defs = None
+    return extra + [tunneled(zone_details())] + ([item_defs] if item_defs else [])\
+        + [tunneled(send_self_to_client(CHARACTER))]
     return extra + [tunneled(zone_details()), tunneled(send_self_to_client(CHARACTER))]
 
 
