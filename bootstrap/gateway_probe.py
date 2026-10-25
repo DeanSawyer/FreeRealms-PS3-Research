@@ -5,6 +5,11 @@ in CharacterLoginReply/GatewayAddress. This listener completes the UdpLibrary ha
 no encryption, acknowledges reliable packets, and records what the client sends, so the application
 protocol on top can be worked out. It is a probe, not a game server: it never sends game data.
 
+Application layer (from the first packets the PS3 client sent, matching Clover's ClientGateway packets):
+  Login (client -> server): u16 LE opcode 1 | string ticket | u64 guid | string version | string unknown
+  LoginReply (server -> client): u16 LE opcode 2 | u8 success         (strings are u32 LE length + bytes)
+The probe answers a Login with LoginReply(success) so the client moves on, and logs whatever it sends next.
+
 Packet layouts follow the UdpLibrary port in the Clover server (Sanctuary.UdpLibrary, AGPL-3.0):
   Connect : 00 01 | protocol version i32 | connect code i32 | max raw packet size i32 | name\\0
   Confirm : 00 02 | connect code i32 | encrypt code i32 | crc bytes u8 | encrypt methods u8 x2
@@ -40,6 +45,30 @@ def _trace(event, **fields):
         out.write(json.dumps(record) + "\n")
 
 
+def _read_string(buf, pos):
+    if pos + 4 > len(buf):
+        raise ValueError("truncated string length")
+    length = struct.unpack_from("<I", buf, pos)[0]
+    pos += 4
+    if length > 4096 or pos + length > len(buf):
+        raise ValueError("bad string length")
+    return buf[pos:pos + length].decode("latin-1"), pos + length
+
+
+def parse_login(payload):
+    """Decode a gateway Login packet; returns (ticket, guid, version, unknown) or None."""
+    try:
+        ticket, pos = _read_string(payload, 2)
+        if pos + 8 > len(payload):
+            return None
+        guid = struct.unpack_from("<Q", payload, pos)[0]
+        version, pos = _read_string(payload, pos + 8)
+        unknown, pos = _read_string(payload, pos)
+        return ticket, guid, version, unknown
+    except ValueError:
+        return None
+
+
 class GatewayProbe:
     def __init__(self, host, port):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -48,9 +77,13 @@ class GatewayProbe:
         self.host, self.port = host, port
         self.sessions = {}   # addr -> connect code
         self.count = 0
+        self.send_seq = {}   # (addr, channel) -> next reliable sequence to send
+        self.pending = {}    # (addr, channel, seq) -> [packet, last_send_time, tries]
+        self.login_reply = True
 
     def start(self):
         threading.Thread(target=self.serve, name="gateway-probe", daemon=True).start()
+        threading.Thread(target=self.resend_loop, name="gateway-resend", daemon=True).start()
         LOG.info("UDP gateway probe listening on %s:%d (handshake + reliable acks, no game data)",
                  self.host, self.port)
 
@@ -83,14 +116,29 @@ class GatewayProbe:
             encrypt_code = int.from_bytes(os.urandom(4), "big") & 0x7fffffff
             confirm = struct.pack(">BBiiBBBii", 0, 2, code, encrypt_code, 0, 0, 0, max_raw, 3)
             self.sock.sendto(confirm, addr)
-        elif 9 <= kind <= 12 or 13 <= kind <= 16:      # Reliable / Fragment: acknowledge and record
-            channel = (kind - 9) % 4
+        elif 9 <= kind <= 12:                            # Reliable: acknowledge, record, interpret
+            channel = kind - 9
             if len(data) >= 4:
                 seq = struct.unpack(">H", data[2:4])[0]
                 self.sock.sendto(struct.pack(">BBH", 0, 17 + channel, seq), addr)
                 self.record(addr, f"{name} seq={seq}", data[4:])
+                self.on_application_packet(addr, channel, data[4:])
             else:
                 self.record(addr, name, data)
+        elif 13 <= kind <= 16:                           # Fragment: acknowledge and record
+            channel = kind - 13
+            if len(data) >= 4:
+                seq = struct.unpack(">H", data[2:4])[0]
+                self.sock.sendto(struct.pack(">BBH", 0, 17 + channel, seq), addr)
+            self.record(addr, name, data[4:])
+        elif 17 <= kind <= 24:                           # Ack / AckAll for what we sent
+            channel = (kind - 17) % 4
+            if len(data) >= 4:
+                seq = struct.unpack(">H", data[2:4])[0]
+                for key in [k for k in self.pending if k[0] == addr and k[1] == channel
+                            and (k[2] == seq or (kind >= 21 and k[2] <= seq))]:
+                    self.pending.pop(key, None)
+            _trace("ack", peer=addr[0], label=name, hex=data[2:].hex())
         elif kind == 3 and depth < 3:                    # Multi: [len][packet]...
             pos = 2
             while pos < len(data):
@@ -108,6 +156,47 @@ class GatewayProbe:
             pass                                          # KeepAlive / PortAlive
         else:
             self.record(addr, name, data)
+
+    def send_reliable(self, addr, payload, channel=0):
+        seq = self.send_seq.get((addr, channel), 0)
+        self.send_seq[(addr, channel)] = (seq + 1) & 0xffff
+        packet = struct.pack(">BBH", 0, 9 + channel, seq) + payload
+        self.pending[(addr, channel, seq)] = [packet, time.monotonic(), 1]
+        self.sock.sendto(packet, addr)
+        LOG.info("gateway -> %s Reliable%d seq=%d (%d bytes): %s", addr, channel + 1, seq, len(payload),
+                 payload[:MAX_LOGGED_BYTES].hex())
+        _trace("send", peer=addr[0], channel=channel, seq=seq, hex=payload[:512].hex())
+
+    def resend_loop(self):
+        while True:
+            time.sleep(0.5)
+            now = time.monotonic()
+            for key, item in list(self.pending.items()):
+                if now - item[1] >= 1.0:
+                    if item[2] >= 8:
+                        self.pending.pop(key, None)
+                        continue
+                    item[1], item[2] = now, item[2] + 1
+                    try:
+                        self.sock.sendto(item[0], key[0])
+                    except OSError:
+                        return
+
+    def on_application_packet(self, addr, channel, payload):
+        if len(payload) < 2:
+            return
+        opcode = struct.unpack("<H", payload[:2])[0]
+        if opcode == 1:                                  # gateway Login
+            fields = parse_login(payload)
+            if fields is None:
+                LOG.warning("gateway Login from %s did not parse as ticket/guid/version/unknown", addr)
+                return
+            LOG.info("gateway Login: ticket=%r guid=%d version=%r unknown=%r", *fields)
+            _trace("login", ticket=fields[0], guid=fields[1], version=fields[2], unknown=fields[3])
+            if self.login_reply:
+                self.send_reliable(addr, struct.pack("<HB", 2, 1), channel)   # LoginReply(success)
+        else:
+            LOG.info("gateway application opcode %d from %s (%d bytes)", opcode, addr, len(payload))
 
     def record(self, addr, label, payload):
         shown = payload[:MAX_LOGGED_BYTES]
