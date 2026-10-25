@@ -31,6 +31,16 @@ ModelCustomization, FacePaint, SkinTone, EyeColor, HairColor, Attachments/Attach
 Tint, TintOverrideId, EffectId, Slot, plus HeadshotUrl, LastPlayed, Server, Zone, Online, Locked) is taken
 from tag-name strings and has not been checked against the parser.
 
+## Result codes the client names
+
+The client prints `OnRequest...: requestId=%d, result=%d (%s)` for each reply. Names found in its table:
+-1 "Unknown error", 0 "None", 1 "Success", 2 "No servers" (server list). For account info: 1 "Success",
+2 "No characters for account" and a further "Game server is unavailable" code. For `account/info` the
+handler has three branches: `Status` 1 (stores the account and character list; an empty list sets login
+state 5), `Status` 2 (logs "No existing character found on the server", login state 6), anything else
+(the "unable to log in" dialog). Both state 5 and 6 move on to state 8. `--account-status 2` selects the
+second form; which one opens the character creator has not been tested.
+
 ## Not known yet
 
 - What `Status` values other than 1 mean for `checkName` (the client has separate messages for taken,

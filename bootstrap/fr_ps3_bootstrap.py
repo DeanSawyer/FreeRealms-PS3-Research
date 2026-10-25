@@ -58,8 +58,9 @@ SERVER_LIST_ZONE = SERVER_LIST.replace(
     b'<Name>NorthForge</Name><Zone>1</Zone>', 1
 )
 
-# Account: Member, MaxCharacters, Admin (integers). No <Character> entries makes the client report
-# "No existing character found on the server" and go to character creation.
+# Account: Member, MaxCharacters, Admin (integers). For an account with no characters the client has two
+# paths (--account-status): Status 1 with an empty <Characters> list, or Status 2, which it logs as
+# "No existing character found on the server". Which one reaches the character creator is untested.
 ACCOUNT_BODY = b"<Account><Member>1</Member><MaxCharacters>3</MaxCharacters><Admin>0</Admin></Account>"
 ACCOUNT_INFO = ps3ws_reply(b"AccountInfoReply", ACCOUNT_BODY + b"<Characters></Characters>")
 # Sample existing character (--existing-character); the field layout of <Character> is still a guess.
@@ -179,7 +180,7 @@ def trace_event(event, **fields):
 
 def make_handler(ip, digest, server_list_variant, client_root,
                  codec=codec_candidates.DEFAULT_CODEC, extra_clients=(), serve_mismatch=False,
-                 existing_character=False):
+                 existing_character=False, account_status=1):
     config = app_config(ip)
     asset_root = (client_root / "USRDIR").resolve()
     # Extra game folders searched (in order) for a file whose CRC32 matches.
@@ -468,7 +469,14 @@ def make_handler(ip, digest, server_list_variant, client_root,
             if route == "/ps3ws/game/serverList.action":
                 reply, kind = (SERVER_LIST_ZONE if server_list_variant == "zone" else SERVER_LIST), "server_list"
             elif route == "/ps3ws/account/info.action":
-                reply, kind = (ACCOUNT_INFO_WITH_CHARACTER if existing_character else ACCOUNT_INFO), "account_info"
+                if existing_character:
+                    reply = ACCOUNT_INFO_WITH_CHARACTER
+                elif account_status != 1:
+                    reply = ps3ws_reply(b"AccountInfoReply", ACCOUNT_BODY, status=account_status,
+                                        message=b"No characters")
+                else:
+                    reply = ACCOUNT_INFO
+                kind = "account_info"
             elif route in REPLIES:
                 kind, reply = REPLIES[route]
             elif route.startswith("/ps3ws/"):
@@ -496,6 +504,9 @@ def main():
     parser.add_argument("--existing-character", action="store_true",
                         help="Report one sample character on the account (character select) "
                              "instead of an empty account (character creator, the default)")
+    parser.add_argument("--account-status", type=int, default=1, metavar="N",
+                        help="Status for an account with no characters. 1 (default) = success with an "
+                             "empty list; 2 = the client's 'No existing character found' result")
     parser.add_argument("--extra-client", type=Path, action="append", default=[], metavar="DIR",
                         help="Additional NPUA30048 folder to search for a file whose CRC32 matches "
                              "what the client requests (repeatable). Only used with --codec zs-*.")
@@ -578,7 +589,8 @@ def main():
         with ThreadingHTTPServer((args.bind, args.port), make_handler(str(address), digest, args.server_list_variant, args.client,
                                                   args.codec, args.extra_client,
                                                   args.serve_mismatch,
-                                                  args.existing_character)) as http:
+                                                  args.existing_character,
+                                                  args.account_status)) as http:
             LOG.info("Server-list response variant: %s (experimental Zone field: %s)",
                      args.server_list_variant, args.server_list_variant == "zone")
             LOG.info("HTTP listening on %s:%d; AppConfig=%d bytes; digest=%d bytes",
