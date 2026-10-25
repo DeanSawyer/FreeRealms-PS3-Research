@@ -64,3 +64,47 @@ in at least one case (43), but each packet has to be checked against the binary.
 - Whether `Key` from the login reply is used to encrypt later packets (Clover hardcodes encryption off).
 - Everything after ZoneDetails: the layouts of the other packets the client waits for (initialization details, item
   definitions, the player itself) and what the client sends back.
+
+## Inner packet 12, SendSelfToClient (player data)
+
+Layout: `i32` length, then the player blob. The blob's field widths come from running the client's own deserializer
+(`0xb1e460`) in `tools/ppc_trace.py` and recording every step of the reader's cursor. The order follows Clover's
+`ClientPcData.Serialize` for the first part and then drops some PC-only fields (the five `*Id` appearance ints and
+`IsOpenChatEnabled`). With every list empty the blob is 273 bytes:
+
+| Offset | Width | Field (name from Clover where it matches) |
+|---|---|---|
+| 0x00 | u64 | launch ticket |
+| 0x08 | u64 | guid |
+| 0x10 | u32 | model |
+| 0x14, 0x18 | string | head, hair |
+| 0x1c, 0x20 | u32 | hair colour, eye colour |
+| 0x24, 0x28, 0x2c | string | skin tone, face paint, model customization |
+| 0x30 | 8 x f32 | position (x, y, z, w) and rotation |
+| 0x50 | 3 x u32, 2 strings | name ids, first name, last name |
+| 0x64 | u32 | coins |
+| 0x68 | u64 | birthday |
+| 0x70, 0x74 | u32 | age, play time |
+| 0x78 | u8 | is underage |
+| 0x79 | u32 | membership status |
+| 0x7d | u8 | show member nag screen |
+| 0x7e | 5 x u32 | chat country, chat language, preferred language, chat language, login count |
+| 0x92 | u8 | grandfathered |
+| 0x93 | | the rest: counts of lists (profiles, items, pets, mounts, stats, ...) and a few scalars, all zero for now |
+
+The generated blob is checked against the client's deserializer: it consumes every byte (`tools/ppc_trace.py
+--file blob.bin`). That proves the widths line up; it does not prove the values make sense to the game.
+
+The list element layouts (items, profiles, stats, ...) are not decoded yet.
+
+## tools/ppc_trace.py
+
+A small PowerPC emulator that runs one function from `game.elf` on a chosen input buffer and prints each field the
+function reads (offset and width), found by watching the reader's cursor move. Because the game prints no logs, this
+is how packet layouts are read out of the binary. Example for the player blob:
+
+    python3 tools/ppc_trace.py game.elf 0xb1e460 --reader --object 33200 --buffer-size 4096 \
+        --stub 0xa44aac=alloc --stub 0x11834=alloc --stub 0x1dbe4=alloc
+
+To explore a list, put a count of 1 in the buffer at the list's offset (`--set OFFSET=01000000`) and run again; the
+extra reads are the element layout.

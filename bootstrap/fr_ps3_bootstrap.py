@@ -501,6 +501,13 @@ def make_handler(ip, digest, server_list_variant, client_root,
                         reply_kind=kind, request_fields=fields,
                         server_list_variant=(server_list_variant if kind == "server_list" else None),
                         xml_style=xml_style)
+            if kind == "character_create":
+                values = {k: v[0] for k, v in parse_qs(body.decode("utf-8", "replace"), keep_blank_values=True).items()
+                          if k != "Session"}
+                gateway_probe.CHARACTER.clear()
+                gateway_probe.CHARACTER.update(values)
+                LOG.info("character_create values (kept for the game-server probe): %s",
+                         ", ".join(f"{k}={v}" for k, v in sorted(values.items())))
             status = __import__("re").search(rb'Status(?:="|>)(\d+)', reply)
             LOG.info("%s request fields: %s -> replying Status=%s", kind, ", ".join(fields) or "(none)",
                      status.group(1).decode() if status else "?")

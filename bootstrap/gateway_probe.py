@@ -13,6 +13,8 @@ The probe answers a Login with LoginReply(success) so the client moves on, then 
   Tunneled (either direction): u16 LE opcode 5 | u8 reliable | i32 LE size | inner packet (u16 LE opcode + fields)
   ZoneDetails (inner opcode 43, layout read from the PS3 client): string name | i32 type | u8 | u8 | string sky
                                                                     | u8 in-arena | i32 zone id
+  SendSelfToClient (inner opcode 12): i32 length | player blob. The blob's field widths were found by running the
+  client's own deserializer (tools/ppc_trace.py); with every list empty it is 273 bytes.
 
 Packet layouts follow the UdpLibrary port in the Clover server (Sanctuary.UdpLibrary, AGPL-3.0):
   Connect : 00 01 | protocol version i32 | connect code i32 | max raw packet size i32 | name\\0
@@ -88,9 +90,54 @@ def zone_details(name="FabledRealms", zone_type=2, tutorial=0, unknown=0, sky=""
             + _string(sky) + struct.pack("<Bi", arena, zone_id))
 
 
+CHARACTER = {}   # values from the last character/create request, shared with the HTTP side
+
+HEAD_NAMES = {1: "caucasian", 2: "african", 3: "asian"}
+
+
+def _int(value, default=0):
+    try:
+        return int(str(value).strip() or default)
+    except ValueError:
+        return default
+
+
+def player_blob(character=None, guid=1):
+    """The player data for SendSelfToClient, laid out like the PS3 client reads it (build 1.77).
+
+    Names follow Clover's ClientPcData where the order matches. Every list is sent empty, so there are no
+    items, profiles, pets, quests or stats yet.
+    """
+    c = character or {}
+    model = _int(c.get("Model"), 1)
+    head = f"<race>_<gender>_head_{HEAD_NAMES.get(_int(c.get('Head'), 1), 'caucasian')}.adr"
+    hair = "<race>_m_hair_eyebrows_bald.adr"
+    skin = f"skintone{_int(c.get('SkinTone'), 1) or 1}"
+    out = bytearray()
+    out += struct.pack("<QQ", 0, guid)                       # launch ticket, guid
+    out += struct.pack("<i", model)
+    out += _string(head) + _string(hair)
+    out += struct.pack("<ii", _int(c.get("HairColor")), _int(c.get("EyeColor")))
+    out += _string(skin) + _string("none") + _string("")     # skin tone, face paint, model customization
+    out += struct.pack("<8f", -1904.883, -39.7098, 412.6024, 1.0, 0.5531712, 0.0, 0.8330676, 0.0)  # position, rotation
+    out += struct.pack("<iii", 0, 0, 0)                      # name ids
+    out += _string(c.get("FirstName") or "Test") + _string(c.get("LastName") or "")
+    out += struct.pack("<iQii", 0, int(time.time()), 0, 0)   # coins, birthday, age, play time
+    out += struct.pack("<BiB", 0, 2, 0)                      # underage, membership status, member nag screen
+    out += struct.pack("<iiiii", 0, 0, 0, 0, 1)              # chat country, chat language, preferred language, chat language, login count
+    out += struct.pack("<B", 0)                              # grandfathered
+    out += bytes(0x111 - 0x93)                               # remaining fields: empty lists and zeros
+    return bytes(out)
+
+
+def send_self_to_client(character=None):
+    blob = player_blob(character)
+    return struct.pack("<Hi", 12, len(blob)) + blob
+
+
 def world_packets():
     """Packets sent right after the login reply, in order (each already tunneled)."""
-    return [tunneled(zone_details())]
+    return [tunneled(zone_details()), tunneled(send_self_to_client(CHARACTER))]
 
 
 class GatewayProbe:
