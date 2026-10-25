@@ -287,3 +287,30 @@ To find out whether the Lua checks are what holds the loading screen, the three 
 (`[13,12]` returns 1.0, `[12,107]` and `[12,21]` return true) are patched to return at once, and the chunk is re-packed
 as an SDAT. The re-packer stores the blocks uncompressed and writes each block's AES-CMAC; the same formula reproduces
 all 50 hashes of the original file, and the result decrypts back to the patched chunk (only 14 bytes differ).
+
+Result: the patched script was loaded (RPCS3 shows `SDATA ... scriptsbase.bin.sdat` opened and read in full) and the
+screen still stayed. So the Lua checks are not what holds it.
+
+## What holds the overlay: "is the terrain around the player loaded" (read from `game.elf`)
+
+The server log of a stuck run shows the client already logs `Viewed loading screen loadingscreen_pets.gfx for 3.26
+seconds` and sends FinishedLoading, so `WaitForWorldReady` is satisfied. The overlay that stays belongs to a second,
+per-frame check in the big update function (`0xee9c4`-`0xf09ec`):
+
+- `0xdced8` (`SetLoadingWorldAssets(bool)`) shows or hides the HUD overlay by calling the Lua function
+  `HUD:LoadingWorldAssets(1|0)` (`Main.wndLoadingLarge` plus `Ui:ObscureScene`).
+- It is called with `true` when `IsLoaded(position, radius)` returns 0 and with `false` once it returns non-zero
+  (`0xef5e4`-`0xef66c` and `0xf04b0`-`0xf051c`). `IsLoaded` is virtual slot 76 of the terrain controller, reached
+  through a small holder object at `client+0x10000+18548` (`0x897db4`).
+- The holder keeps up to four implementations. ZoneDetails' `type` is the index: Clover's comment calls them
+  0 TileStatic, 1 TileSeamless, 2 RuntimeSeamless, 3 Mesh. The ZoneDetails handler (`0x10cdac`-`0x10cdb8`) calls
+  `holder.Activate(type, zone name)`; if that returns 0 it logs `Failed to init the game world for: %s. Exiting.`
+  (`0xdee930`). Only type 2 was set up at startup (`0xf2938`: a 176-byte controller object, `0x7cf7b0` is its Load).
+- `IsLoaded` (`0x7cfdd4`) returns 0 when the terrain object (`controller+24`) is missing, when its ready byte
+  (`terrain+1076`) is 0, when the cell manager (`controller+28`) is missing, or when any grid cell within the radius
+  around the player is not loaded (`0x7ded28`). The ready byte is set at the end of the terrain header parse (`0x7e010c`).
+  The cell manager is only created after that byte is set (`0x7cf464`-`0x7cf488`).
+
+So the screen stays up while the zone's terrain header or tiles have not loaded. The zone name we send (`FabledRealms`,
+type 2) comes from the PC game (Clover). Whether the PS3 packs contain terrain for that name is not known yet;
+`tools/list_packs.py` lists the asset names in the `assets_ps3_NNN.pack` files to find out.
