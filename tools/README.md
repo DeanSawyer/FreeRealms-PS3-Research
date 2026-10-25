@@ -9,7 +9,7 @@ Run any tool with `-h` or read the docstring at the top of the file for its opti
 
 | Tool | Purpose |
 | :--- | :--- |
-| [`run_test.py`](run_test.py) | One-command test (Administrator PowerShell): restores the original scripts, starts the server and RPCS3, then packs reports and logs into a zip on the Desktop. |
+| [`run_test.py`](run_test.py) | One-command test (Administrator PowerShell): restores the original scripts, starts the server and RPCS3, then packs reports and logs into a zip on the Desktop. `--server-exe` tests the C# port (`Sanctuary.Ps3.Server.exe`) instead of the Python script. |
 | [`rpcs3_diag_patch.py`](rpcs3_diag_patch.py) | Adds (or `--remove`s) an RPCS3 patch that makes the loading-overlay check see `IsLoaded` as true, to tell whether the loading overlay is held by that check or by a gate object ([`docs/re/zone-loading.md`](../docs/re/zone-loading.md)). |
 
 ## C# reference vectors

@@ -5,7 +5,7 @@ What it does, in order (Windows, run from an Administrator PowerShell so ports 5
 
   1. puts the original ui/scriptsbase.bin.sdat back wherever a patched copy is live (the .orig next to it);
   2. runs tools/zone_report.py and tools/tile_report.py on the install (what the client can load, where it spawns);
-  3. starts bootstrap/fr_ps3_bootstrap.py (its output is shown here and saved);
+  3. starts bootstrap/fr_ps3_bootstrap.py (its output is shown here and saved), or the C# port with --server-exe;
   4. starts RPCS3 on the game (with --force-isloaded: with the overlay diagnostic patch, removed again afterwards) and waits - log in, make or pick a character, watch the screen, then CLOSE RPCS3;
   5. stops the server and writes one zip with everything needed to read the result: both reports, the server log,
      the lines of interest, the end of the RPCS3 log and the end of the gateway trace.
@@ -13,6 +13,7 @@ What it does, in order (Windows, run from an Administrator PowerShell so ports 5
 Usage (PowerShell, from the repo folder):
     python tools\\run_test.py
     python tools\\run_test.py --install C:\\Path\\To\\FR_INSTALL_TEST --no-restore
+    python tools\\run_test.py --server-exe C:\\Path\\To\\Sanctuary.Ps3.Server.exe     (test the C# port instead of the Python script)
 
 Nothing from the client is copied except text logs; the zip is written to the Desktop.
 """
@@ -99,7 +100,8 @@ def main():
                          "(tools/rpcs3_diag_patch.py, docs/re/zone-loading.md)")
     ap.add_argument("--rpcs3", help="RPCS3 executable (default: RPCS3_TEST\\rpcs3.exe)")
     ap.add_argument("--elf", help="game.elf to start (default: inside RPCS3_TEST)")
-    ap.add_argument("--bootstrap-args", default="", help="extra arguments for fr_ps3_bootstrap.py")
+    ap.add_argument("--bootstrap-args", default="", help="extra arguments for fr_ps3_bootstrap.py (or the C# server)")
+    ap.add_argument("--server-exe", help="run this C# server (Sanctuary.Ps3.Server.exe, see src/ps3/README.md) instead of the Python script")
     ap.add_argument("--out", help="folder for the report (default: Desktop\\fr_test_<time>)")
     args = ap.parse_args()
 
@@ -125,8 +127,11 @@ def main():
     run_tool("zone_report.py", [usrdir], os.path.join(out_dir, "zone_report.txt"), out_dir)
     run_tool("tile_report.py", [usrdir], os.path.join(out_dir, "tile_report.txt"), out_dir)
 
-    cmd = [sys.executable, "-u", os.path.join(REPO, "bootstrap", "fr_ps3_bootstrap.py"), "--client", client,
-           "--codec", "zs-zlib-zero-trailer"]
+    if args.server_exe:
+        cmd = [args.server_exe, "--client", client, "--codec", "zs-zlib-zero-trailer"]
+    else:
+        cmd = [sys.executable, "-u", os.path.join(REPO, "bootstrap", "fr_ps3_bootstrap.py"), "--client", client,
+               "--codec", "zs-zlib-zero-trailer"]
     if os.path.isdir(args.extra_client):
         cmd += ["--extra-client", args.extra_client]
     cmd += ["--match-local"]      # the local game.self differs from the original digest; serve a digest that matches it
@@ -135,6 +140,7 @@ def main():
     env = dict(os.environ)
     env.setdefault("FR_EXTRA", "1")       # extra packets after FinishedLoading (as in the earlier test commands)
     env.setdefault("FR_ADDPC", "other")
+    env.setdefault("FR_TRACE_DIR", os.path.join(REPO, "bootstrap"))   # where the report reads the gateway trace (the C# server would use the current folder)
     if args.bootstrap_args:
         cmd += args.bootstrap_args.split()
     log(out_dir, "starting the server: " + " ".join(cmd))

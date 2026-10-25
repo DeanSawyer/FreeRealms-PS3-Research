@@ -39,6 +39,10 @@ The options are those of the Python script (`--client`, `--digest`, `--match-loc
 `--no-dns`, `--bind`, `--port`) and so are the gateway switches `FR_ZONE`, `FR_ZONE_TYPE`, `FR_SPAWN`, `FR_SPAWN_Y`, `FR_ADDPC`,
 `FR_WELCOME`, `FR_EXTRA`, `FR_TIME`. [`bootstrap/README.md`](../../bootstrap/README.md) explains them; `--help` lists them.
 
+To test it with RPCS3 the way the Python server is tested, download the artifact `Sanctuary.Ps3.Server-win-x64` of a successful run of the
+[Windows installer workflow](../../.github/workflows/windows-build.yml) (a single `.exe`, no .NET needed) and run
+`python tools\run_test.py --server-exe C:\Path\To\Sanctuary.Ps3.Server.exe`; the report then comes from the C# server's log and traces.
+
 ### Differences from the Python script
 
 * **Codecs.** `--codec` accepts `zs-zlib-zero-trailer` (the default, the container the client accepts), `zs-zlib-digest-trailer` and

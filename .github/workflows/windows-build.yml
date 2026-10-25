@@ -16,12 +16,21 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Publish self-contained app
         run: dotnet publish src/FreeRealms.Bootstrap/FreeRealms.Bootstrap.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o publish
+      - name: Publish the console server
+        run: dotnet publish src/ps3/Sanctuary.Ps3.Server/Sanctuary.Ps3.Server.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish-server
       - name: Install Inno Setup
         run: choco install innosetup --yes --no-progress
       - name: Build Windows installer
         shell: pwsh
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\FreeRealmsBootstrap.iss"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sanctuary.Ps3.Server-win-x64
+          path: publish-server/Sanctuary.Ps3.Server.exe
+          if-no-files-found: error
+          retention-days: 30
+
       - uses: actions/upload-artifact@v4
         with:
           name: FreeRealmsPS3Bootstrap-Windows-Setup
@@ -35,4 +44,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create "${{ github.ref_name }}" "dist/FreeRealmsPS3Bootstrap-Setup.exe" --title "Bootstrap Manager ${{ github.ref_name }}" --notes "Windows installer for the experimental C# bootstrap manager." --verify-tag
+          gh release create "${{ github.ref_name }}" "dist/FreeRealmsPS3Bootstrap-Setup.exe" "publish-server/Sanctuary.Ps3.Server.exe" --title "Bootstrap Manager ${{ github.ref_name }}" --notes "Windows installer for the experimental C# bootstrap manager." --verify-tag
