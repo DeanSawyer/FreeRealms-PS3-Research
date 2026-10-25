@@ -102,11 +102,54 @@ def _int(value, default=0):
         return default
 
 
+INNER_NAMES = {10: "FinishedLoading", 13: "ClientIsReady", 88: "SetLocale", 109: "ClientLog",
+               169: "ClientInitializationDetails"}
+
+
+def describe_inner(opcode, inner):
+    """A readable note for the inner client packets we know, so the log shows what the client said."""
+    name = INNER_NAMES.get(opcode)
+    if name is None:
+        return ""
+    detail = ""
+    try:
+        if opcode == 88 and len(inner) >= 6:                     # SetLocale: string
+            n = struct.unpack_from("<I", inner, 2)[0]
+            detail = " " + repr(inner[6:6 + n].decode("utf-8", "replace"))
+        elif opcode == 169 and len(inner) >= 6:                  # i32, a timezone offset in seconds
+            detail = " %d" % struct.unpack_from("<i", inner, 2)[0]
+        elif opcode == 109 and len(inner) >= 6:                  # ClientLog: file name, text
+            n = struct.unpack_from("<I", inner, 2)[0]
+            name_end = 6 + n
+            m = struct.unpack_from("<I", inner, name_end)[0]
+            detail = " %r: %r" % (inner[6:name_end].decode("utf-8", "replace"),
+                                  inner[name_end + 4:name_end + 4 + m].decode("utf-8", "replace"))
+    except (struct.error, IndexError):
+        pass
+    return " (%s%s)" % (name, detail)
+
+
+PROFILE_ID = 1          # Clover's DefaultProfileId (the first job a new character has)
+PROFILE_SIZE = 179      # bytes the client reads per profile entry
+
+
+def profile(profile_id):
+    """One entry of the profile list: the id, then zeros for everything else.
+
+    The client reads 179 bytes per entry: 9 integers (id, name id, description id, type, icon and three image
+    sets, is-combat), a few flags, rank and stars, 17 equipment words, 8 ability lists (each a count; zero here)
+    and an ability-experience list. Only the id is meaningful so far; the rest is left empty.
+    """
+    return struct.pack("<i", profile_id) + bytes(PROFILE_SIZE - 4)
+
+
 def player_blob(character=None, guid=1):
     """The player data for SendSelfToClient, laid out like the PS3 client reads it (build 1.77).
 
-    Names follow Clover's ClientPcData where the order matches. Every list is sent empty, so there are no
-    items, profiles, pets, quests or stats yet.
+    Names follow Clover's ClientPcData where the order matches. There is one profile (the starter job) because
+    the client looks the active profile up right after loading the player and dereferences null when the list
+    is empty (found with tools/ppc_trace.py: the lookup at 0xeba4c reads the node it did not find). Every other
+    list is sent empty, so there are no items, pets, quests or stats yet.
     """
     c = character or {}
     model = _int(c.get("Model"), 1)
@@ -126,7 +169,10 @@ def player_blob(character=None, guid=1):
     out += struct.pack("<BiB", 0, 2, 0)                      # underage, membership status, member nag screen
     out += struct.pack("<iiiii", 0, 0, 0, 0, 1)              # chat country, chat language, preferred language, chat language, login count
     out += struct.pack("<B", 0)                              # grandfathered
-    out += bytes(0x111 - 0x93)                               # remaining fields: empty lists and zeros
+    out += struct.pack("<ii", 0, 0)                          # two vehicle loadouts (kart race, demo derby)
+    out += struct.pack("<i", 1) + profile(PROFILE_ID)        # profile list: one entry
+    out += struct.pack("<i", PROFILE_ID)                     # active profile id
+    out += bytes(0x111 - 0xa3)                               # remaining fields: empty lists and zeros
     return bytes(out)
 
 
@@ -254,8 +300,21 @@ class GatewayProbe:
                     except OSError:
                         return
 
-    def on_application_packet(self, addr, channel, payload):
+    def on_application_packet(self, addr, channel, payload, depth=0):
         if len(payload) < 2:
+            return
+        if payload[0] == 0 and payload[1] in (3, 0x19) and depth < 3:
+            # The client bundles small application packets into one reliable payload: a Multi (3) or Group (25)
+            # packet, i.e. 00 19, then [length][packet] for each one (0xff starts a two byte big endian length).
+            pos = 2
+            while pos < len(payload):
+                length = payload[pos]
+                pos += 1
+                if length == 0xff and pos + 2 <= len(payload):
+                    length = struct.unpack(">H", payload[pos:pos + 2])[0]
+                    pos += 2
+                self.on_application_packet(addr, channel, payload[pos:pos + length], depth + 1)
+                pos += length
             return
         opcode = struct.unpack("<H", payload[:2])[0]
         if opcode == 1:                                  # gateway Login
@@ -273,9 +332,11 @@ class GatewayProbe:
             size = struct.unpack_from("<I", payload, 3)[0]
             inner = payload[7:7 + size]
             inner_op = struct.unpack_from("<H", inner, 0)[0] if len(inner) >= 2 else -1
-            LOG.info("gateway tunneled (%d) inner opcode %d from %s (%d bytes): %s", opcode, inner_op, addr,
-                     len(inner), inner[:MAX_LOGGED_BYTES].hex())
+            LOG.info("gateway tunneled (%d) inner opcode %d%s from %s (%d bytes): %s", opcode, inner_op,
+                     describe_inner(inner_op, inner), addr, len(inner), inner[:MAX_LOGGED_BYTES].hex())
             _trace("tunneled", peer=addr[0], outer=opcode, inner_opcode=inner_op, hex=inner[:512].hex())
+            if inner_op == 13:                           # ClientIsReady: say the initial data is complete
+                self.send_reliable(addr, tunneled(struct.pack("<H", 14)), channel)   # ZoneDoneSendingInitialData
         else:
             LOG.info("gateway application opcode %d from %s (%d bytes)", opcode, addr, len(payload))
 

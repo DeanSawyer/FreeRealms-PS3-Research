@@ -90,12 +90,42 @@ Layout: `i32` length, then the player blob. The blob's field widths come from ru
 | 0x7d | u8 | show member nag screen |
 | 0x7e | 5 x u32 | chat country, chat language, preferred language, chat language, login count |
 | 0x92 | u8 | grandfathered |
-| 0x93 | | the rest: counts of lists (profiles, items, pets, mounts, stats, ...) and a few scalars, all zero for now |
+| 0x93, 0x97 | u32 | the two vehicle loadouts (kart race, demo derby) |
+| 0x9b | u32 + n x 179 bytes | profile list: a count, then one entry per profile (below) |
+| after the profiles | u32 | active profile id |
+| the rest | | counts of the other lists (collections, items, pets, mounts, stats, ...) and a few scalars, all zero for now |
 
 The generated blob is checked against the client's deserializer: it consumes every byte (`tools/ppc_trace.py
 --file blob.bin`). That proves the widths line up; it does not prove the values make sense to the game.
 
-The list element layouts (items, profiles, stats, ...) are not decoded yet.
+### The profile list must not be empty
+
+With an empty profile list the client crashed right after the player data arrived ("Access violation reading
+location 0x0" in RPCS3). The cause, read out of the client: after loading the player it runs a routine at `0xeba4c`
+that looks the active profile up in a small hash table inside the player object (5 buckets, key = profile id, taken
+from the profile entries as they are read) and then reads through the node it found. With no profile there is no
+node, so the read goes through a null pointer. One profile is enough. The emulator reproduces both cases
+(`tools/ppc_trace.py` records reads below `0x1000` as `null_reads`): the empty list reads address 0 at `0xebb30`; one
+profile with id 1 does not.
+
+A profile entry is 179 bytes in this build: nine integers (id, name id, description id, type, icon, three image
+sets, is-combat), a few flags and integers (rank, rank percent, stars), 17 equipment words, eight ability lists
+(each starts with a count) and an ability-experience list. Only the id is filled in so far; everything else is zero.
+This differs from Clover's `ClientPcProfile` (no item-class or item maps), so the PS3 build is an older layout.
+
+## Packets the client sends after the player data
+
+They arrive bundled: one reliable payload that starts `00 19` (a UdpLibrary Group packet), then a length byte and a
+tunneled packet for each, repeated. Seen so far, in order:
+
+| Inner opcode | Name | Content |
+|---|---|---|
+| 88 | SetLocale | string, `en_US` |
+| 169 | ClientInitializationDetails | `i32`, `-18000` (a timezone offset in seconds) |
+| 13 | ClientIsReady | no fields (expected next; not seen yet) |
+
+The probe unwraps Group and Multi packets, logs each inner packet by name, and answers ClientIsReady with
+ZoneDoneSendingInitialData (opcode 14, no fields, as in Clover).
 
 ## tools/ppc_trace.py
 
@@ -108,3 +138,13 @@ is how packet layouts are read out of the binary. Example for the player blob:
 
 To explore a list, put a count of 1 in the buffer at the list's offset (`--set OFFSET=01000000`) and run again; the
 extra reads are the element layout.
+
+## tools/ppc_explore.py
+
+Finds the lists for you. It runs the same deserializer once per 4-byte field with that field set to 1 and prints the
+fields that turn out to be counts, with the number and widths of the extra reads each one adds. For the player blob
+it lists about a dozen counts (the profile list is the one at `0x9b`: 47 reads, 179 bytes). Use `--base HEX` to start
+from a partly built buffer, so you can look inside one list element, and `--only OFFSET` to test one field.
+
+    python3 tools/ppc_explore.py game.elf 0xb1e460 --reader --object 33200 \
+        --stub 0xa44aac=alloc --stub 0x11834=alloc --stub 0x1dbe4=alloc

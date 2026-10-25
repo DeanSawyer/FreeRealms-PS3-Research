@@ -60,6 +60,7 @@ class Memory:
     def __init__(self):
         self.pages = {}
         self.unmapped_reads = 0
+        self.null_reads = []   # (address) of reads below 0x1000: what the real console reports as "reading location 0x0"
 
     def page(self, addr, create=True):
         key = addr >> 12
@@ -148,6 +149,8 @@ class Emu:
     # --- memory helpers --------------------------------------------------------------
     def lread(self, ea, n):
         ea &= M32
+        if ea < 0x1000:
+            self.mem.null_reads.append((self.pc, ea, n))
         if BUF_BASE <= ea < BUF_BASE + self.buf_len:
             self.events.append(("read", self.pc, ea - BUF_BASE, n, tuple(self.shadow[-4:])))
         data = self.mem.read(ea, n)
