@@ -1,4 +1,8 @@
 <Project>
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
 
   <!-- Versions match the Sanctuary (Clover) solution so these projects can be moved into it unchanged. -->
   <ItemGroup>
