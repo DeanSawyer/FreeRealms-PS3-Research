@@ -280,3 +280,10 @@ Observed on the stuck run (probe v14, all login packets accepted):
 
 Open question: what the client waits on after the sky definition. Candidates: the sky/terrain assets inside the packs
 (the status line prints `SkyFinishedLoading` and `SkyDefinitionSet`), or a state flag set by a server packet.
+
+## Test: force the Lua loading checks to "done" (tools/sdat_patch_loading.py)
+
+To find out whether the Lua checks are what holds the loading screen, the three functions that answer it
+(`[13,12]` returns 1.0, `[12,107]` and `[12,21]` return true) are patched to return at once, and the chunk is re-packed
+as an SDAT. The re-packer stores the blocks uncompressed and writes each block's AES-CMAC; the same formula reproduces
+all 50 hashes of the original file, and the result decrypts back to the patched chunk (only 14 bytes differ).
