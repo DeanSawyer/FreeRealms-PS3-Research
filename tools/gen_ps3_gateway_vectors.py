@@ -153,7 +153,7 @@ def packet_vectors():
             character = sc.character
             self_name = character.get("FirstName") or "Test"
             fields = (
-                cs_str(sc.label), sc.cs_fields(), cs_str(zone), zone_type, ", ".join(cs_double(v) for v in spawn),
+                cs_str(sc.label), sc.cs_fields(), cs_str(zone), zone_type, "[" + ", ".join(cs_double(v) for v in spawn) + "]",
                 cs_bytes(gp.zone_details()), cs_bytes(gp.player_blob(character)), cs_bytes(gp.send_self_to_client(character)),
                 cs_bytes(gp.add_pc(character)),
                 cs_bytes(gp.add_pc(character, guid=1, first_name=self_name, last_name=character.get("LastName") or "", offset=(0, 0, 0))),
