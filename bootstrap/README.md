@@ -101,3 +101,12 @@ $env:FR_ZONE = "ZoneName"; $env:FR_ZONE_TYPE = "2"                  # override t
 The player's spawn position matters too: the loading screen waits for the terrain tiles around it, and only tiles stored in
 the packs can be provided. The server picks the centre of a tile whose neighbourhood is local (logged as `spawn: x=… z=…`);
 `$env:FR_SPAWN = "x,y,z"` sets it by hand and `$env:FR_SPAWN_Y` only the height (default 400).
+
+## One-command test run
+
+```powershell
+python .\tools\run_test.py        # Administrator PowerShell, from the repo folder
+```
+Restores the original `scriptsbase.bin.sdat`, runs `zone_report.py` and `tile_report.py`, starts this server and RPCS3, waits until
+RPCS3 is closed, then writes `Desktop\fr_test_<time>.zip` with the reports, the server log, the interesting lines, the end of the RPCS3
+log and the end of the gateway trace. `--no-restore` leaves the scripts alone.
