@@ -87,6 +87,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--install", default=DEFAULT_INSTALL, help="folder holding NPUA30048 and RPCS3_TEST")
     ap.add_argument("--extra-client", default=DEFAULT_EXTRA, help="second client folder for --extra-client (if it exists)")
+    ap.add_argument("--digest", default=os.path.join(os.path.expanduser("~"), "Downloads", "NPUA30048.original.soe"),
+                    help="the original PS3 digest (used with --match-local when the file exists)")
     ap.add_argument("--no-restore", action="store_true", help="leave scriptsbase.bin.sdat as it is")
     ap.add_argument("--rpcs3", help="RPCS3 executable (default: RPCS3_TEST\\rpcs3.exe)")
     ap.add_argument("--elf", help="game.elf to start (default: inside RPCS3_TEST)")
@@ -120,11 +122,17 @@ def main():
            "--codec", "zs-zlib-zero-trailer"]
     if os.path.isdir(args.extra_client):
         cmd += ["--extra-client", args.extra_client]
+    cmd += ["--match-local"]      # the local game.self differs from the original digest; serve a digest that matches it
+    if os.path.isfile(args.digest):
+        cmd += ["--digest", args.digest]
+    env = dict(os.environ)
+    env.setdefault("FR_EXTRA", "1")       # extra packets after FinishedLoading (as in the earlier test commands)
+    env.setdefault("FR_ADDPC", "other")
     if args.bootstrap_args:
         cmd += args.bootstrap_args.split()
     log(out_dir, "starting the server: " + " ".join(cmd))
     boot = subprocess.Popen(cmd, cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                            errors="replace", bufsize=1)
+                            errors="replace", bufsize=1, env=env)
     pump = threading.Thread(target=tee, args=(boot, os.path.join(out_dir, "bootstrap.log")), daemon=True)
     pump.start()
     time.sleep(6)
