@@ -68,6 +68,17 @@ response as a trailer that was not there, but that link is a **hypothesis**, not
   0x04, 0x80, 0xFF, then a stored-block zlib stream) and remembers the variant after the client moves on to another file.
   Look for `STORED ... attempt=N variant=...` in the log.
 
+## After the install (21:30-21:46)
+
+- The installer reached 100% on `--match-local` and exited. `RPCS3.log` shows `PS3Installer is launching:
+  /dev_hdd0/game/NPUA30048/USRDIR/game.self. Using NpDrm: true.` followed by `_sys_process_exit` (no exitspawn syscall):
+  RPCS3 ended the emulation instead of starting `game.self`. A second launch ran the installer again, much faster (files
+  already current).
+- Booting `game.self` directly (`rpcs3.exe --no-gui ...\USRDIR\game.self`) fails in RPCS3: `SELF: Failed to decrypt SELF
+  metadata info!` / `Failed to decrypt content`. `game.self` is one of the three files that differ from the digest
+  (15,897,920 bytes locally vs 15,897,872; locally it does not compress, the original did). `tools/self_info.py` prints the
+  SELF header (key revision, NPDRM license type) to tell a missing-license problem from a corrupt or different file.
+
 ## Digest layout (parsed by `tools/parse_digest.py`)
 
 - Tag/length/value tree. Length byte `< 0x80` is one byte, `0x80-0xFE` starts a 15-bit two-byte length, `0xFF` is
