@@ -152,9 +152,11 @@ def trace_event(event, **fields):
 
 
 def make_handler(ip, digest, server_list_variant, client_root,
-                 codec=codec_candidates.DEFAULT_CODEC):
+                 codec=codec_candidates.DEFAULT_CODEC, extra_clients=()):
     config = app_config(ip)
     asset_root = (client_root / "USRDIR").resolve()
+    # Extra game folders searched (in order) for a file whose CRC32 matches.
+    asset_roots = [asset_root] + [(Path(p) / "USRDIR").resolve() for p in extra_clients]
     patch_prefix = "/patch/freerealms/ps3scelive/ps3-web/"
 
     class Handler(BaseHTTPRequestHandler):
@@ -241,11 +243,12 @@ def make_handler(ip, digest, server_list_variant, client_root,
             return True
 
         def serve_zs(self, route):
-            """Build any FreeRealms.zs/<path>.zs asset from the matching local file.
+            """Build any FreeRealms.zs/<path>.zs asset from a matching local file.
 
             The client requests ``?c=<CRC32 of decoded file>&l=<compressed length>``.
-            The decoded file must already exist under USRDIR and match that CRC.
-            Hypothesis only: container = zlib (or raw) payload + 129-byte trailer.
+            Every configured client folder is searched and the first file whose
+            CRC32 matches is used. Hypothesis only: container = zlib (or raw)
+            payload + 129-byte trailer.
             """
             relative = unquote(route[len(patch_prefix):]).replace("\\", "/")
             marker = "FreeRealms.zs/"
@@ -256,12 +259,16 @@ def make_handler(ip, digest, server_list_variant, client_root,
             if not decoded or rel_path.is_absolute() or ".." in rel_path.parts or "\x00" in decoded:
                 self.respond(400, b"Invalid path\r\n", "text/plain", close=True)
                 return True
-            source = (asset_root / rel_path).resolve()
-            try:
-                source.relative_to(asset_root)
-            except ValueError:
-                self.respond(403, b"Forbidden\r\n", "text/plain", close=True)
-                return True
+            candidates = []
+            for root in asset_roots:
+                source = (root / rel_path).resolve()
+                try:
+                    source.relative_to(root)
+                except ValueError:
+                    self.respond(403, b"Forbidden\r\n", "text/plain", close=True)
+                    return True
+                if source.is_file():
+                    candidates.append(source)
             query = parse_qs(urlsplit(self.path).query)
 
             def number(key):
@@ -269,32 +276,40 @@ def make_handler(ip, digest, server_list_variant, client_root,
                 return int(value) if value.isdigit() else None
 
             want_crc, want_len = number("c"), number("l")
-            if not source.is_file():
+            if not candidates:
                 trace_event("zs_source_missing", route=route, decoded=decoded,
-                            expected_crc32=want_crc, manifest_length=want_len)
+                            expected_crc32=want_crc, manifest_length=want_len,
+                            roots=[str(r) for r in asset_roots])
                 self.respond(404, b"Decoded source not found\r\n", "text/plain", close=True)
                 return True
-            raw = source.read_bytes()
-            crc, note = zlib.crc32(raw), ""
-            if want_crc is not None and crc != want_crc:
-                # Some tools rewrite line endings in text files (LF vs CRLF).
-                fixed = raw.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
-                if zlib.crc32(fixed) == want_crc:
-                    raw, crc, note = fixed, want_crc, "lf_to_crlf"
-                else:
-                    trace_event("zs_source_crc_mismatch", route=route, decoded=decoded,
-                                source=str(source), size=len(raw), crc32=hex(crc),
-                                expected_crc32=hex(want_crc))
-                    LOG.warning("CRC mismatch for %s: have %s, client wants %s", decoded,
-                                hex(crc), hex(want_crc))
-                    self.respond(409, b"Source does not match client CRC\r\n",
-                                 "text/plain", close=True)
-                    return True
+            raw, chosen, note, tried = None, None, "", []
+            for source in candidates:
+                data = source.read_bytes()
+                crc = zlib.crc32(data)
+                tried.append({"source": str(source), "size": len(data), "crc32": hex(crc)})
+                if want_crc is None or crc == want_crc:
+                    raw, chosen = data, source
+                    break
+                if len(data) <= 4 * 1024 * 1024:
+                    # Some tools rewrite line endings in text files (LF vs CRLF).
+                    fixed = data.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+                    if zlib.crc32(fixed) == want_crc:
+                        raw, chosen, note = fixed, source, "lf_to_crlf"
+                        break
+            if raw is None:
+                trace_event("zs_source_crc_mismatch", route=route, decoded=decoded,
+                            expected_crc32=hex(want_crc), tried=tried)
+                LOG.warning("No local copy of %s matches client CRC %s; tried %s", decoded,
+                            hex(want_crc), [(t["source"], t["size"], t["crc32"]) for t in tried])
+                self.respond(409, b"Source does not match client CRC\r\n",
+                             "text/plain", close=True)
+                return True
+            crc = zlib.crc32(raw)
             target = want_len - codec_candidates.ZS_TRAILER_LEN if want_len else None
             encoded = codec_candidates.encode(codec, raw, target)
             trace_event("zs_response", route=route, decoded=decoded, codec=codec, note=note,
-                        decoded_bytes=len(raw), decoded_crc32=hex(crc), bytes=len(encoded),
-                        manifest_length=want_len,
+                        source=str(chosen), decoded_bytes=len(raw), decoded_crc32=hex(crc),
+                        bytes=len(encoded), manifest_length=want_len,
                         matches_manifest_length=(len(encoded) == want_len))
             if want_len is not None and len(encoded) != want_len:
                 LOG.warning("ZS %s: sent %d bytes, manifest says %d", decoded, len(encoded), want_len)
@@ -406,6 +421,9 @@ def main():
     parser.add_argument("--client", type=Path, required=True, help="NPUA30048 directory")
     parser.add_argument("--server-list-variant", choices=("baseline", "zone"), default="baseline",
                         help="Choose the original XML or experimental Zone response")
+    parser.add_argument("--extra-client", type=Path, action="append", default=[], metavar="DIR",
+                        help="Additional NPUA30048 folder to search for a file whose CRC32 matches "
+                             "what the client requests (repeatable). Only used with --codec zs-*.")
     parser.add_argument("--codec", default=codec_candidates.DEFAULT_CODEC,
                         choices=codec_candidates.codec_names(), metavar="NAME",
                         help="Experimental encoding for the terrain asset (hypothesis only; "
@@ -451,7 +469,7 @@ def main():
             LOG.info("DNS listening on %s:53; hosts -> %s; upstream=%s",
                      args.bind, address, args.upstream)
         with ThreadingHTTPServer((args.bind, args.port), make_handler(str(address), digest, args.server_list_variant, args.client,
-                                                  args.codec)) as http:
+                                                  args.codec, args.extra_client)) as http:
             LOG.info("Server-list response variant: %s (experimental Zone field: %s)",
                      args.server_list_variant, args.server_list_variant == "zone")
             LOG.info("HTTP listening on %s:%d; AppConfig=%d bytes; digest=%d bytes",

@@ -34,6 +34,15 @@ response as a trailer that was not there, but that link is a **hypothesis**, not
   any `.zs` response from the matching local file under `USRDIR`, verifying the CRC from `c`.
 - The client also retries a missing asset with `&cb=L`, `&cb=LF`, `&cb=LFH`, ... (growing letter suffixes).
 
+## Second RPCS3 run (2026-10-24 20:42, `--codec zs-zlib-zero-trailer`)
+
+- 140 responses were sent (terrain + graphics resources), **all matching the manifest length exactly**; the client kept
+  requesting the next file with no retries, so the format looks accepted.
+- It stopped at `locale/en_us_data.dat`: the digest expects 5,744,504 bytes / CRC32 `0xA1D1B63F`, but the local copy in
+  `FR_INSTALL_TEST\NPUA30048` is 5,652,016 bytes / CRC32 `0xCA56784B`, a different build. The client retried six times
+  (`cb=L`, `LF`, `LFH`, `LFHB`, `LFHBD`, `LFHBDN`) against our 409 and then failed (installer error 1004).
+- `--extra-client DIR` lets the server search other game folders for a file whose CRC32 matches the client's request.
+
 ## Hypotheses, not yet tested in the emulator
 
 - The `.zs` file is `zlib stream (or raw bytes) + 129-byte trailer`, the same shape as the digest.
