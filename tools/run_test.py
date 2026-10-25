@@ -12,7 +12,7 @@ What it does, in order (Windows, run from an Administrator PowerShell so ports 5
 
 Usage (PowerShell, from the repo folder):
     python tools\\run_test.py
-    python tools\\run_test.py --install C:\\Users\\USER\\Desktop\\FR_INSTALL_TEST --no-restore
+    python tools\\run_test.py --install C:\\Path\\To\\FR_INSTALL_TEST --no-restore
 
 Nothing from the client is copied except text logs; the zip is written to the Desktop.
 """
@@ -28,8 +28,10 @@ import time
 import zipfile
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-DEFAULT_INSTALL = r"C:\Users\USER\Desktop\FR_INSTALL_TEST"
-DEFAULT_EXTRA = r"C:\Users\USER\Downloads\Free-Realms-PS3-main\Free-Realms-PS3-main\NPUA30048"
+HOME = os.path.expanduser("~")
+# Defaults follow the layout used so far; change them with --install / --extra-client.
+DEFAULT_INSTALL = os.path.join(HOME, "Desktop", "FR_INSTALL_TEST")
+DEFAULT_EXTRA = os.path.join(HOME, "Downloads", "Free-Realms-PS3-main", "Free-Realms-PS3-main", "NPUA30048")
 INTEREST = re.compile(r"spawn:|zone:|ZoneDetails|gcnk|gzne|\.cob|\.odd|asset_missing|not in manifest|404|Failed|"
                       r"Traceback|Error|error|WARNING|FinishedLoading|AddPc|LoginReply", re.I)
 

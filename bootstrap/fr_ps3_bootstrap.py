@@ -1,7 +1,13 @@
-"""Experimental Free Realms PS3 research bootstrap with isolated LZMA terrain response.
+"""Free Realms PS3 research bootstrap server (experimental).
+
+Stands in for the game's former servers on a test network:
+  * DNS     - redirects the game's hostnames to this machine (turn off with --no-dns);
+  * HTTP    - AppConfig, the patch digest, the /ps3ws web-service replies and the .zs asset downloads;
+  * UDP     - the game-server gateway (see gateway_probe.py), including the zone and spawn it chooses
+              from the packs of --client (see assetlib.py).
 
 Requires a separately obtained PS3 game directory; no proprietary game assets
-or original digest bytes are embedded in this source.
+or original digest bytes are embedded in this source. See bootstrap/README.md.
 """
 
 import argparse
@@ -37,7 +43,7 @@ HOSTS = {
     "ps3.freerealms.com",
     "fr.patch.station.sony.com",  # clientconfig.ini [AssetDelivery]
 }
-# Reply formats, recovered from the decrypted client (game.elf) -- see docs/ps3ws-replies.md.
+# Reply formats, recovered from the decrypted client (game.elf) -- see docs/protocol/ps3ws-replies.md.
 # Every ps3ws reply is XML read by the client's own reader. The reader has two modes for "simple" values
 # (Status, StatusMessage, Name, Online, ...): attributes of the current element, or child elements. The
 # client's constructor switches attribute mode ON, so the default here is attributes. The client treats a
@@ -528,7 +534,7 @@ def main():
     parser.add_argument("--account-status", type=int, default=2, metavar="N",
                         help="Status for an account with no characters. 2 (default) = the client's 'No "
                              "existing character found' result; 1 = success with an empty list, which "
-                             "crashes the client (null character pointer, see docs/ps3ws-replies.md)")
+                             "crashes the client (null character pointer, see docs/protocol/ps3ws-replies.md)")
     parser.add_argument("--gateway-port", type=int, default=20260, metavar="PORT",
                         help="UDP port of the game-server probe that CharacterLoginReply points the client "
                              "at (0 disables the probe)")
@@ -553,8 +559,9 @@ def main():
                              "unchanged, so this only works if the client does not verify it.")
     parser.add_argument("--codec", default=codec_candidates.DEFAULT_CODEC,
                         choices=codec_candidates.codec_names(), metavar="NAME",
-                        help="Experimental encoding for the terrain asset (hypothesis only; "
-                             "see tools/codec_sizes.py for names). Default keeps the preserved baseline.")
+                        help="How .zs assets are encoded. The default, zs-zlib-zero-trailer, is the container the client "
+                             "accepts (docs/install/digest-format.md); other names are the early experiments "
+                             "(see tools/codec_sizes.py), e.g. lzma-alone reproduces installer error 1004.")
     parser.add_argument("--advertise", default="127.0.0.1", help="IPv4 address PS3 clients connect to (default: 127.0.0.1)")
     parser.add_argument("--upstream", default="1.1.1.1", help="DNS forwarder for unrelated hosts")
     parser.add_argument("--no-dns", action="store_true", help="Use existing Acrylic DNS")

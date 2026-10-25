@@ -11,7 +11,7 @@ import lzma
 import struct
 import zlib
 
-DEFAULT_CODEC = "lzma-alone"  # the preserved baseline experiment
+DEFAULT_CODEC = "zs-zlib-zero-trailer"  # the container the client accepts (docs/install/digest-format.md); "lzma-alone" is the first, rejected experiment
 
 
 def _lzma_alone(raw):
@@ -60,7 +60,7 @@ PREFIXES = {
 }
 
 
-# --- Observed .zs container (see docs/digest-format.md) -----------------------
+# --- Observed .zs container (see docs/install/digest-format.md) -----------------------
 # Derived from the digest, not from a captured .zs file:
 #   * every manifest entry's compressed length = payload + 129 bytes
 #   * payload is a zlib stream (78 xx ...), or the raw bytes when zlib does not
