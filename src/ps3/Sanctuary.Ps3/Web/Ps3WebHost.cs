@@ -49,6 +49,30 @@ public static class Ps3WebHost
         return (app, service);
     }
 
+    /// <summary>
+    /// Like <see cref="Create(string, int, Func{ILoggerFactory, Ps3WebService}, Action{ILoggingBuilder}?)"/> for a service that already exists:
+    /// the application logs through <paramref name="loggers"/>.
+    /// </summary>
+    public static WebApplication Create(string bind, int port, ILoggerFactory loggers, Ps3WebService service)
+    {
+        var builder = WebApplication.CreateSlimBuilder();
+
+        builder.Logging.ClearProviders();
+        builder.Services.AddSingleton(loggers);
+
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.AddServerHeader = false;
+            options.Listen(IPAddress.Parse(bind), port);
+        });
+
+        var app = builder.Build();
+
+        app.Run(context => Handle(context, service));
+
+        return app;
+    }
+
     /// <summary>The port a started application listens on (useful with port 0); 0 when it is not known.</summary>
     public static int PortOf(WebApplication app)
     {

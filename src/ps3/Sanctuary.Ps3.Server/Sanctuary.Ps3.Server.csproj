@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(TargetFramework)</TargetFramework>
+    <RootNamespace>Sanctuary.Ps3.Server</RootNamespace>
+    <AssemblyName>Sanctuary.Ps3.Server</AssemblyName>
+    <Description>Command line program that serves the PlayStation 3 Free Realms client: DNS, HTTP and the UDP game connection.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sanctuary.Ps3\Sanctuary.Ps3.csproj" />
+  </ItemGroup>
+
+</Project>
