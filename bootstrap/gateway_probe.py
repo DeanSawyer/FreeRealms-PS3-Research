@@ -247,6 +247,9 @@ def zone_done_packets():
     welcome = []
     if os.environ.get("FR_WELCOME", "1").strip() != "0":
         welcome = [tunneled(struct.pack("<HBiiii", 93, 1, 0, 0, 0, 0))]
+    if os.environ.get("FR_EXTRA", "").strip() == "1":
+        # ClientUpdate (38) sub 1 Hitpoints: i32 current, i32 max (Clover layout, untested on the PS3 client).
+        welcome.append(tunneled(struct.pack("<HHii", 38, 1, 2500, 2500)))
     return welcome + [tunneled(struct.pack("<H", 14)), tunneled(struct.pack("<HHB", 38, 26, 1))]
 
 
