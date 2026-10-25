@@ -113,6 +113,36 @@ sets, is-combat), a few flags and integers (rank, rank percent, stars), 17 equip
 (each starts with a count) and an ability-experience list. Only the id is filled in so far; everything else is zero.
 This differs from Clover's `ClientPcProfile` (no item-class or item maps), so the PS3 build is an older layout.
 
+## Packets larger than 512 bytes must be fragmented
+
+The client reads each datagram into a buffer of exactly the negotiated max raw size (512). A bigger datagram makes
+the console's network layer fail the read, and RPCS3 logs `sys_net_bnet_recvfrom failed ... SYS_NET_EMSGSIZE` /
+`Socket error EMSGSIZE` once per resend. With a profile in it the player data packet is 560 bytes, so it never arrived:
+the client waited two minutes and then logged `Error# G4 - Connected to the server at: ... but failed to load player
+data` (ClientLog, opcode 109). The same message appeared in the very first test when no player data was sent at all,
+so it only says that the player data did not arrive, not why.
+
+The probe now sends such payloads as UdpLibrary fragments: type `00 0d` (13 + channel), the reliable sequence number,
+and a 4 byte big endian total length in front of the data of the first fragment. Each fragment is acked like a normal
+reliable packet. This follows UdpLibrary's reliable channel as remembered, so if the client still reports the player
+data as missing after the EMSGSIZE errors are gone, check this format first.
+
+## The loading step: WaitForWorldReady
+
+The client has a loading step that logs (format string at `0xdec970`): `WaitForWorldReady Status:
+InitialZoneDataComplete=%d ReceivedPreloadDonePacket=%d RequiredCharactersLoaded=%d`. It does not continue until all
+three are 1.
+
+| Flag | Set by |
+|---|---|
+| InitialZoneDataComplete (manager byte `+672`) | inner opcode 14, ZoneDoneSendingInitialData, no fields |
+| ReceivedPreloadDonePacket (`+673`) | inner opcode 38 (ClientUpdate), `u16` sub-opcode 26, `u8` bool; only a true bool sets the flag |
+| RequiredCharactersLoaded | the client itself, once the characters it needs are loaded |
+
+Opcode 38 / 26 is Clover's `ClientUpdatePacketDoneSendingPreloadCharacters` (Clover sends the bool as false; this build
+needs true). The probe sends 14 and then 38/26 when the client says ClientIsReady (opcode 13), and, if that never
+comes, 20 seconds after the player data.
+
 ## Packets the client sends after the player data
 
 They arrive bundled: one reliable payload that starts `00 19` (a UdpLibrary Group packet), then a length byte and a
@@ -125,7 +155,10 @@ tunneled packet for each, repeated. Seen so far, in order:
 | 13 | ClientIsReady | no fields (expected next; not seen yet) |
 
 The probe unwraps Group and Multi packets, logs each inner packet by name, and answers ClientIsReady with
-ZoneDoneSendingInitialData (opcode 14, no fields, as in Clover).
+ZoneDoneSendingInitialData (opcode 14) and the preload-done update (see WaitForWorldReady above).
+
+RPCS3 also logs `CELL_ENOENT` for `assets_ps3_078.pack`, `assets_ps3_079.pack` and `assets_ps3w_001.pack`: the client
+probes for packs past the last one it ships and for a `w` set. They are not the cause of the loading hang.
 
 ## tools/ppc_trace.py
 

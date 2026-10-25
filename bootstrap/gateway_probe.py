@@ -43,6 +43,7 @@ PACKET_NAMES = {
     26: "Ordered", 27: "Ordered2", 28: "PortAlive", 29: "UnreachableConnection", 30: "RequestRemap",
 }
 MAX_LOGGED_BYTES = 160
+READY_FALLBACK_SECONDS = 20
 
 
 def _trace(event, **fields):
@@ -181,6 +182,13 @@ def send_self_to_client(character=None):
     return struct.pack("<Hi", 12, len(blob)) + blob
 
 
+def zone_done_packets():
+    """What the client's WaitForWorldReady step waits for besides loading: ZoneDoneSendingInitialData (opcode 14)
+    and the "done sending preload characters" ClientUpdate (opcode 38, sub-opcode 26, bool true; the client only
+    counts it as received when the bool is set)."""
+    return [tunneled(struct.pack("<H", 14)), tunneled(struct.pack("<HHB", 38, 26, 1))]
+
+
 def world_packets():
     """Packets sent right after the login reply, in order (each already tunneled)."""
     return [tunneled(zone_details()), tunneled(send_self_to_client(CHARACTER))]
@@ -193,6 +201,8 @@ class GatewayProbe:
         self.sock.bind((host, port))
         self.host, self.port = host, port
         self.sessions = {}   # addr -> connect code
+        self.max_raw = {}    # addr -> largest datagram the client accepts (512 for the PS3 client)
+        self.client_ready = set()   # peers that sent ClientIsReady
         self.count = 0
         self.send_seq = {}   # (addr, channel) -> next reliable sequence to send
         self.pending = {}    # (addr, channel, seq) -> [packet, last_send_time, tries]
@@ -226,6 +236,7 @@ class GatewayProbe:
             version, code, max_raw = struct.unpack(">iii", data[2:14])
             proto = data[14:].split(b"\0", 1)[0].decode("latin-1") if version > 2 else ""
             self.sessions[addr] = code
+            self.max_raw[addr] = max_raw
             LOG.info("gateway Connect from %s: protocol v%d name=%r code=0x%08x max_raw=%d",
                      addr, version, proto, code & 0xffffffff, max_raw)
             _trace("connect", peer=addr[0], version=version, name=proto, code=code, max_raw=max_raw,
@@ -276,14 +287,43 @@ class GatewayProbe:
             self.record(addr, name, data)
 
     def send_reliable(self, addr, payload, channel=0):
+        """Send one application payload reliably, splitting it into fragments if it does not fit one datagram.
+
+        The PS3 client reads datagrams into a buffer of exactly the negotiated max raw size (512). A bigger one
+        is rejected by the console's network layer (RPCS3 logs "Socket error EMSGSIZE") and never arrives, so
+        the 560 byte player data packet was lost and the game gave up after two minutes. UdpLibrary's answer is
+        a fragmented reliable packet: type 13 + channel, then the sequence number, with a 4 byte big endian total
+        length in front of the data of the first fragment.
+        """
+        room = self.max_raw.get(addr, 512) - 4 - 4          # header (4) and a little slack
+        if len(payload) <= room:
+            self._send_one(addr, channel, 9 + channel, payload, "")
+            return
+        data = struct.pack(">I", len(payload)) + payload
+        pieces = [data[i:i + room] for i in range(0, len(data), room)]
+        for number, piece in enumerate(pieces, 1):
+            self._send_one(addr, channel, 13 + channel, piece, " fragment %d/%d of %d bytes" % (number, len(pieces), len(payload)))
+
+    def _send_one(self, addr, channel, kind, body, note):
         seq = self.send_seq.get((addr, channel), 0)
         self.send_seq[(addr, channel)] = (seq + 1) & 0xffff
-        packet = struct.pack(">BBH", 0, 9 + channel, seq) + payload
+        packet = struct.pack(">BBH", 0, kind, seq) + body
         self.pending[(addr, channel, seq)] = [packet, time.monotonic(), 1]
         self.sock.sendto(packet, addr)
-        LOG.info("gateway -> %s Reliable%d seq=%d (%d bytes): %s", addr, channel + 1, seq, len(payload),
-                 payload[:MAX_LOGGED_BYTES].hex())
-        _trace("send", peer=addr[0], channel=channel, seq=seq, hex=payload[:512].hex())
+        LOG.info("gateway -> %s Reliable%d seq=%d (%d bytes)%s: %s", addr, channel + 1, seq, len(body), note,
+                 body[:MAX_LOGGED_BYTES].hex())
+        _trace("send", peer=addr[0], channel=channel, seq=seq, kind=kind, size=len(body), hex=body[:512].hex())
+
+    def ready_fallback(self, addr, channel):
+        """If the client never says ClientIsReady, send the world-ready packets anyway so the log shows what it
+        does next (it may be waiting for them before it says anything)."""
+        if addr in self.client_ready:
+            return
+        LOG.info("gateway: no ClientIsReady from %s after %d s; sending ZoneDoneSendingInitialData and "
+                 "DoneSendingPreloadCharacters anyway", addr, READY_FALLBACK_SECONDS)
+        _trace("fallback", peer=addr[0])
+        for packet in zone_done_packets():
+            self.send_reliable(addr, packet, channel)
 
     def resend_loop(self):
         while True:
@@ -328,6 +368,10 @@ class GatewayProbe:
                 self.send_reliable(addr, struct.pack("<HB", 2, 1), channel)   # LoginReply(success)
                 for packet in world_packets():
                     self.send_reliable(addr, packet, channel)
+                self.client_ready.discard(addr)
+                timer = threading.Timer(READY_FALLBACK_SECONDS, self.ready_fallback, (addr, channel))
+                timer.daemon = True
+                timer.start()
         elif opcode in (5, 6) and len(payload) >= 7:     # tunneled client packet
             size = struct.unpack_from("<I", payload, 3)[0]
             inner = payload[7:7 + size]
@@ -335,8 +379,10 @@ class GatewayProbe:
             LOG.info("gateway tunneled (%d) inner opcode %d%s from %s (%d bytes): %s", opcode, inner_op,
                      describe_inner(inner_op, inner), addr, len(inner), inner[:MAX_LOGGED_BYTES].hex())
             _trace("tunneled", peer=addr[0], outer=opcode, inner_opcode=inner_op, hex=inner[:512].hex())
-            if inner_op == 13:                           # ClientIsReady: say the initial data is complete
-                self.send_reliable(addr, tunneled(struct.pack("<H", 14)), channel)   # ZoneDoneSendingInitialData
+            if inner_op == 13:                           # ClientIsReady: the initial data is complete
+                self.client_ready.add(addr)
+                for packet in zone_done_packets():
+                    self.send_reliable(addr, packet, channel)
         else:
             LOG.info("gateway application opcode %d from %s (%d bytes)", opcode, addr, len(payload))
 
