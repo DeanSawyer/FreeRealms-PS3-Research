@@ -43,6 +43,7 @@ PACKET_NAMES = {
     26: "Ordered", 27: "Ordered2", 28: "PortAlive", 29: "UnreachableConnection", 30: "RequestRemap",
 }
 MAX_LOGGED_BYTES = 160
+ADDPC_MODE = os.environ.get("FR_ADDPC", "other").strip().lower()   # other (default) | self | both | none
 READY_FALLBACK_SECONDS = 20
 KEEPALIVE_SECONDS = 5
 
@@ -187,6 +188,56 @@ def send_self_to_client(character=None):
     return struct.pack("<Hi", 12, len(blob)) + blob
 
 
+SPAWN = (-1904.883, -39.7098, 412.6024, 1.0)
+SPAWN_ROTATION = (0.5531712, 0.0, 0.8330676, 0.0)
+
+
+def add_pc(character=None, guid=2, first_name="Helper", last_name="", offset=(2.0, 0.0, 2.0)):
+    """PlayerUpdate (opcode 35) sub-opcode 1, AddPc: put a player into the world.
+
+    The field order was read from the PS3 client's own parser with tools/ppc_trace.py. It follows Clover's
+    PlayerUpdatePacketAddPc except that this build has no IsReferee flag, a three field title (no icon id) and
+    nothing after the name offset (no wield type or VIP fields). The client consumes exactly these bytes.
+    Equipment (the attachment list) is empty for now, so the character is drawn without clothes.
+    """
+    c = character or {}
+    head = f"<race>_<gender>_head_{HEAD_NAMES.get(_int(c.get('Head'), 1), 'caucasian')}.adr"
+    hair = "<race>_<gender>_hair_eyebrows_bald.adr"
+    skin = f"skintone{_int(c.get('SkinTone'), 1) or 1}"
+    x, y, z, w = SPAWN
+    out = bytearray()
+    out += struct.pack("<HHQ", 35, 1, guid)
+    out += struct.pack("<iii", 0, 0, 0) + _string(first_name) + _string(last_name)   # name ids, names
+    out += struct.pack("<i", _int(c.get("Model"), 1))
+    out += struct.pack("<iii", 0, 0, 0)                      # chat bubble: foreground, background, size
+    out += struct.pack("<4f", x + offset[0], y + offset[1], z + offset[2], w)
+    out += struct.pack("<4f", *SPAWN_ROTATION)
+    out += struct.pack("<i", 0)                              # attachments (equipment): none yet
+    out += _string(head) + _string(hair)
+    out += struct.pack("<iii", _int(c.get("HairColor")), _int(c.get("EyeColor")), 0)   # hair colour, eye colour, unused
+    out += _string(skin) + _string("none") + _string("")     # skin tone, face paint, model customization
+    out += struct.pack("<f", 8.0)                            # max movement speed
+    out += struct.pack("<BBi", 0, 0, 0)                      # underage, member, temporary appearance
+    out += struct.pack("<i", 0)                              # guilds: none
+    out += struct.pack("<i", PROFILE_ID)                     # active profile id
+    out += struct.pack("<iii", 0, 0, 0)                      # title
+    out += struct.pack("<i", 0)                              # effect tags: none
+    out += struct.pack("<Qiif", 0, -1, -1, 0.0)              # mount guid, seat, queue position, name offset
+    return bytes(out)
+
+
+def lobby_definitions_reply():
+    """LobbyGameDefinition (opcode 102) sub-opcode 2: the mini-game list, empty. i32 payload length, then five
+    counts (game entries and four unknown lists), all zero; the client reads exactly this."""
+    payload = struct.pack("<5i", 0, 0, 0, 0, 0)
+    return struct.pack("<HHi", 102, 2, len(payload)) + payload
+
+
+def list_queues_reply():
+    """Matchmaking (opcode 141) sub-opcode 2, ListQueuesResponse: an unknown u64 and a count of queues (zero)."""
+    return struct.pack("<HHQi", 141, 2, 0, 0)
+
+
 def zone_done_packets():
     """What the client's WaitForWorldReady step waits for besides loading: ZoneDoneSendingInitialData (opcode 14)
     and the "done sending preload characters" ClientUpdate (opcode 38, sub-opcode 26, bool true; the client only
@@ -322,6 +373,21 @@ class GatewayProbe:
                  body[:MAX_LOGGED_BYTES].hex())
         _trace("send", peer=addr[0], channel=channel, seq=seq, kind=kind, size=len(body), hex=body[:512].hex())
 
+    def spawn_characters(self, addr, channel):
+        """Send AddPc packets after the client finished loading (the server marks the player visible then)."""
+        if addr not in self.sessions or ADDPC_MODE == "none":
+            return
+        packets = []
+        if ADDPC_MODE in ("self", "both"):
+            c = CHARACTER or {}
+            packets.append(("your character (guid 1)", add_pc(c, guid=1, first_name=c.get("FirstName") or "Test",
+                                                               last_name=c.get("LastName") or "", offset=(0, 0, 0))))
+        if ADDPC_MODE in ("other", "both"):
+            packets.append(("a second test character (guid 2)", add_pc(CHARACTER, guid=2)))
+        for label, packet in packets:
+            LOG.info("gateway: AddPc for %s (%d bytes)", label, len(packet))
+            self.send_reliable(addr, tunneled(packet), channel)
+
     def ready_fallback(self, addr, channel):
         """If the client never says ClientIsReady, send the world-ready packets anyway so the log shows what it
         does next (it may be waiting for them before it says anything)."""
@@ -397,6 +463,12 @@ class GatewayProbe:
             LOG.info("gateway tunneled (%d) inner opcode %d%s from %s (%d bytes): %s", opcode, inner_op,
                      describe_inner(inner_op, inner), addr, len(inner), inner[:MAX_LOGGED_BYTES].hex())
             _trace("tunneled", peer=addr[0], outer=opcode, inner_opcode=inner_op, hex=inner[:512].hex())
+            if opcode == 6 and inner_op == 102 and inner[2:4] == b"\x01\x00":   # mini-game list request
+                self.send_reliable(addr, tunneled(lobby_definitions_reply(), reliable=True), channel)
+            if opcode == 6 and inner_op == 141 and inner[2:4] == b"\x01\x00":   # matchmaking queue list request
+                self.send_reliable(addr, tunneled(list_queues_reply(), reliable=True), channel)
+            if inner_op == 10:                           # ClientFinishedLoading: now put characters in the world
+                threading.Timer(1.0, self.spawn_characters, (addr, channel)).start()
             if inner_op == 13:                           # ClientIsReady: the initial data is complete
                 self.client_ready.add(addr)
                 for packet in zone_done_packets():

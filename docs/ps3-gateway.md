@@ -135,6 +135,32 @@ With the fragmented player data and the world-ready packets, a run went: Login, 
 list and matchmaking queues. So the client believes it is in the world. Not answered yet: 102/1, 141/1 and everything
 that makes the character appear. After three minutes of silence the client sent Terminate.
 
+## Replies to the client's list requests
+
+Both layouts were checked by running the client's own parser on the reply: it consumes every byte.
+
+| Request from the client | Our reply |
+|---|---|
+| 102 / 1 (mini-game list) | `u16 102, u16 2, i32 20`, then five `i32` counts (game entries and four unknown lists), all zero. Same as Clover's `LobbyGameDefinition` |
+| 141 / 1 (matchmaking queues) | `u16 141, u16 2, u64 0, i32 0` (an unknown u64, then a count of queues). The parser is `0x13c2c0`; with a count of 1 each queue entry is 12 fields of 4 bytes. The PC server project has no format for this one |
+
+## AddPc: putting a character into the world (opcode 35, sub-opcode 1)
+
+Read from the PS3 parser (`0xb0b0ec`, reached through the manager's vtable slot at offset 320 into `0x10fda4`). It follows
+Clover's `PlayerUpdatePacketAddPc` with these differences: no `IsReferee` flag, a three field title (no icon id), and
+nothing after the name vertical offset (no wield type or VIP fields). Field order: `u16 35, u16 1, u64 guid`, three
+`i32` name ids, first and last name (strings), `i32 model`, three `i32` chat bubble values, position (4 x f32),
+rotation (4 x f32), attachment list (count, then model, texture alias and tint alias strings and three `i32`), head and
+hair strings, hair colour, eye colour, one unused `i32`, skin tone, face paint and model customization strings,
+`f32` max speed, two `u8` flags (underage, member), `i32` temporary appearance, guild list (count, then `i32` + `u64`
+pairs), `i32` active profile id, title (3 x `i32`), effect tag count, `u64` mount guid, `i32` mount seat, `i32` mount queue
+position, `f32` name offset.
+
+In the PC server a player is never sent their own AddPc: the local character is built from the SendSelfToClient data, and
+AddPc is for the other players they can see. The probe therefore has a switch, the environment variable `FR_ADDPC`:
+`other` (default, a second test character two units away, to show whether the world draws at all), `self`, `both` or
+`none`. It is sent one second after the client's ClientFinishedLoading.
+
 ## The connection times out after three minutes of silence
 
 In the run above the client sent `Terminate` with reason 2 (UdpLibrary's timeout: it heard nothing from us) exactly three
