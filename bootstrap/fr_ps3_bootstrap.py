@@ -23,6 +23,7 @@ import zlib
 from urllib.parse import parse_qs
 
 import codec_candidates
+import digest_edit
 
 
 LOG = logging.getLogger("homecoming")
@@ -446,6 +447,11 @@ def main():
                         help="EXPERIMENT: when no local file matches the client's CRC32, send the "
                              "local file of that name anyway (padded to the expected length) "
                              "instead of replying 409. Only used with --codec zs-*.")
+    parser.add_argument("--match-local", action="store_true",
+                        help="EXPERIMENT: serve a digest whose size/CRC/length entries describe the "
+                             "files actually in --client, for files that differ from the original "
+                             "digest (a different build). The digest's 129-byte trailer is kept "
+                             "unchanged, so this only works if the client does not verify it.")
     parser.add_argument("--codec", default=codec_candidates.DEFAULT_CODEC,
                         choices=codec_candidates.codec_names(), metavar="NAME",
                         help="Experimental encoding for the terrain asset (hypothesis only; "
@@ -474,6 +480,19 @@ def main():
         codec_candidates.set_digest_trailer(_probe.unused_data)
     except zlib.error:
         pass
+
+    if args.match_local:
+        body, trailer = digest_edit.split_digest(digest)
+        new_body, changes = digest_edit.adapt_to_local(body, args.client / "USRDIR")
+        if changes:
+            digest = digest_edit.pack_digest(new_body, trailer)
+        for c in changes:
+            trace_event("digest_rewrite", **c)
+            print(f"DIGEST-REWRITE {c['path']}: size {c['old_size']} -> {c['new_size']}, "
+                  f"crc 0x{c['old_crc32']:08X} -> 0x{c['new_crc32']:08X}, "
+                  f"length {c['old_length']} -> {c['new_length']}", flush=True)
+        print(f"--match-local: {len(changes)} digest entries rewritten; serving a "
+              f"{len(digest)}-byte digest (original 21466)", flush=True)
 
     trace_event("bootstrap_start", advertise=args.advertise, port=args.port,
                 client=str(args.client), digest_bytes=len(digest),

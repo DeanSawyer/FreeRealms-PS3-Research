@@ -54,6 +54,12 @@ then sends your local file of that name anyway, as a valid zlib stream padded to
 Every such response is logged as `SERVE-MISMATCH` and traced as `zs_serving_mismatch`. This only helps if the client does
 not verify content after downloading; the run shows which.
 
+`--serve-mismatch` was tried and the client rejected the mismatched content (it re-requested the file), so the client does
+verify what it downloads. The alternative is `--match-local`: the served digest is rewritten so that its size/CRC/length
+entries describe the files actually in `--client` (`bootstrap/digest_edit.py`; only for files that differ from the original
+digest, the 129-byte trailer is kept as is). Every rewritten entry is printed as `DIGEST-REWRITE` at startup. It works only
+if the client does not verify the digest's trailer.
+
 ## Limitations and safety
 
 - The default terrain asset response still uses LZMA (the preserved baseline), which cannot match the manifest length and gave installer error **1004**. Use `--codec zs-zlib-zero-trailer` for the zlib-plus-trailer experiment; it is **not yet verified** against the PS3 client.

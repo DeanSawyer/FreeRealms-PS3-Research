@@ -43,6 +43,14 @@ response as a trailer that was not there, but that link is a **hypothesis**, not
   (`cb=L`, `LF`, `LFH`, `LFHB`, `LFHBD`, `LFHBDN`) against our 409 and then failed (installer error 1004).
 - `--extra-client DIR` lets the server search other game folders for a file whose CRC32 matches the client's request.
 
+## Third RPCS3 run (21:05): does the client verify content after download? Yes
+
+- With `--serve-mismatch` the server sent the local `en_us_data.dat` (CRC 0xCA56784B) as a valid zlib stream padded to exactly
+  the requested 2,368,100 bytes (HTTP 200). The client did not accept it: it immediately requested the same file again with
+  `cb=L`, then `cb=LF`. So the client checks the decoded content (CRC32 from `c=`, possibly also the size) after downloading.
+  Serving a different build under the original digest's values cannot work.
+- Next hypothesis: the digest can instead describe the local build (`--match-local`, below).
+
 ## Digest layout (parsed by `tools/parse_digest.py`)
 
 - Tag/length/value tree. Length byte `< 0x80` is one byte, `0x80-0xFE` starts a 15-bit two-byte length, `0xFF` is
@@ -83,7 +91,21 @@ response as a trailer that was not there, but that link is a **hypothesis**, not
 - The stored-vs-compressed decision is probably "payload length equals size means raw", but the
   client may use the trailer byte instead.
 
+## Editing the digest (`bootstrap/digest_edit.py`)
+
+- `serialize(parse(body)) == body` holds byte-for-byte for the original digest, and `zlib.compress(body, 9)` reproduces the
+  original 21,466-byte file exactly (it was written with zlib level 9), so an unedited digest round-trips identically.
+- Header tag 21 equals the sum of all file sizes divided by 1024 (1,750,506 KiB); tag 27 = 748 records; tag 28 = `game.self`.
+- `--match-local` rewrites the size (tag 3), CRC32 (tag 4) and compressed length (tag 2) of records whose local file differs
+  from the original build, and recomputes tag 21. Missing files, matching files and LF/CRLF-only differences are untouched.
+  The 129-byte trailer is copied unchanged, so it no longer matches the body; if it is a signature the client verifies, the
+  client will reject the digest (watch for the client not downloading anything, or failing before the first asset request).
+
 ## Next experiments
+
+00. `--match-local`: serve a digest describing the files in `--client`. If the client skips `en_us_data.dat` and moves on,
+    the trailer is not verified for the digest. If it still requests `c=2714875455` (the old CRC), it either rejects the
+    edited digest or uses a different copy.
 
 0. `--serve-mismatch`: when no local file has the requested CRC, send the local file of that name anyway, padded to the
    exact length the client asked for (`codec_candidates.pad_zlib`). Tests whether the client verifies content after the
