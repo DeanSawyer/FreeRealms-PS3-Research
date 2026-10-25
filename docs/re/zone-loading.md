@@ -187,6 +187,55 @@ Next:
 2. If the check itself fails: tile streaming and bubble readiness (`0x7da88c`, `0x7dafb0`, `0x7dad04`, `0x7e66c8`) and the
    assets the tile objects need (models and textures named in the `.odd`/`.gcnk`) — these need runtime data, not more static reading.
 
+## Result of the `overlay check forced loaded` run (zone `FabledRealms`)
+
+RPCS3 applied the patch (`PAT: Applied patch ... 'Free Realms overlay check forced loaded'`) and the user still saw the
+loading screen. So `IsLoaded` was **not** what held it, and the terrain around the camera is not the explanation.
+
+What the run's logs showed:
+
+* The server did everything it is built to do: server list, character create, login, `ZoneDetails`, player data, the
+  client's `ClientIsReady`/`ClientFinishedLoading`, then the `AddPc` helper one second later.
+* The client logged `ClientZoneTime.log` (~3.3 s) and `MarketingData.log` ("Viewed loading screen ... Zoning=true")
+  every time, with or without the patch. That pair is written by `WaitForWorldReady` (`0xec3e8`, string at `0xed8cc`)
+  when it **finishes**, so `WaitForWorldReady` completes normally. It is not evidence about the overlay.
+* RPCS3 shows two `LoadingScreenThread`s. The first (startup) exits after ~6 s. **The second one, created at the zone
+  change, never exits**: it is still in its `sys_timer_usleep` loop when the game is closed 66 s later, and there is
+  only one `sys_ppu_thread_join` in the whole log. After the login the game opens no further files, compiles no
+  further shaders and sends no further packets.
+
+Loading screen thread (read from `game.elf`):
+
+| Address | What |
+|---|---|
+| `0x18698c` | starts the loading screen: creates the thread object (vtable `0xec2858`, name "LoadingScreenThread") and stores it in `this[2]` |
+| `0xb64180` | thread body: `while (!stopRequested(this)) { FUN_00185ef8(this) /* draw a frame */; usleep(25 ms) }` |
+| `0x7ea068` | `stopRequested`: byte at `*(this+0x94) + 8` |
+| `0x7ea164` | the setter for that byte (`stb 1, 8(*(this+0x94))`); no direct caller found yet |
+
+So the loading screen stays up until something sets that stop byte. `WaitForWorldReady` finishing is not enough.
+Finding who calls the stop path (probably through a virtual call) is the next lead.
+
+Gate objects (the "four idle objects" above), read from the client constructor `0xf5840`:
+
+| Gate | client field | class ctor | byte | set by |
+|---|---|---|---|---|
+| 1 | `+0x878` | `0x36481c` | `+0x18` | `0x3672dc`; callers: the actor-flags handler, and `0xe1728` (clears it) |
+| 2 | `+0x86c` | `0x2d203c` | `+0x174` | `0x2d7388`, only from the actor-flags handler |
+| 3 | `+0x87c` | `0x2c2fd8` | `+0x8`   | `0x2c910c`, only from the actor-flags handler |
+| 4 | `+0x870` | `0x2ea710` | `+0x390` | `0x2ece98`, only from the actor-flags handler |
+
+The actor-flags handler is a case of the PlayerUpdate dispatcher (`0x10fda4`, packet 35): it looks up the actor by guid,
+calls `SetFlags` (`0x1a0bf0`, stores `actor+0x4a0`) and, for the local player, copies bits 10, 11, 12 and 22 of the new
+flags into gates 2, 3, 4 and 1. The server never sends it, so these gates start at 0 and stay idle; the gates are probably
+not the cause either.
+
+WaitForWorldReady's own status line (format at `0xed9d0`) is `IsZoneReady, HaveProxiedCharacter, HaveProxiedActor,
+ActorReadyToDraw, SkyFinishedLoading, SkyDefinitionSet`; it also writes `BadSkyData.log` when the sky definition is bad.
+
+Not done: the game's own log never reaches RPCS3's TTY, and the free space in the executable for a patch that
+prints to the TTY is limited (the only zero padding is a 96-byte gap at `0xea0a20` that an existing patch already uses).
+
 ## Not yet verified
 
 * The height of the ground at the chosen spawn (the server uses a fixed `y` of 400 and lets the player fall).
