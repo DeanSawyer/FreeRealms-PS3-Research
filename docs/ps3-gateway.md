@@ -250,3 +250,16 @@ quick chat, reference data, coin store, welcome info), and the toolbar after Fin
 are not decoded yet.
 
 Next test: a screenshot of the stuck screen and the RPCS3 log lines after the "Viewed loading screen" entry.
+
+## The client's Lua scripts can be read (tools/undat.py, tools/luadis.py)
+
+`ui/scriptsbase.bin.sdat` is an SDAT (NPD version 3, flags `0x0100000d`: SDAT key, encrypted key, compressed in 32 KB
+blocks). `tools/undat.py in.sdat out.bin` decrypts it with the fixed SDAT key (RPCS3's algorithm); the result is one
+Lua 5.1 big-endian bytecode chunk (1,624,659 bytes). `tools/luadis.py` lists the functions that use a constant and
+disassembles them.
+
+Finding: the C++ loading check at 0x14f2d4 calls the Lua method `IsLoadingFinished` of the mini-game controller
+(function `[13,12]` in the chunk). For a normal zone it returns 1 only when
+`GetMovie()` is not nil, `movie:IsLoadingFinished()` is true and `GameTutorial:IsLoaded()` is true; otherwise 0.
+Both are asset-load states in the client (a Scaleform movie and the tutorial loading-screen data, whose load state
+must be 4), not server packets.
