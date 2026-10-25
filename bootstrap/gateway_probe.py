@@ -238,6 +238,13 @@ def list_queues_reply():
     return struct.pack("<HHQi", 141, 2, 0, 0)
 
 
+def game_time_sync():
+    """GameTimeSync (52), layout and values from Sanctuary: i64 time, i32 server rate (8), u8 use client time (0).
+    The zone's sky is a 24 hour sky, so the client probably needs the game clock to finish setting it.
+    FR_TIME=0 turns it off."""
+    return tunneled(struct.pack("<HqiB", 52, int(time.time()), 8, 0))
+
+
 def zone_done_packets():
     """What the client's WaitForWorldReady step waits for besides loading: ZoneDoneSendingInitialData (opcode 14)
     and the "done sending preload characters" ClientUpdate (opcode 38, sub-opcode 26, bool true; the client only
@@ -252,6 +259,8 @@ def zone_done_packets():
         welcome.append(tunneled(struct.pack("<HHii", 38, 1, 2500, 2500)))
         # ClientUpdate (38) sub 13 Mana: i32 current, i32 max, u8 show-over-head (Clover layout, untested).
         welcome.append(tunneled(struct.pack("<HHiiB", 38, 13, 100, 100, 0)))
+    if os.environ.get("FR_TIME", "1").strip() != "0":
+        welcome.insert(0, game_time_sync())
     return welcome + [tunneled(struct.pack("<H", 14)), tunneled(struct.pack("<HHB", 38, 26, 1))]
 
 
@@ -490,6 +499,8 @@ class GatewayProbe:
                 self.send_reliable(addr, tunneled(lobby_definitions_reply(), reliable=True), channel)
             if opcode == 6 and inner_op == 141 and inner[2:4] == b"\x01\x00":   # matchmaking queue list request
                 self.send_reliable(addr, tunneled(list_queues_reply(), reliable=True), channel)
+            if inner_op == 52 and os.environ.get("FR_TIME", "1").strip() != "0":   # client asks for the game time
+                self.send_reliable(addr, game_time_sync(), channel)
             if inner_op == 10:                           # ClientFinishedLoading: now put characters in the world
                 threading.Timer(1.0, self.spawn_characters, (addr, channel)).start()
             if inner_op == 13:                           # ClientIsReady: the initial data is complete
