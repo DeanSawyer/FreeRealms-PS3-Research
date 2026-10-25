@@ -43,6 +43,14 @@ response as a trailer that was not there, but that link is a **hypothesis**, not
   (`cb=L`, `LF`, `LFH`, `LFHB`, `LFHBD`, `LFHBDN`) against our 409 and then failed (installer error 1004).
 - `--extra-client DIR` lets the server search other game folders for a file whose CRC32 matches the client's request.
 
+## Digest layout (parsed by `tools/parse_digest.py`)
+
+- Tag/length/value tree. Length byte `< 0x80` is one byte, `0x80-0xFE` starts a 15-bit two-byte length, `0xFF` is
+  followed by a four-byte length. Directory = tag 2 (children inside, name in tag 1); file = tag 3 holding name (tag 1),
+  compressed length (2), size (3), CRC32 (4), timestamp (8). Tag `0xFE` holds child counts and is skipped.
+- 741 downloadable files. Seven more records (`useroptions.ini`, `logs`, ...) carry only a flag (tag 6) and are
+  client-generated.
+
 ## Hypotheses, not yet tested in the emulator
 
 - The `.zs` file is `zlib stream (or raw bytes) + 129-byte trailer`, the same shape as the digest.

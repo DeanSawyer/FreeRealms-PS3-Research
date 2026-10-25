@@ -44,7 +44,7 @@ python .\bootstrap\fr_ps3_bootstrap.py --client "C:\Path\To\NPUA30048" --codec z
 
 If the installer still reports error 1004, repeat with `--codec zs-zlib-digest-trailer` and send `ps3_protocol_trace.jsonl` plus the installer error. The default `lzma-alone` is kept only as the preserved baseline; it cannot match the manifest length.
 
-`parse_digest.py` lists every file in the digest with its size, compressed length and CRC. `codec_sizes.py` shows which candidate reproduces the manifest's 373-byte length. `analyze_digest.py` locates the asset's record in the digest and dumps its bytes so the record layout can be read directly.
+`verify_client.py` compares a whole game folder against the digest and reports which files are missing or a different build (read-only). `parse_digest.py` lists every file in the digest with its size, compressed length and CRC. `codec_sizes.py` shows which candidate reproduces the manifest's 373-byte length. `analyze_digest.py` locates the asset's record in the digest and dumps its bytes so the record layout can be read directly.
 
 ## Limitations and safety
 
