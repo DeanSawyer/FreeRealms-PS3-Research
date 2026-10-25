@@ -12,18 +12,22 @@ Standard library only. The output contains no compressed bytes, so it does not d
 """
 import argparse
 import base64
+import hashlib
 import math
 import os
 import shutil
 import struct
 import sys
 import tempfile
+from pathlib import Path
 import zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "bootstrap"))
 
 import assetlib  # noqa: E402
+import codec_candidates  # noqa: E402
+import digest_edit  # noqa: E402
 
 OUT = os.path.join(ROOT, "src", "ps3", "Sanctuary.Ps3.Tests", "ReferenceVectors.g.cs")
 CHUNK = 0x2000
@@ -217,6 +221,139 @@ def manifest_vector(label, raw, names):
         manifest.count, array("", lookups, "        ")))
 
 
+
+# ---------------------------------------------------------------- digest
+
+def pseudo(label, count):
+    """Deterministic incompressible bytes (zlib cannot shrink them, so payload length == size on every zlib)."""
+    out, block = b"", 0
+    while len(out) < count:
+        out += hashlib.sha256(("%s:%d" % (label, block)).encode("ascii")).digest()
+        block += 1
+    return out[:count]
+
+
+def be(value, count):
+    return value.to_bytes(count, "big")
+
+
+def tlv(tag, payload, width=None):
+    length = len(payload)
+    if width is None:
+        width = 1 if length < 0x80 else (2 if length <= 0x7EFF else 5)
+    if width == 1:
+        assert length < 0x80
+        prefix = bytes([length])
+    elif width == 2:
+        assert length <= 0x7EFF
+        prefix = bytes([0x80 | (length >> 8), length & 0xFF])
+    else:
+        prefix = b"\xff" + struct.pack(">I", length)
+    return bytes([tag]) + prefix + payload
+
+
+def file_rec(name, clen=None, size=None, crc=None, widths=(4, 4, 4), timestamp=1234567890, flag=1):
+    parts = tlv(1, name.encode("latin-1") + b"\0")
+    if clen is not None:
+        parts += tlv(2, be(clen, widths[0])) + tlv(3, be(size, widths[1])) + tlv(4, be(crc, widths[2]))
+    parts += tlv(8, be(timestamp, 8)) + tlv(6, bytes([flag]))
+    return tlv(3, parts)
+
+
+def dir_rec(name, children):
+    return tlv(2, tlv(1, name.encode("latin-1")) + b"".join(children) + tlv(0xFE, be(len(children), 2)))
+
+
+def digest_scenario():
+    """A synthetic digest body, a matching 'installed' folder, and everything the Python editor answers for them."""
+    match = pseudo("match", 64)
+    old_changed = pseudo("old-changed", 80)
+    old_same = pseudo("old-same", 48)
+    crlf_text = b"line one\r\nline two\r\n\r\nlast\r\n"
+    small = pseudo("small", 30)
+
+    def rec(name, data, **kwargs):
+        return file_rec(name, len(data) + 129, len(data), zlib.crc32(data) & 0xFFFFFFFF, **kwargs)
+
+    art = dir_rec("art", [
+        rec("match.bin", match),
+        rec("changed.bin", old_changed),
+        rec("samesize.bin", old_same),
+        file_rec("missing.bin", 129 + 10, 10, 0x0BADF00D),
+        file_rec("huge.bin", 1_000_000, 1_024_760, 0x0BADBEEF),   # never installed; makes the KiB total cross a boundary
+        rec("small.bin", small, widths=(2, 2, 4)),
+    ])
+    text = dir_rec("text", [rec("crlf.txt", crlf_text), file_rec("info.txt")])
+    root = dir_rec("", [art, text])
+    body = (tlv(1, b"\x00\x02\x00\x01") + tlv(21, be(0, 4)) + tlv(0xFD, b"h" * 200)
+            + tlv(0xFC, b"abc", width=5) + tlv(0xFB, b"z", width=2) + tlv(2, root) + tlv(0xFA, b"end"))
+    # The header total is the sum of the downloadable sizes in KiB; set it the way the real digest does.
+    probe = digest_edit.parse(body)
+    total = sum(digest_edit.get_field(n, 3) for _p, n in digest_edit.downloadable(probe))
+    digest_edit.set_header_number(probe, 21, total // 1024)
+    body = digest_edit.serialize(probe)
+
+    tree = digest_edit.parse(body)
+    assert digest_edit.serialize(tree) == body, "Python itself must round-trip the synthetic digest"
+    all_files = [p for p, _n in digest_edit.iter_files(tree)]
+    downloadables = [(p, digest_edit.get_field(n, 2), digest_edit.get_field(n, 3), digest_edit.get_field(n, 4))
+                     for p, n in digest_edit.downloadable(tree)]
+
+    # The edit sequence the C# test repeats: widths grow only when the value no longer fits.
+    edited = digest_edit.parse(body)
+    by_path = dict(digest_edit.iter_files(edited))
+    digest_edit.set_field(by_path["art/small.bin"], 3, 70000)
+    digest_edit.set_field(by_path["art/small.bin"], 2, 0x1FFFF)
+    digest_edit.set_field(by_path["art/match.bin"], 4, 0xFFFFFFFF)
+    digest_edit.set_header_number(edited, 21, 0x123456789)
+    edited_body = digest_edit.serialize(edited)
+
+    local_files = [
+        ("art/match.bin", match),
+        ("art/changed.bin", pseudo("new-changed", 100)),
+        ("art/samesize.bin", pseudo("new-same", 48)),
+        ("art/small.bin", small),
+        ("text/crlf.txt", crlf_text.replace(b"\r\n", b"\n")),
+    ]
+    for _name, data in local_files:
+        assert len(zlib.compress(data, 9)) >= len(data), "local test files must be incompressible"
+    folder = tempfile.mkdtemp(prefix="fr-digest-")
+    try:
+        for name, data in local_files:
+            target = Path(folder) / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+        adapted_body, changes = digest_edit.adapt_to_local(body, Path(folder))
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+    return body, all_files, downloadables, edited_body, local_files, changes, adapted_body
+
+
+def digest_vector():
+    body, all_files, downloadables, edited_body, local_files, changes, adapted_body = digest_scenario()
+    return """new DigestVector(
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s)""" % (
+        cs_bytes(body),
+        array("", [cs_str(p) for p in all_files], "            "),
+        array("", ["(%s, %du, %du, 0x%08xu)" % (cs_str(p), c, sz, crc) for p, c, sz, crc in downloadables], "            "),
+        cs_bytes(edited_body),
+        array("", ["(%s, %s)" % (cs_str(n), cs_bytes(d)) for n, d in local_files], "            "),
+        array("", ["(%s, %du, %du, 0x%08xu, 0x%08xu, %du, %du)" % (
+            cs_str(c["path"]), c["old_size"], c["new_size"], c["old_crc32"], c["new_crc32"], c["old_length"], c["new_length"])
+            for c in changes], "            "),
+        cs_bytes(adapted_body))
+
+
+def pattern(count):
+    return bytes((i * 7 + 3) % 251 for i in range(count))
+
+
 # ---------------------------------------------------------------- generation
 
 def gzne_vector(label, data):
@@ -258,6 +395,15 @@ def generate():
     add("    (string Name, string Pack, uint StoredCrc, bool CrcMatches, int Length, uint DataCrc)[] Assets,")
     add("    string[] MissingAssets,")
     add("    (string Zone, bool Found, double X, double Z, int TileX, int TileZ, string Note)[] Spawns);")
+    add("")
+    add("internal sealed record DigestVector(")
+    add("    byte[] Body,")
+    add("    string[] AllFiles,")
+    add("    (string Path, ulong Compressed, ulong Size, ulong Crc)[] Downloadables,")
+    add("    byte[] EditedBody,")
+    add("    (string File, byte[] Data)[] LocalFiles,")
+    add("    (string Path, ulong OldSize, long NewSize, ulong OldCrc, uint NewCrc, ulong OldLength, ulong NewLength)[] Changes,")
+    add("    byte[] AdaptedBody);")
     add("")
     add("internal static class ReferenceVectors")
     add("{")
@@ -332,6 +478,28 @@ def generate():
         manifest_vector("empty", b"", probe),
     ]
     add("    public static readonly ManifestVector[] Manifests = %s;" % array("", manifests))
+    add("")
+
+    # digest, containers, line endings
+    add("    public static readonly DigestVector Digest = %s;" % digest_vector())
+    add("")
+    stored_raw = b"stored file content!"
+    stored = ["(%d, %s, %s)" % (i, cs_str(codec_candidates.encode_stored(i, stored_raw)[1]),
+                                cs_bytes(codec_candidates.encode_stored(i, stored_raw)[0])) for i in range(9)]
+    add("    public static readonly byte[] StoredSample = %s;" % cs_bytes(stored_raw))
+    add("    public static readonly (int Index, string Label, byte[] Data)[] StoredVariants = %s;" % array("", stored))
+    add("")
+    lengths = [0, 1, 65535, 65536, 70000, 131070, 131071]
+    zlib_stored = []
+    for n in lengths:
+        data = codec_candidates.encode_stored(6, pattern(n))[0]
+        zlib_stored.append("(%d, %d, 0x%08xu)" % (n, len(data), zlib.crc32(data) & 0xFFFFFFFF))
+    add("    /// <summary>Raw length, container length and CRC-32 of variant 6 (stored zlib) over bytes[i] = (i * 7 + 3) %% 251.</summary>")
+    add("    public static readonly (int RawLength, int EncodedLength, uint EncodedCrc)[] StoredZlib = %s;" % array("", zlib_stored))
+    add("")
+    crlf_inputs = [b"", b"a", b"a\nb", b"a\r\nb", b"\r\r\n", b"\r", b"\n\n", b"a\r\n\r\nb\n", b"\r\n\r\r\n\n", b"\rx\ry"]
+    crlf = ["(%s, %s)" % (cs_bytes(d), cs_bytes(d.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))) for d in crlf_inputs]
+    add("    public static readonly (byte[] Input, byte[] Expected)[] Crlf = %s;" % array("", crlf))
     add("")
 
     # installs

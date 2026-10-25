@@ -24,13 +24,32 @@ public static class Crc32
         return table;
     }
 
-    public static uint Compute(ReadOnlySpan<byte> data)
+    public static uint Compute(ReadOnlySpan<byte> data) => Update(0, data);
+
+    /// <summary>Continues a CRC-32 over more data, like <c>zlib.crc32(data, crc)</c> (start with 0).</summary>
+    public static uint Update(uint crc, ReadOnlySpan<byte> data)
     {
-        var crc = uint.MaxValue;
+        crc ^= uint.MaxValue;
 
         foreach (var value in data)
             crc = (crc >> 8) ^ Table[(crc ^ value) & 0xFF];
 
         return crc ^ uint.MaxValue;
+    }
+
+    /// <summary>CRC-32 of a whole file, read in blocks.</summary>
+    public static uint OfFile(string path)
+    {
+        using var stream = new System.IO.FileStream(path, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.Read);
+
+        var buffer = new byte[1 << 20];
+        var crc = 0u;
+
+        int read;
+
+        while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+            crc = Update(crc, buffer.AsSpan(0, read));
+
+        return crc;
     }
 }

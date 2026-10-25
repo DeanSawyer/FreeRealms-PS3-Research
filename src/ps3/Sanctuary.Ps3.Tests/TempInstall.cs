@@ -14,7 +14,12 @@ internal sealed class TempInstall : IDisposable
         Directory.CreateDirectory(Root);
 
         foreach (var (file, data) in files)
-            File.WriteAllBytes(Path.Combine(Root, file), data);
+        {
+            var target = Path.Combine(Root, file);
+
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.WriteAllBytes(target, data);
+        }
     }
 
     public string Root { get; }

@@ -25,6 +25,15 @@ internal sealed record InstallVector(
     string[] MissingAssets,
     (string Zone, bool Found, double X, double Z, int TileX, int TileZ, string Note)[] Spawns);
 
+internal sealed record DigestVector(
+    byte[] Body,
+    string[] AllFiles,
+    (string Path, ulong Compressed, ulong Size, ulong Crc)[] Downloadables,
+    byte[] EditedBody,
+    (string File, byte[] Data)[] LocalFiles,
+    (string Path, ulong OldSize, long NewSize, ulong OldCrc, uint NewCrc, ulong OldLength, ulong NewLength)[] Changes,
+    byte[] AdaptedBody);
+
 internal static class ReferenceVectors
 {
     public static readonly (string Name, ulong Hash)[] NameHashes = [
@@ -420,6 +429,126 @@ internal static class ReferenceVectors
             ("ART/A.TXT", false, 0u, 0u, false),
             ("Zone.COB", false, 0u, 0u, false),
         ]),
+    ];
+
+    public static readonly DigestVector Digest = new DigestVector(
+            Convert.FromBase64String(
+            "AQQAAgABFQQAAAPo/YDIaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGho" +
+            "aGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGho" +
+            "aGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGj8/wAAAANhYmP7" +
+            "gAF6AoF3AoF0AQACgRkBA2FydAMrAQptYXRjaC5iaW4AAgQAAADBAwQAAABABAQBMbuPCAgAAAAASZYC0gYBAQMtAQxjaGFuZ2Vk" +
+            "LmJpbgACBAAAANEDBAAAAFAEBBf9fysICAAAAABJlgLSBgEBAy4BDXNhbWVzaXplLmJpbgACBAAAALEDBAAAADAEBO1S1jQICAAA" +
+            "AABJlgLSBgEBAy0BDG1pc3NpbmcuYmluAAIEAAAAiwMEAAAACgQEC63wDQgIAAAAAEmWAtIGAQEDKgEJaHVnZS5iaW4AAgQAD0JA" +
+            "AwQAD6L4BAQLrb7vCAgAAAAASZYC0gYBAQMnAQpzbWFsbC5iaW4AAgIAnwMCAB4EBOv1kZEICAAAAABJlgLSBgEB/gIABgJQAQR0" +
+            "ZXh0AyoBCWNybGYudHh0AAIEAAAAnQMEAAAAHAQEa5Gc5wgIAAAAAEmWAtIGAQEDGAEJaW5mby50eHQACAgAAAAASZYC0gYBAf4C" +
+            "AAL+AgAC+gNlbmQ="),
+            [
+                "art/match.bin",
+                "art/changed.bin",
+                "art/samesize.bin",
+                "art/missing.bin",
+                "art/huge.bin",
+                "art/small.bin",
+                "text/crlf.txt",
+                "text/info.txt",
+            ],
+            [
+                ("art/match.bin", 193u, 64u, 0x0131bb8fu),
+                ("art/changed.bin", 209u, 80u, 0x17fd7f2bu),
+                ("art/samesize.bin", 177u, 48u, 0xed52d634u),
+                ("art/missing.bin", 139u, 10u, 0x0badf00du),
+                ("art/huge.bin", 1000000u, 1024760u, 0x0badbeefu),
+                ("art/small.bin", 159u, 30u, 0xebf59191u),
+                ("text/crlf.txt", 157u, 28u, 0x6b919ce7u),
+            ],
+            Convert.FromBase64String(
+            "AQQAAgABFQUBI0Vnif2AyGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGho" +
+            "aGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGho" +
+            "aGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGho/P8AAAADYWJj" +
+            "+4ABegKBeQKBdgEAAoEbAQNhcnQDKwEKbWF0Y2guYmluAAIEAAAAwQMEAAAAQAQE/////wgIAAAAAEmWAtIGAQEDLQEMY2hhbmdl" +
+            "ZC5iaW4AAgQAAADRAwQAAABQBAQX/X8rCAgAAAAASZYC0gYBAQMuAQ1zYW1lc2l6ZS5iaW4AAgQAAACxAwQAAAAwBATtUtY0CAgA" +
+            "AAAASZYC0gYBAQMtAQxtaXNzaW5nLmJpbgACBAAAAIsDBAAAAAoEBAut8A0ICAAAAABJlgLSBgEBAyoBCWh1Z2UuYmluAAIEAA9C" +
+            "QAMEAA+i+AQEC62+7wgIAAAAAEmWAtIGAQEDKQEKc21hbGwuYmluAAIDAf//AwMBEXAEBOv1kZEICAAAAABJlgLSBgEB/gIABgJQ" +
+            "AQR0ZXh0AyoBCWNybGYudHh0AAIEAAAAnQMEAAAAHAQEa5Gc5wgIAAAAAEmWAtIGAQEDGAEJaW5mby50eHQACAgAAAAASZYC0gYB" +
+            "Af4CAAL+AgAC+gNlbmQ="),
+            [
+                ("art/match.bin", Convert.FromBase64String("1FLnkWIeX8/gNfa1qCISaIPLIHjxoZU9Z2tODGpMaWarQoUqHC7o7/9hI/ospgaIuWEkJhBWOdFrWMzc3uXVYw==")),
+                ("art/changed.bin", Convert.FromBase64String(
+            "urF7swjWCYAjEdA95/1ntzxbkkkM/Qe/OrehbmtAKy0pDJT7E90jW7roOFlGK7V5uqNkYVNDkDOFdVYSinApM0FfCbtEVgRML1LA" +
+            "OssGrvqf9Tayss6F/veZ2LbyANMAnwVSrQ==")),
+                ("art/samesize.bin", Convert.FromBase64String("KVjy5EyjB53VUiE72mTzEykUGTehaZzShClFgFT2QBfTioti+a9COevHz2JF/FfS")),
+                ("art/small.bin", Convert.FromBase64String("BlaSoKxUjbIhxlNWuoEwjXwK70gI1/UwpXxtWWXK")),
+                ("text/crlf.txt", Convert.FromBase64String("bGluZSBvbmUKbGluZSB0d28KCmxhc3QK")),
+            ],
+            [
+                ("art/changed.bin", 80u, 100u, 0x17fd7f2bu, 0x048d9a06u, 209u, 229u),
+                ("art/samesize.bin", 48u, 48u, 0xed52d634u, 0x531f2963u, 177u, 177u),
+            ],
+            Convert.FromBase64String(
+            "AQQAAgABFQQAAAPp/YDIaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGho" +
+            "aGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGho" +
+            "aGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGj8/wAAAANhYmP7" +
+            "gAF6AoF3AoF0AQACgRkBA2FydAMrAQptYXRjaC5iaW4AAgQAAADBAwQAAABABAQBMbuPCAgAAAAASZYC0gYBAQMtAQxjaGFuZ2Vk" +
+            "LmJpbgACBAAAAOUDBAAAAGQEBASNmgYICAAAAABJlgLSBgEBAy4BDXNhbWVzaXplLmJpbgACBAAAALEDBAAAADAEBFMfKWMICAAA" +
+            "AABJlgLSBgEBAy0BDG1pc3NpbmcuYmluAAIEAAAAiwMEAAAACgQEC63wDQgIAAAAAEmWAtIGAQEDKgEJaHVnZS5iaW4AAgQAD0JA" +
+            "AwQAD6L4BAQLrb7vCAgAAAAASZYC0gYBAQMnAQpzbWFsbC5iaW4AAgIAnwMCAB4EBOv1kZEICAAAAABJlgLSBgEB/gIABgJQAQR0" +
+            "ZXh0AyoBCWNybGYudHh0AAIEAAAAnQMEAAAAHAQEa5Gc5wgIAAAAAEmWAtIGAQEDGAEJaW5mby50eHQACAgAAAAASZYC0gYBAf4C" +
+            "AAL+AgAC+gNlbmQ="));
+
+    public static readonly byte[] StoredSample = Convert.FromBase64String("c3RvcmVkIGZpbGUgY29udGVudCE=");
+    public static readonly (int Index, string Label, byte[] Data)[] StoredVariants = [
+        (0, "raw+trailer00", Convert.FromBase64String(
+            "c3RvcmVkIGZpbGUgY29udGVudCEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")),
+        (1, "raw+trailer02", Convert.FromBase64String(
+            "c3RvcmVkIGZpbGUgY29udGVudCECAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")),
+        (2, "raw+trailer03", Convert.FromBase64String(
+            "c3RvcmVkIGZpbGUgY29udGVudCEDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")),
+        (3, "raw+trailer04", Convert.FromBase64String(
+            "c3RvcmVkIGZpbGUgY29udGVudCEEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")),
+        (4, "raw+trailer80", Convert.FromBase64String(
+            "c3RvcmVkIGZpbGUgY29udGVudCGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")),
+        (5, "raw+trailerff", Convert.FromBase64String(
+            "c3RvcmVkIGZpbGUgY29udGVudCH/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")),
+        (6, "zlibstored+trailer01", Convert.FromBase64String(
+            "eAEBFADr/3N0b3JlZCBmaWxlIGNvbnRlbnQhUagHjgEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAA==")),
+        (7, "raw+trailer00", Convert.FromBase64String(
+            "c3RvcmVkIGZpbGUgY29udGVudCEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")),
+        (8, "raw+trailer02", Convert.FromBase64String(
+            "c3RvcmVkIGZpbGUgY29udGVudCECAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")),
+    ];
+
+    /// <summary>Raw length, container length and CRC-32 of variant 6 (stored zlib) over bytes[i] = (i * 7 + 3) %% 251.</summary>
+    public static readonly (int RawLength, int EncodedLength, uint EncodedCrc)[] StoredZlib = [
+        (0, 140, 0x51073d84u),
+        (1, 141, 0x1e4a5e0eu),
+        (65535, 65675, 0x5fc1eeb5u),
+        (65536, 65681, 0x9f77f249u),
+        (70000, 70145, 0xf9f2134au),
+        (131070, 131215, 0xce0b1585u),
+        (131071, 131221, 0x2b82d35eu),
+    ];
+
+    public static readonly (byte[] Input, byte[] Expected)[] Crlf = [
+        (Convert.FromBase64String(""), Convert.FromBase64String("")),
+        (Convert.FromBase64String("YQ=="), Convert.FromBase64String("YQ==")),
+        (Convert.FromBase64String("YQpi"), Convert.FromBase64String("YQ0KYg==")),
+        (Convert.FromBase64String("YQ0KYg=="), Convert.FromBase64String("YQ0KYg==")),
+        (Convert.FromBase64String("DQ0K"), Convert.FromBase64String("DQ0K")),
+        (Convert.FromBase64String("DQ=="), Convert.FromBase64String("DQ==")),
+        (Convert.FromBase64String("Cgo="), Convert.FromBase64String("DQoNCg==")),
+        (Convert.FromBase64String("YQ0KDQpiCg=="), Convert.FromBase64String("YQ0KDQpiDQo=")),
+        (Convert.FromBase64String("DQoNDQoK"), Convert.FromBase64String("DQoNDQoNCg==")),
+        (Convert.FromBase64String("DXgNeQ=="), Convert.FromBase64String("DXgNeQ==")),
     ];
 
     public static readonly InstallVector[] Installs = [
