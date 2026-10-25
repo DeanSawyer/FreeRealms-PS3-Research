@@ -60,7 +60,7 @@ def element(tag, fields=None, children=(), style="attributes"):
     return f"<{tag}>{inner}{kids}</{tag}>"
 
 
-def build_replies(style="attributes", account_status=1, existing_character=False, zone=False):
+def build_replies(style="attributes", account_status=2, existing_character=False, zone=False):
     """Return {kind: bytes} for every ps3ws reply the stub answers."""
     def reply(root, fields=None, children=(), status=1, message="Success"):
         head = {"Status": status, "StatusMessage": message, **(fields or {})}
@@ -198,7 +198,7 @@ def trace_event(event, **fields):
 
 def make_handler(ip, digest, server_list_variant, client_root,
                  codec=codec_candidates.DEFAULT_CODEC, extra_clients=(), serve_mismatch=False,
-                 existing_character=False, account_status=1, xml_style="attributes"):
+                 existing_character=False, account_status=2, xml_style="attributes"):
     config = app_config(ip)
     replies = build_replies(xml_style, account_status, existing_character,
                             zone=(server_list_variant == "zone"))
@@ -513,9 +513,10 @@ def main():
     parser.add_argument("--existing-character", action="store_true",
                         help="Report one sample character on the account (character select) "
                              "instead of an empty account (character creator, the default)")
-    parser.add_argument("--account-status", type=int, default=1, metavar="N",
-                        help="Status for an account with no characters. 1 (default) = success with an "
-                             "empty list; 2 = the client's 'No existing character found' result")
+    parser.add_argument("--account-status", type=int, default=2, metavar="N",
+                        help="Status for an account with no characters. 2 (default) = the client's 'No "
+                             "existing character found' result; 1 = success with an empty list, which "
+                             "crashes the client (null character pointer, see docs/ps3ws-replies.md)")
     parser.add_argument("--xml-style", choices=("attributes", "elements"), default="attributes",
                         help="How simple values are written in ps3ws replies. The client reads "
                              "attributes (default); 'elements' is the earlier child-element form")

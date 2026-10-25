@@ -57,8 +57,12 @@ The client prints `OnRequest...: requestId=%d, result=%d (%s)` for each reply. N
 2 "No characters for account" and a further "Game server is unavailable" code. For `account/info` the
 handler has three branches: `Status` 1 (stores the account and character list; an empty list sets login
 state 5), `Status` 2 (logs "No existing character found on the server", login state 6), anything else
-(the "unable to log in" dialog). Both state 5 and 6 move on to state 8. `--account-status 2` selects the
-second form; which one opens the character creator has not been tested.
+(the "unable to log in" dialog). Both state 5 and 6 move on to state 8.
+
+`Status` 1 with an empty list crashes the client: state 5 calls the character-select setup (`0x78bc88`),
+which reads the first list entry without checking that one exists (`lwz r4, 60(r31)` with `r31 = 0`).
+RPCS3 reports it as `Access violation reading location 0x3c`. An account with no characters is therefore
+reported with `Status` 2 (`--account-status 2`, the default); `Status` 1 needs at least one `Character`.
 
 ## Not known yet
 
