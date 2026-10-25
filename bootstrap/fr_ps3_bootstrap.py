@@ -498,7 +498,9 @@ def make_handler(ip, digest, server_list_variant, client_root,
                         reply_kind=kind, request_fields=fields,
                         server_list_variant=(server_list_variant if kind == "server_list" else None),
                         xml_style=xml_style)
-            LOG.info("%s request fields: %s", kind, ", ".join(fields) or "(none)")
+            status = __import__("re").search(rb'Status(?:="|>)(\d+)', reply)
+            LOG.info("%s request fields: %s -> replying Status=%s", kind, ", ".join(fields) or "(none)",
+                     status.group(1).decode() if status else "?")
             self.respond(200, reply, "text/xml; charset=utf-8", close=True)
             LOG.info("200 test reply for %s (%d bytes)", route, len(reply))
 
@@ -604,6 +606,8 @@ def main():
                                                   args.serve_mismatch,
                                                   args.existing_character,
                                                   args.account_status, args.xml_style)) as http:
+            LOG.info("ps3ws replies: xml-style=%s, empty account -> Status %d%s", args.xml_style,
+                     args.account_status, " (existing-character sample)" if args.existing_character else "")
             LOG.info("Server-list response variant: %s (experimental Zone field: %s)",
                      args.server_list_variant, args.server_list_variant == "zone")
             LOG.info("HTTP listening on %s:%d; AppConfig=%d bytes; digest=%d bytes",
