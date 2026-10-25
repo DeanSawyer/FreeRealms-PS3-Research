@@ -10,12 +10,14 @@ on:
       - "src/ps3/**"
       - "bootstrap/**"
       - "tools/gen_ps3_vectors.py"
+      - "tools/gen_ps3_web_vectors.py"
       - ".github/workflows/dotnet.yml"
   pull_request:
     paths:
       - "src/ps3/**"
       - "bootstrap/**"
       - "tools/gen_ps3_vectors.py"
+      - "tools/gen_ps3_web_vectors.py"
       - ".github/workflows/dotnet.yml"
   workflow_dispatch:
 
@@ -44,7 +46,9 @@ jobs:
 
       - name: Reference vectors are up to date
         working-directory: .
-        run: python tools/gen_ps3_vectors.py --check
+        run: |
+          python tools/gen_ps3_vectors.py --check
+          python tools/gen_ps3_web_vectors.py --check
 
       - name: Restore
         run: dotnet restore Sanctuary.Ps3.slnx

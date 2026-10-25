@@ -157,6 +157,20 @@ def parse_dns_question(packet):
     return ".".join(labels), qtype, qclass, packet[12:pos + 4]
 
 
+def dns_answer(packet, question, qtype, answer_ip):
+    """The reply to a query for one of our hosts, and how many answers it holds.
+
+    An A query gets the address; any other type (AAAA, HTTPS, ...) gets NOERROR with no data.
+    """
+    if qtype == 1:
+        answer = b"\xc0\x0c" + struct.pack("!HHIH", 1, 1, 60, 4) + answer_ip
+        count = 1
+    else:
+        answer, count = b"", 0  # NOERROR / no data for this type
+    header = packet[:2] + b"\x81\x80" + struct.pack("!HHHH", 1, count, 0, 0)
+    return header + question + answer, count
+
+
 class DNSHandler(socketserver.BaseRequestHandler):
     def handle(self):
         packet, udp = self.request
@@ -166,14 +180,8 @@ class DNSHandler(socketserver.BaseRequestHandler):
                 # An AAAA/HTTPS lookup for a mapped host must also receive a
                 # reply. Forwarding it to the dead original DNS often stalled
                 # the client's address lookup before any HTTP GET was sent.
-                if qtype == 1:
-                    answer = (b"\xc0\x0c" + struct.pack("!HHIH", 1, 1, 60, 4)
-                              + self.server.answer_ip)
-                    count = 1
-                else:
-                    answer, count = b"", 0  # NOERROR / no data for this type
-                header = packet[:2] + b"\x81\x80" + struct.pack("!HHHH", 1, count, 0, 0)
-                udp.sendto(header + question + answer, self.client_address)
+                reply, count = dns_answer(packet, question, qtype, self.server.answer_ip)
+                udp.sendto(reply, self.client_address)
                 LOG.info("DNS %s type=%d -> %s from %s", host, qtype,
                          self.server.advertise if count else "no data", self.client_address[0])
             else:
