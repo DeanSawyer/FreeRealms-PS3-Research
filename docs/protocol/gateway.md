@@ -102,6 +102,13 @@ Layout: `i32` length, then the player blob. The blob's field widths come from ru
 The generated blob is checked against the client's deserializer: it consumes every byte (`tools/ppc_trace.py
 --file blob.bin`). That proves the widths line up; it does not prove the values make sense to the game.
 
+What the reader does with the values (decompiled `0xb1e460`, 2026-10-25): every list is read with a count, so a count of zero skips its
+loop. After the lists it reads one more scalar and two small sub-structures, then calls `FUN_00059de8`, which hands two stored numbers
+(offsets `0x164` and `0x17c` of the client object) to three setters (`0x255df8`, `0x763dc`, `0x729a0`). They only update state; their
+loops walk null-terminated lists and none waits for anything. So the zeros we send cannot make the client wait or spin at this point. What an
+empty player does change is what the character looks like (no items, so no clothes or tools) and which UI entries exist, not whether the
+loading step ends. Items would need a real item definition source; that is a separate task from the stuck loading screen.
+
 ### The profile list must not be empty
 
 With an empty profile list the client crashed right after the player data arrived ("Access violation reading

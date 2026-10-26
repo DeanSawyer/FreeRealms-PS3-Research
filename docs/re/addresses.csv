@@ -58,3 +58,6 @@ address,query,name,role,expect
 0xe43ec,decomp,HUD:SetIsInStartingZone caller,Calls the Lua function HUD:SetIsInStartingZone(flag) of the UI script,HUD:SetIsInStartingZone
 0x72714c,decomp,Lua VM main loop,"Big switch over opcodes; one of two RPCS3 shutdown samples of the main thread (0x727768) lies in it, the other (0x7200fc) in lua_getfield 0x71ff9c",FUN_0072714c
 0xeed40,list,first Cell vector load in fn_000ee7bc,lvlx in the file; Ghidra only decodes it after FrSetup.java rewrites it to lvx,"lvx v13,0,r10"
+0xb1e460,decomp,SendSelfToClient reader,"Reads the player blob: counts for every list, scalars, then calls the finisher 0x59de8; no wait or loop depends on a zero count",FUN_00059de8(param_1)
+0x59de8,decomp,Player-loaded finisher,"Hands two stored numbers to three setters (0x255df8, 0x763dc, 0x729a0); no waiting",FUN_000763dc(param_1 + 0x5270)
+0x202f34,decomp,Lua UpdateAllQueueStats,"Script-bound C function (table at 0xec4bb4): sends a 141 sub 1 packet (0x202ea8) and calls 0x252d40",FUN_00252d40

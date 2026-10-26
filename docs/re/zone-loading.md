@@ -348,3 +348,9 @@ graph of the loading screen (callers of `0x7ea164`, `0x182834`, `0x1441b0`, `0xc
   objects that are not local, or the camera position.
 * What the client logs at runtime — the client's log sinks are a ring buffer / file / network, not RPCS3's TTY.
 * Which UI script function (or C++ call) the main thread is busy in after the ClientLog lines (see *Where the main thread is*).
+* Who sends the `141/1` request 40 ms after the ClientLog lines. Two senders of a 141 packet with sub-opcode 1 exist: the script-bound
+  function `UpdateAllQueueStats` (`0x202f34`, registered in the table at `0xec4bb4`; its Lua callers `[73,11]` and `[89,0]` are matchmaking
+  screens that the player opens) and a handler that raises the script event `MatchmakingServerUp` (`0x252db0`, called from `0x13d260` next to
+  the 141 reply parser). Which of them fires here is not known; either would show that script or event code ran after the logs.
+* The player data (`SendSelfToClient`) is not a suspect for the stall: the reader (`0xb1e460`) and its finisher (`0x59de8`) contain no wait and
+  no loop that depends on the zero counts we send (see `docs/protocol/gateway.md`).
