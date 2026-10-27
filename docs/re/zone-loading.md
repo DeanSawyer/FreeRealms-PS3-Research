@@ -332,6 +332,20 @@ the common exit with `lwz r0,0(0)`. The thread that reaches it dies, and RPCS3 w
 | a fatal-error entry for `main_thread` at `0x000ecd68` with a call stack | the exit is reached; `Hide` is then called and the splash thread must be stopped by something else failing (explanations 1 and 3 above); the call stack shows the caller |
 | no such entry in a minute | the main thread is stuck between the ClientLog lines and the exit (Lua call, `0x7ced38`, or `0x160dcc`); repeat with `--fault-at 0xed920` (right after the Lua call) to split the tail |
 
+### Probes, in the order worth running
+
+All use `tools/run_test.py --fault-at ADDR` (same command as above, only the address changes). Read the result in `rpcs3_log_filtered.txt`:
+search for the address.
+
+| Run | Address | Question | If it fires |
+|---|---|---|---|
+| 1 | `0xe1754` | Does the client dispatch opcode 93 (`docs/protocol/gateway.md`, *Inner packet 93*)? The server log already shows it sent and acknowledged, so this should fire a few seconds after the world is entered; it also shows whether the fault patch works on the user's RPCS3 | the thread name and call stack show which thread dispatches packets and from where |
+| 2 | `0x1e93e8` | Does a later frame consume the welcome flag (the per-frame update runs after the packet)? | the stack shows whether this happens inside `WaitForWorldReady` or after it |
+| 3 | `0xecd68` | Does `WaitForWorldReady` reach its exit (`Hide`)? | see the table above |
+
+If 1 fires and 2 does not, the packet is dispatched but the per-frame update never gets to the flag, which points at the main thread being stuck
+before that (run 3 splits it). If 2 fires, the main loop is alive after the packet and `Hide` not running becomes the question.
+
 ### Repaired disassembly (why some earlier "no caller" results were unreliable)
 
 Ghidra's PowerPC language does not know the Cell-only vector loads `lvlx` / `lvrx`. It stops disassembling at the first one, so every

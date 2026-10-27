@@ -61,3 +61,7 @@ address,query,name,role,expect
 0xb1e460,decomp,SendSelfToClient reader,"Reads the player blob: counts for every list, scalars, then calls the finisher 0x59de8; no wait or loop depends on a zero count",FUN_00059de8(param_1)
 0x59de8,decomp,Player-loaded finisher,"Hands two stored numbers to three setters (0x255df8, 0x763dc, 0x729a0); no waiting",FUN_000763dc(param_1 + 0x5270)
 0x202f34,decomp,Lua UpdateAllQueueStats,"Script-bound C function (table at 0xec4bb4): sends a 141 sub 1 packet (0x202ea8) and calls 0x252d40",FUN_00252d40
+0x1051d0,list,Game dispatcher: jump table,"Table at 0x1051f0 of signed 32-bit offsets from the table, index = opcode - 12 (opcode 93 -> 0x106430)",addi r9,r9,0x51f0
+0xe1754,decomp,Opcode 93 handler (LoadWelcomeScreen),"Reads u8 show, two counted lists and two u32; hands the data to 0x1e7ae4 only if the packet is consumed exactly",FUN_001e7ae4
+0x1e7ae4,decomp,Welcome-screen state setter,"Copies the lists into the welcome object and stores the show flag at +0x10 and two ints at +0x14 and +0x18",*(undefined4 *)(param_1 + 0x14) = *(undefined4 *)(param_2 + 0x2c);
+0x1e93e8,decomp,Welcome-screen executor,"Clears the flag and calls the Lua function OnShowWelcomeScreen; a negative first int means the new-player path",OnShowWelcomeScreen

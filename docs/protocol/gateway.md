@@ -155,6 +155,54 @@ Both layouts were checked by running the client's own parser on the reply: it co
 | 102 / 1 (mini-game list) | `u16 102, u16 2, i32 20`, then five `i32` counts (game entries and four unknown lists), all zero. Same as Clover's `LobbyGameDefinition` |
 | 141 / 1 (matchmaking queues) | `u16 141, u16 2, u64 0, i32 0` (an unknown u64, then a count of queues). The parser is `0x13c2c0`; with a count of 1 each queue entry is 12 fields of 4 bytes. The PC server project has no format for this one |
 
+## Inner packet 93, LoadWelcomeScreen
+
+Sent right after `ClientIsReady` (between GameTimeSync and ZoneDoneSendingInitialData) since commit `8402200`, on by default
+(`FR_WELCOME`, see `GatewayOptions.Welcome`; only the value `0` turns it off). The layout came from Clover and is now checked against the
+client's own handler.
+
+**Dispatch.** The game dispatcher (`0x105000`) bounds-checks `opcode - 12 <= 168` and jumps through a table at `0x1051f0` whose entries are
+signed 32-bit offsets from the table address (checked on opcodes 14, 35, 38 and 43). Opcode 93 lands at `0x106430`, which calls
+`FUN_000e1754(client, payload, length)`.
+
+**Layout the handler accepts** (read from the decompile, then run on test buffers with `tools/ppc_trace.py`):
+
+| Part | Width |
+|---|---|
+| opcode | `u16` = 93 |
+| show flag | `u8` |
+| list 1 | `u32` count n1, then n1 x (`u32`, `u32`) |
+| list 2 | `u32` count n2, then n2 x (string, `u32`, `u32`, `u32`, string); a string is a `u32` length and the bytes |
+| tail | `u32`, `u32` |
+
+The data is passed on (to `FUN_001e7ae4`) **only if the packet is consumed to the last byte**; a packet that is short (reads past the end)
+or has bytes left over is dropped without any message. Emulator runs of `0xe1754` (stubs for the allocators; `--stub 0x1e7ae4=0` marks the call):
+
+| Packet | Bytes consumed | Calls `0x1e7ae4` |
+|---|---|---|
+| ours: `93, 1, 0, 0, 0, 0` (show, empty lists, two zeros) | 19 of 19 | yes |
+| the same, one `i32` short | 15 of 15 | no |
+| the same, one `i32` too long | 19 of 23 | no |
+| one pair (7, 9), one entry ("ab", 1, 2, 3, "xyz"), tail 0, 0 | 52 of 52 | yes |
+
+So the packet we send is a valid, empty welcome screen: it is not malformed, mis-sized or ignored by the parser.
+
+**What the client does with it.** `FUN_001e7ae4` copies the lists into the welcome object (`client+0x1058`, the pointer the per-frame function reads as
+`client[0x416]`) and stores the show flag at `+0x10` and the two tail-side integers at `+0x14` and `+0x18`. On the next pass of the per-frame update
+(`fn_000f1ba8`, call at `0xf22a8`) a set flag makes the frame run `FUN_001e93e8` **and nothing else**, then return. `FUN_001e93e8` clears the flag.
+If the integer at `+0x14` is negative it takes the new-player path (`newPlayerFTE`) and shows nothing; otherwise it calls the Lua function
+`OnShowWelcomeScreen`, which calls `ShowWelcomeScreen()`: `WelcomeHandler:Show()` when `WelcomeHandler.notShown` is true, the player is not
+in the tutorial and not in combat, otherwise `HUD:showMain()`. The flag is a one-shot, not a gate that stays closed.
+
+**Evidence that it was sent and acknowledged.** Real run of 2026-10-25 10:42 (`bootstrap.log`): the server answered `ClientIsReady` with
+GameTimeSync (seq 7), opcode 93 (seq 8, `050001130000005d00 01 ...`), hit points and mana (`FR_EXTRA`), opcode 14 and the 38/26 update (seq 12);
+the client's UdpLibrary acknowledged all of them. An acknowledgement proves the transport received it, not that the game dispatched it.
+
+**Result.** Every run since `8402200` sent it (the v17-v21 spawn tests, the `IsLoaded` patch, the splash-thread patch) and the loading overlay never
+dropped; runs before that commit, without 93, were stuck the same way. So 93 in this form is not what is missing. Not tested: non-empty lists,
+and whether the game really dispatched it at runtime (probes: `--fault-at 0xe1754` for the dispatch, `--fault-at 0x1e93e8` for the next frame
+consuming it).
+
 ## AddPc: putting a character into the world (opcode 35, sub-opcode 1)
 
 Read from the PS3 parser (`0xb0b0ec`, reached through the manager's vtable slot at offset 320 into `0x10fda4`). It follows
