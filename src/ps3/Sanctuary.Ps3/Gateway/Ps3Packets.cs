@@ -47,8 +47,18 @@ public static class Ps3Packets
     public static byte[] ZoneDetails(string name, int zoneType, int tutorial = 0, int unknown = 0, string sky = "", int arena = 0, int zoneId = 1) =>
         new PacketWriter().U16(43).Str(name).I32(zoneType).U8(tutorial).U8(unknown).Str(sky).U8(arena).I32(zoneId).ToArray();
 
-    /// <summary>One entry of the profile list: the id, then zeros for everything else (the client reads 179 bytes per entry).</summary>
-    public static byte[] Profile(int profileId) => new PacketWriter().I32(profileId).Zeros(ProfileSize - 4).ToArray();
+    /// <summary>Offset of the job's rank inside a profile entry (traced from the client's reader; Sanctuary's <c>Rank</c>).</summary>
+    public const int ProfileRankOffset = 0x37;
+
+    /// <summary>
+    /// Rank of the starter job. It must be above 0: the HUD script <c>GroupHandler:GetNextJob</c>, run from <c>HUD:showMain</c> right
+    /// after the zone loads, loops until it finds a job with a rank, so rank 0 keeps the loading screen up forever.
+    /// </summary>
+    public const int ProfileRank = 1;
+
+    /// <summary>One entry of the profile list: the id and the rank, zeros for everything else (the client reads 179 bytes per entry).</summary>
+    public static byte[] Profile(int profileId) =>
+        new PacketWriter().I32(profileId).Zeros(ProfileRankOffset - 4).I32(ProfileRank).Zeros(ProfileSize - ProfileRankOffset - 4).ToArray();
 
     /// <summary>
     /// The player data of SendSelfToClient. There is one profile (the starter job) because the client looks the active profile up right

@@ -358,6 +358,40 @@ So the main thread is stuck, busy, between the ClientLog lines and `0xecd68`: in
 has been seen to fire on this RPCS3 yet; if `0xed920` stays silent too, a run at `0xe1754` (opcode 93, which the client receives every run) checks
 that the method works.
 
+| Run | Patch | Result |
+|---|---|---|
+| `fr_test_20261106_165400` | fault at `0xed920` (applied) | No fault: the main thread never returns from `HUD:SetIsInStartingZone`. Main thread sampled at `0x71fc18` (Lua). |
+| `fr_test_20261106_165838` | fault at `0xe1754` (applied) | No fault. Not a test of the method: in the Sanctuary order opcode 93 arrives after 14 and 38/26, and the main thread hangs before it dispatches it. |
+| `fr_test_20261106_170218` | fault at `0xec3dc` (applied) | **Fault**, `Access violation reading location 0x0` on `main_thread` with `LR = 0xf12d0` (RPCS3's recompiler reports the caller's position): the method works. |
+
+## Cause of the stuck loading screen: `GroupHandler:GetNextJob` never finds a job with a rank
+
+Paused in RPCS3's debugger at the stuck screen, the main thread's call stack was (innermost first):
+
+| Return address | Function |
+|---|---|
+| `0xa332c8`, `0xa334c0` | `0xa33124`, the C library's string-to-number conversion (`strtod`: the exponent limits -1074 / 1075 / 538 / -537 in the float registers) |
+| `0x70fd90`, `0x7385d8` | `lua_tonumber` and the function registered as Lua `tonumber` (`0x738350`, name table entry at `0xeb6e88`) |
+| `0x71e428`, `0x7288e4` | `luaD_precall` and the one `luaV_execute` (`0x727150`): the spinning code is plain Lua calling `tonumber` |
+| `0x71444c` ... `0x7185ac` | the Lua call machinery |
+| `0x1f2a0c` | the game's script-call helper |
+| `0xe44e4` | `0xe43ec`, which calls `HUD:SetIsInStartingZone` |
+| `0xed920` | `WaitForWorldReady`, right after that call |
+| `0xf12d0`, `0x10fc4`, `0x104d8`, `0x10250` | the zone-change routine, the main loop and start-up |
+
+The scripts (`tools/undat.py`, `tools/luadis.py`) give the rest of the chain:
+
+```
+HUD:SetIsInStartingZone [40,18] -> HUD:SetShowNormalState [40,19] -> HUD:showMain [40,6] (pc 174)
+  -> GroupHandler:SetJobSwitchOnOrOff(true) [46,38] -> GroupHandler:GetNextJob(0) [46,40]
+```
+
+`GetNextJob` walks the `DS_PROFILES` data source inside `while not done do for i = ... do ... end end`; the only way out is a row after the
+active job (wrapping round) whose `tonumber(Rank)` is above 0. The server sent one profile with every field but the id at 0, so the rank was
+0 and the loop never ends. The rank is at offset `0x37` of a 179-byte profile entry (read at blob offset `0x128` by `0xb0924c` and stored at
+profile object `+24`; Sanctuary's field order: after the five unknowns come `Rank`, `RankPercent`, stars). The server now sends rank 1 for
+the starter job (`PROFILE_RANK` in `bootstrap/gateway_probe.py`, `Ps3Packets.ProfileRank` in the C# port).
+
 ### Repaired disassembly (why some earlier "no caller" results were unreliable)
 
 Ghidra's PowerPC language does not know the Cell-only vector loads `lvlx` / `lvrx`. It stops disassembling at the first one, so every

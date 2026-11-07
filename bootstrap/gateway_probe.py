@@ -195,6 +195,8 @@ def describe_inner(opcode, inner):
 
 PROFILE_ID = 1          # Clover's DefaultProfileId (the first job a new character has)
 PROFILE_SIZE = 179      # bytes the client reads per profile entry
+PROFILE_RANK_OFFSET = 0x37   # the job's rank inside an entry (traced with tools/ppc_trace.py; Sanctuary's Rank)
+PROFILE_RANK = 1        # a new character's first job; rank 0 makes the HUD's GetNextJob loop forever
 
 
 def profile(profile_id):
@@ -202,9 +204,15 @@ def profile(profile_id):
 
     The client reads 179 bytes per entry: 9 integers (id, name id, description id, type, icon and three image
     sets, is-combat), a few flags, rank and stars, 17 equipment words, 8 ability lists (each a count; zero here)
-    and an ability-experience list. Only the id is meaningful so far; the rest is left empty.
+    and an ability-experience list. Only the id and the rank are filled in; the rest is left empty.
+
+    The rank must be above 0: after the zone loads, the HUD script GroupHandler:GetNextJob (called from HUD:showMain
+    through SetJobSwitchOnOrOff) loops until it finds a job with a rank, so with rank 0 the main thread never leaves
+    WaitForWorldReady and the loading screen stays up (docs/re/zone-loading.md).
     """
-    return struct.pack("<i", profile_id) + bytes(PROFILE_SIZE - 4)
+    entry = bytearray(struct.pack("<i", profile_id) + bytes(PROFILE_SIZE - 4))
+    struct.pack_into("<i", entry, PROFILE_RANK_OFFSET, PROFILE_RANK)
+    return bytes(entry)
 
 
 def appearance(character):
