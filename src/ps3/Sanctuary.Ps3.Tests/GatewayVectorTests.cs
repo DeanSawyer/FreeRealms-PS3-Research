@@ -71,12 +71,7 @@ public sealed class GatewayVectorTests
             AssertSame(scenario.ZoneDetails, Ps3Packets.ZoneDetails(world.Zone, world.ZoneType), label + ": ZoneDetails");
             AssertSame(scenario.PlayerBlob, Ps3Packets.PlayerBlob(character, world, GatewayVectors.UnixTime), label + ": player blob");
             AssertSame(scenario.SendSelf, Ps3Packets.SendSelfToClient(character, world, GatewayVectors.UnixTime), label + ": SendSelfToClient");
-            AssertSame(scenario.AddPcOther, Ps3Packets.AddPc(character, world), label + ": AddPc (guid 2)");
-
-            var first = character.TryGetValue("FirstName", out var name) && name.Length > 0 ? name : "Test";
-            var last = character.TryGetValue("LastName", out var surname) ? surname : string.Empty;
-
-            AssertSame(scenario.AddPcSelf, Ps3Packets.AddPc(character, world, 1, first, last, (0, 0, 0)), label + ": AddPc (guid 1)");
+            AssertSame(scenario.AddPc, Ps3Packets.AddPc(character, world), label + ": AddPc (guid 1)");
             AssertAllSame(scenario.WorldPackets, Ps3Packets.WorldPackets(character, world, GatewayVectors.UnixTime), label + ": world packets");
             AssertAllSame(scenario.ZoneDone, Ps3Packets.ZoneDonePackets(world.Options, GatewayVectors.UnixTime), label + ": zone done");
             AssertSame(scenario.TimeSync, Ps3Packets.GameTimeSync(GatewayVectors.UnixTime), label + ": game time");
@@ -93,7 +88,7 @@ public sealed class GatewayVectorTests
         // Too big for one 512 byte datagram, which is why the reliable channel fragments (see Ps3Gateway.SendReliable).
         Assert.AreEqual(10627, Ps3Packets.PlayerBlob(empty, world, GatewayVectors.UnixTime).Length);
         Assert.AreEqual(10633, Ps3Packets.SendSelfToClient(empty, world, GatewayVectors.UnixTime).Length);
-        Assert.AreEqual(261, Ps3Packets.AddPc(empty, world).Length);
+        Assert.AreEqual(259, Ps3Packets.AddPc(empty, world).Length);
     }
 
     [TestMethod]
@@ -201,7 +196,6 @@ public sealed class GatewayVectorTests
         Assert.AreEqual(2, defaults.ZoneType);
         Assert.IsNull(defaults.Spawn);
         Assert.AreEqual(400.0, defaults.SpawnY);
-        Assert.AreEqual(AddPcMode.Other, defaults.AddPc);
         Assert.IsTrue(defaults.Welcome);
         Assert.IsFalse(defaults.Extra);
         Assert.IsTrue(defaults.TimeSync);
@@ -212,7 +206,6 @@ public sealed class GatewayVectorTests
             ["FR_ZONE_TYPE"] = " 3 ",
             ["FR_SPAWN"] = "1.5; 2 ,-3",
             ["FR_SPAWN_Y"] = "99.5",
-            ["FR_ADDPC"] = " BOTH ",
             ["FR_WELCOME"] = "0",
             ["FR_EXTRA"] = " 1 ",
             ["FR_TIME"] = "0",
@@ -226,17 +219,15 @@ public sealed class GatewayVectorTests
         Assert.AreEqual(2.0, options.Spawn.Value.Y);
         Assert.AreEqual(-3.0, options.Spawn.Value.Z);
         Assert.AreEqual(99.5, options.SpawnY);
-        Assert.AreEqual(AddPcMode.Both, options.AddPc);
         Assert.IsFalse(options.Welcome);
         Assert.IsTrue(options.Extra);
         Assert.IsFalse(options.TimeSync);
 
         var warnings = new List<string>();
-        var bad = GatewayOptions.FromEnvironment(name => Get(new() { ["FR_SPAWN"] = "a,b,c", ["FR_ZONE_TYPE"] = "x", ["FR_ADDPC"] = "" }, name), warnings.Add);
+        var bad = GatewayOptions.FromEnvironment(name => Get(new() { ["FR_SPAWN"] = "a,b,c", ["FR_ZONE_TYPE"] = "x" }, name), warnings.Add);
 
         Assert.IsNull(bad.Spawn);
         Assert.AreEqual(2, bad.ZoneType);
-        Assert.AreEqual(AddPcMode.None, bad.AddPc);
         Assert.AreEqual(1, warnings.Count);
         Assert.IsTrue(warnings[0].Contains("FR_SPAWN", StringComparison.Ordinal));
     }

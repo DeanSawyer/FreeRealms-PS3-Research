@@ -71,7 +71,6 @@ answers the game's hostnames, pass `--no-dns`.
 | :--- | :--- |
 | `FR_ZONE`, `FR_ZONE_TYPE` | Override the zone name and type sent in `ZoneDetails` (default: chosen from your install, type `2`). |
 | `FR_SPAWN` | Where the player starts. Default: Sanctuary's spawn (-1904.9, -39.7, 412.6), whose terrain tile is only in the manifest of a typical install. `local`: the centre of a tile stored in your packs (height `FR_SPAWN_Y`, default 400; the ground on tile (-4, -4) is at about 36). `"x,y,z"`: exactly there. |
-| `FR_ADDPC` | Which character `AddPc` adds: `other` (default), `self`, `both`, `none`. |
 | `FR_EXTRA=1` | Also send hit points, mana, game settings and an empty item list (layouts from the PC server, untested on the PS3 client). |
 | `FR_WELCOME=0`, `FR_TIME=0` | Leave out the welcome-screen packet or the game-time reply. |
 | `FR_JOBS` | Which jobs the character has. Default (or `all`): every job Sanctuary gives a new character except Card Duelist, which the PS3 game did not have (17, at level 20; see [`jobs.py`](jobs.py)). A list of ids (`"1,11,35"`) sends only those; the starter job (1, Adventurer) is always included. |
