@@ -323,9 +323,12 @@ pairs), `i32` active profile id, title (3 x `i32`), effect tag count, `u64` moun
 position, `f32` name offset.
 
 In the PC server a player is never sent their own AddPc: the local character is built from the SendSelfToClient data, and
-AddPc is for the other players they can see. The probe therefore has a switch, the environment variable `FR_ADDPC`:
-`other` (default, a second test character two units away, to show whether the world draws at all), `self`, `both` or
-`none`. It is sent one second after the client's ClientFinishedLoading.
+AddPc is for the other players they can see. The PS3 client in the default flow is different: without any AddPc it never
+leaves the loading screen (WaitForWorldReady, below, waits for the characters it needs; run `fr_test_20261107_025914` and the
+run before it, 2026-11-07). The server therefore sends your own character's AddPc (guid 1, the creator's name, at the spawn)
+one second after the client's ClientFinishedLoading, then the clothes. The earlier `FR_ADDPC` switch and its second test
+character ("Helper", guid 2) are gone. The Sanctuary flow (`FR_SANCTUARY=1`) still sends no AddPc, as Sanctuary does: its
+ClientFinishedLoading packets are enough there.
 
 ## The connection times out after three minutes of silence
 

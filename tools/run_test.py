@@ -151,10 +151,8 @@ def main():
     env = dict(os.environ)
     if args.sanctuary:
         env["FR_SANCTUARY"] = "1"
-        env.setdefault("FR_ADDPC", "")    # Sanctuary sends no AddPc for a lone player
         env.setdefault("FR_EXTRA", "0")   # the Sanctuary flow replaces the FR_EXTRA packets
     env.setdefault("FR_EXTRA", "1")       # extra packets after FinishedLoading (as in the earlier test commands)
-    env.setdefault("FR_ADDPC", "other")
     env.setdefault("FR_TRACE_DIR", os.path.join(REPO, "bootstrap"))   # where the report reads the gateway trace (the C# server would use the current folder)
     if args.bootstrap_args:
         cmd += args.bootstrap_args.split()

@@ -38,7 +38,7 @@ from gen_ps3_web_vectors import cs_str  # noqa: E402
 OUT = os.path.join(ROOT, "src", "ps3", "Sanctuary.Ps3.Tests", "GatewayVectors.g.cs")
 UNIX_TIME = 1700000000
 ENCRYPT_CODE = 0x01020304
-FR_KEYS = ("FR_ZONE", "FR_ZONE_TYPE", "FR_SPAWN", "FR_SPAWN_Y", "FR_ADDPC", "FR_WELCOME", "FR_EXTRA", "FR_TIME",
+FR_KEYS = ("FR_ZONE", "FR_ZONE_TYPE", "FR_SPAWN", "FR_SPAWN_Y", "FR_WELCOME", "FR_EXTRA", "FR_TIME",
            "FR_SANCTUARY", "FR_SKIP", "FR_EQUIP", "FR_JOBS", "FR_ITEMS")
 
 
@@ -60,19 +60,18 @@ class Scenario:
     def __enter__(self):
         self._saved = {key: os.environ.pop(key, None) for key in FR_KEYS}
         os.environ.update(self.env)
-        self._state = (gp._install_zone, gp._install_spawn, dict(gp.CHARACTER), gp.ADDPC_MODE)
+        self._state = (gp._install_zone, gp._install_spawn, dict(gp.CHARACTER))
         gp._install_zone = self.install_zone
         gp._install_spawn = (self.install_spawn[0], self.install_spawn[1], None, "") if self.install_spawn else None
         gp.CHARACTER.clear()
         gp.CHARACTER.update(self.character)
-        gp.ADDPC_MODE = os.environ.get("FR_ADDPC", "other").strip().lower()
         self._time = mock.patch("time.time", return_value=UNIX_TIME + 0.5)
         self._time.start()
         return self
 
     def __exit__(self, *exc):
         self._time.stop()
-        gp._install_zone, gp._install_spawn, saved_character, gp.ADDPC_MODE = self._state
+        gp._install_zone, gp._install_spawn, saved_character = self._state
         gp.CHARACTER.clear()
         gp.CHARACTER.update(saved_character)
         for key in FR_KEYS:
@@ -168,19 +167,15 @@ def packet_vectors():
             zone_type = gp.configured_zone_type()
             spawn = gp.configured_spawn()
             character = sc.character
-            self_name = character.get("FirstName") or "Test"
             fields = (
                 cs_str(sc.label), sc.cs_fields(), cs_str(zone), zone_type, "[" + ", ".join(cs_double(v) for v in spawn) + "]",
                 cs_bytes(gp.zone_details()), cs_bytes(gp.player_blob(character)), cs_bytes(gp.send_self_to_client(character)),
                 cs_bytes(gp.add_pc(character)),
-                cs_bytes(gp.add_pc(character, guid=1, first_name=self_name, last_name=character.get("LastName") or "", offset=(0, 0, 0))),
                 array("", [cs_bytes(p) for p in gp.world_packets()], "        "),
                 array("", [cs_bytes(p) for p in gp.zone_done_packets()], "        "),
                 cs_bytes(gp.game_time_sync()),
                 array("", [cs_bytes(p) for p in gp.equipment_packets(character)], "        "))
-        items.append("new PacketScenario(%s, %s, %s, %d, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)" % (
-            fields[0], fields[1], fields[2], fields[3], fields[4], fields[5], fields[6], fields[7], fields[8], fields[9],
-            fields[10], fields[11], fields[12], fields[13]))
+        items.append("new PacketScenario(%s, %s, %s, %d, %s, %s, %s, %s, %s, %s, %s, %s, %s)" % fields)
     return items
 
 
@@ -350,18 +345,13 @@ def short_session():
 
 
 CONVERSATIONS = [
-    (Scenario("full session, extras, other AddPc", {"FR_EXTRA": "1", "FR_ADDPC": "other"}, "FabledRealms", (-128.0, -128.0),
-              CHARACTER_FULL), full_session),
-    (Scenario("both AddPc, no time, no welcome", {"FR_ADDPC": "both", "FR_TIME": "0", "FR_WELCOME": "0", "FR_ZONE": "Elsewhere"}, None, None,
+    (Scenario("full session, extras", {"FR_EXTRA": "1"}, "FabledRealms", (-128.0, -128.0), CHARACTER_FULL), full_session),
+    (Scenario("no time, no welcome", {"FR_TIME": "0", "FR_WELCOME": "0", "FR_ZONE": "Elsewhere"}, None, None,
               CHARACTER_FULL), short_session),
-    (Scenario("self AddPc with an empty name", {"FR_ADDPC": "self", "FR_SPAWN": "1.5,2.5,3.5"}, "FabledRealms", (1.0, 2.0),
-              CHARACTER_JUNK), short_session),
-    (Scenario("no AddPc", {"FR_ADDPC": "none"}, None, None, {}), short_session),
-    (Scenario("dressed, both AddPc", {"FR_ADDPC": "both"}, None, None, CHARACTER_DRESSED), short_session),
-    (Scenario("dressed, no AddPc", {"FR_ADDPC": "none"}, None, None, CHARACTER_DRESSED), short_session),
-    (Scenario("dressed, FR_EQUIP=0", {"FR_ADDPC": "none", "FR_EQUIP": "0"}, None, None, CHARACTER_DRESSED), short_session),
-    (Scenario("empty FR_ADDPC sends nothing either", {"FR_ADDPC": ""}, None, None, {}), short_session),
-    (Scenario("unknown FR_ADDPC sends nothing either", {"FR_ADDPC": "Everything"}, None, None, {}), short_session),
+    (Scenario("empty name", {"FR_SPAWN": "1.5,2.5,3.5"}, "FabledRealms", (1.0, 2.0), CHARACTER_JUNK), short_session),
+    (Scenario("no character data", {}, None, None, {}), short_session),
+    (Scenario("dressed", {}, None, None, CHARACTER_DRESSED), short_session),
+    (Scenario("dressed, FR_EQUIP=0", {"FR_EQUIP": "0"}, None, None, CHARACTER_DRESSED), short_session),
 ]
 
 
@@ -431,8 +421,7 @@ def generate():
     add("    byte[] ZoneDetails,")
     add("    byte[] PlayerBlob,")
     add("    byte[] SendSelf,")
-    add("    byte[] AddPcOther,")
-    add("    byte[] AddPcSelf,")
+    add("    byte[] AddPc,")
     add("    byte[][] WorldPackets,")
     add("    byte[][] ZoneDone,")
     add("    byte[] TimeSync,")

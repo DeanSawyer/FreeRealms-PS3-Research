@@ -36,7 +36,7 @@ dotnet run --project src\ps3\Sanctuary.Ps3.Server -- --client "C:\Path\To\NPUA30
 
 The options are those of the Python script (`--client`, `--digest`, `--match-local`, `--extra-client`, `--codec`, `--serve-mismatch`,
 `--server-list-variant`, `--existing-character`, `--account-status`, `--xml-style`, `--gateway-port`, `--advertise`, `--upstream`,
-`--no-dns`, `--bind`, `--port`) and so are the gateway switches `FR_ZONE`, `FR_ZONE_TYPE`, `FR_SPAWN`, `FR_SPAWN_Y`, `FR_ADDPC`,
+`--no-dns`, `--bind`, `--port`) and so are the gateway switches `FR_ZONE`, `FR_ZONE_TYPE`, `FR_SPAWN`, `FR_SPAWN_Y`,
 `FR_WELCOME`, `FR_EXTRA`, `FR_TIME`. [`bootstrap/README.md`](../../bootstrap/README.md) explains them; `--help` lists them.
 
 To test it with RPCS3 the way the Python server is tested, download the artifact `Sanctuary.Ps3.Server-win-x64` of a successful run of the

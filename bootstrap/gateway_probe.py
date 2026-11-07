@@ -50,7 +50,6 @@ PACKET_NAMES = {
     26: "Ordered", 27: "Ordered2", 28: "PortAlive", 29: "UnreachableConnection", 30: "RequestRemap",
 }
 MAX_LOGGED_BYTES = 160
-ADDPC_MODE = os.environ.get("FR_ADDPC", "other").strip().lower()   # other (default) | self | both | none
 READY_FALLBACK_SECONDS = 20
 KEEPALIVE_SECONDS = 5
 
@@ -365,8 +364,10 @@ def configured_spawn():
 SPAWN_ROTATION = (0.5531712, 0.0, 0.8330676, 0.0)
 
 
-def add_pc(character=None, guid=2, first_name="Helper", last_name="", offset=(2.0, 0.0, 2.0)):
-    """PlayerUpdate (opcode 35) sub-opcode 1, AddPc: put a player into the world.
+def add_pc(character=None, guid=1):
+    """PlayerUpdate (opcode 35) sub-opcode 1, AddPc: put your own character (guid 1, the creator's name, at the spawn) into
+    the world. The default flow needs it: without an AddPc the client never leaves the loading screen (its WaitForWorldReady
+    waits for the characters it needs), and the second test character that used to stand next to the player is gone.
 
     The field order was read from the PS3 client's own parser with tools/ppc_trace.py. It follows Clover's
     PlayerUpdatePacketAddPc except that this build has no IsReferee flag, a three field title (no icon id) and
@@ -374,6 +375,8 @@ def add_pc(character=None, guid=2, first_name="Helper", last_name="", offset=(2.
     Equipment (the attachment list) is empty for now, so the character is drawn without clothes.
     """
     c = character or {}
+    first_name = c.get("FirstName") or "Test"
+    last_name = c.get("LastName") or ""
     head = f"<race>_<gender>_head_{HEAD_NAMES.get(_int(c.get('Head'), 1), 'caucasian')}.adr"
     hair = "<race>_<gender>_hair_eyebrows_bald.adr"
     skin = f"skintone{_int(c.get('SkinTone'), 1) or 1}"
@@ -383,7 +386,7 @@ def add_pc(character=None, guid=2, first_name="Helper", last_name="", offset=(2.
     out += struct.pack("<iii", 0, 0, 0) + _string(first_name) + _string(last_name)   # name ids, names
     out += struct.pack("<i", _int(c.get("Model"), 1))
     out += struct.pack("<iii", 0, 0, 0)                      # chat bubble: foreground, background, size
-    out += struct.pack("<4f", x + offset[0], y + offset[1], z + offset[2], w)
+    out += struct.pack("<4f", x, y, z, w)
     out += struct.pack("<4f", *SPAWN_ROTATION)
     out += struct.pack("<i", 0)                              # attachments (equipment): none yet
     out += _string(head) + _string(hair)
@@ -592,20 +595,13 @@ class GatewayProbe:
             self.send_reliable(addr, tunneled(inner), channel)
 
     def spawn_characters(self, addr, channel):
-        """Send AddPc packets after the client finished loading (the server marks the player visible then), then the
-        creator's clothes."""
+        """Send your character's AddPc after the client finished loading (the server marks the player visible then),
+        then the creator's clothes."""
         if addr not in self.sessions:
             return
-        packets = []
-        if ADDPC_MODE in ("self", "both"):
-            c = CHARACTER or {}
-            packets.append(("your character (guid 1)", add_pc(c, guid=1, first_name=c.get("FirstName") or "Test",
-                                                               last_name=c.get("LastName") or "", offset=(0, 0, 0))))
-        if ADDPC_MODE in ("other", "both"):
-            packets.append(("a second test character (guid 2)", add_pc(CHARACTER, guid=2)))
-        for label, packet in packets:
-            LOG.info("gateway: AddPc for %s (%d bytes)", label, len(packet))
-            self.send_reliable(addr, tunneled(packet), channel)
+        packet = add_pc(CHARACTER)
+        LOG.info("gateway: AddPc for your character (guid 1) (%d bytes)", len(packet))
+        self.send_reliable(addr, tunneled(packet), channel)
         self.send_equipment(addr, channel)
 
     def send_equipment(self, addr, channel):
@@ -730,7 +726,7 @@ class GatewayProbe:
     def on_sanctuary_packet(self, addr, channel, opcode, inner_op, inner):
         """FR_SANCTUARY=1: answer the client as Sanctuary does (bootstrap/sanctuary_flow.py). Sanctuary answers the
         mini-game list and the game time, never the matchmaking queue list (141/1), and sends no AddPc for a lone
-        player (FR_ADDPC, when set, still adds one after FinishedLoading). Inventory requests (42) and job switches (26/13)
+        player. Inventory requests (42) and job switches (26/13)
         go to the session's bootstrap/inventory.py, as Sanctuary's handlers."""
         if inner_op in (42, 26):
             inv = getattr(self, "inventories", {}).get(addr)
@@ -757,8 +753,7 @@ class GatewayProbe:
             self.send_named(addr, channel, "ClientFinishedLoading", sanctuary_flow.finished_loading_packets(
                 1, x, z, PROFILE_ID))
             # The clothes are not Sanctuary's: its PC client reads them from the items in the player data.
-            later = self.spawn_characters if os.environ.get("FR_ADDPC", "").strip() else self.send_equipment
-            threading.Timer(1.0, later, (addr, channel)).start()
+            threading.Timer(1.0, self.send_equipment, (addr, channel)).start()
 
     def record(self, addr, label, payload):
         shown = payload[:MAX_LOGGED_BYTES]

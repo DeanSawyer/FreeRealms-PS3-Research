@@ -445,34 +445,18 @@ public sealed class Ps3Gateway
         }
     }
 
-    /// <summary>Sends AddPc packets after the client finished loading (the server marks the player visible then), then the creator's clothes.</summary>
+    /// <summary>Sends your character's AddPc after the client finished loading (the server marks the player visible then), then the creator's clothes.</summary>
     private void SpawnCharacters(IPEndPoint peer, int channel)
     {
-        var mode = _world.Options.AddPc;
-
         if (!_sessions.ContainsKey(peer))
             return;
 
         var character = _characters.Snapshot();
-        var packets = new List<(string Label, byte[] Packet)>();
+        var addPc = Ps3Packets.AddPc(character, _world);
 
-        if (mode is AddPcMode.Self or AddPcMode.Both)
-        {
-            var first = character.TryGetValue("FirstName", out var firstName) && firstName.Length > 0 ? firstName : "Test";
-            var last = character.TryGetValue("LastName", out var lastName) ? lastName : string.Empty;
+        _logger?.LogInformation("gateway: AddPc for your character (guid 1) ({Bytes} bytes)", addPc.Length);
 
-            packets.Add(("your character (guid 1)", Ps3Packets.AddPc(character, _world, guid: 1, firstName: first, lastName: last, offset: (0, 0, 0))));
-        }
-
-        if (mode is AddPcMode.Other or AddPcMode.Both)
-            packets.Add(("a second test character (guid 2)", Ps3Packets.AddPc(character, _world)));
-
-        foreach (var (label, packet) in packets)
-        {
-            _logger?.LogInformation("gateway: AddPc for {Label} ({Bytes} bytes)", label, packet.Length);
-
-            SendReliable(peer, Ps3Packets.Tunneled(packet), channel);
-        }
+        SendReliable(peer, Ps3Packets.Tunneled(addPc), channel);
 
         var equipment = Ps3Packets.EquipmentPackets(character, _world.Options);
 

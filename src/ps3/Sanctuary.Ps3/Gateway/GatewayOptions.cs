@@ -4,22 +4,6 @@ using System.Globalization;
 
 namespace Sanctuary.Ps3.Gateway;
 
-/// <summary>Which AddPc packets the gateway sends once the client has finished loading (<c>FR_ADDPC</c>).</summary>
-public enum AddPcMode
-{
-    /// <summary>Nothing (also what an unknown value means).</summary>
-    None,
-
-    /// <summary>A second test character, guid 2 (the default).</summary>
-    Other,
-
-    /// <summary>The player's own character, guid 1.</summary>
-    Self,
-
-    /// <summary>Both.</summary>
-    Both,
-}
-
 /// <summary>
 /// The switches of the game-server stand-in. They are the <c>FR_*</c> environment variables of the Python probe, which the test
 /// scripts set; <see cref="FromEnvironment"/> reads the same names.
@@ -40,9 +24,6 @@ public sealed record GatewayOptions
 
     /// <summary><c>FR_SPAWN_Y</c>: height used with a position picked from the packs (the terrain height there is unknown).</summary>
     public double SpawnY { get; init; } = 400.0;
-
-    /// <summary><c>FR_ADDPC</c>.</summary>
-    public AddPcMode AddPc { get; init; } = AddPcMode.Other;
 
     /// <summary><c>FR_WELCOME</c> (not 0): send LoadWelcomeScreen. Layout from Clover, untested on the PS3 client.</summary>
     public bool Welcome { get; init; } = true;
@@ -95,9 +76,6 @@ public sealed record GatewayOptions
         if (rawY.Length > 0 && double.TryParse(rawY, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedY))
             spawnY = parsedY;
 
-        // Unset means the default; set to anything else (even empty) selects exactly that mode, and an unknown mode sends nothing.
-        var mode = Env(get, "FR_ADDPC", "other").ToLowerInvariant();
-
         return new GatewayOptions
         {
             Zone = Value("FR_ZONE") is { Length: > 0 } zone ? zone : null,
@@ -105,13 +83,6 @@ public sealed record GatewayOptions
             Spawn = spawn,
             SpawnLocal = spawnLocal,
             SpawnY = spawnY,
-            AddPc = mode switch
-            {
-                "other" => AddPcMode.Other,
-                "self" => AddPcMode.Self,
-                "both" => AddPcMode.Both,
-                _ => AddPcMode.None,
-            },
             Welcome = Env(get, "FR_WELCOME", "1") != "0",
             Extra = Value("FR_EXTRA") == "1",
             TimeSync = Env(get, "FR_TIME", "1") != "0",

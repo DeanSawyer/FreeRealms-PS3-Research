@@ -179,19 +179,15 @@ public static class Ps3Packets
     }
 
     /// <summary>
-    /// PlayerUpdate (opcode 35) sub-opcode 1, AddPc: put a player into the world. Follows Clover's PlayerUpdatePacketAddPc except that this
-    /// build has no IsReferee flag, a three field title (no icon id) and nothing after the name offset. Equipment is empty for now, so the
-    /// character is drawn without clothes.
+    /// PlayerUpdate (opcode 35) sub-opcode 1, AddPc: put your own character (guid 1, the creator's name, at the spawn) into the world.
+    /// The default flow needs it: without an AddPc the client never leaves the loading screen (its WaitForWorldReady waits for the
+    /// characters it needs). Follows Clover's PlayerUpdatePacketAddPc except that this build has no IsReferee flag, a three field title
+    /// (no icon id) and nothing after the name offset. Equipment is empty here; the clothes follow in <see cref="EquipmentPackets"/>.
     /// </summary>
-    public static byte[] AddPc(
-        IReadOnlyDictionary<string, string> character,
-        GatewayWorld world,
-        int guid = 2,
-        string firstName = "Helper",
-        string lastName = "",
-        (double X, double Y, double Z)? offset = null)
+    public static byte[] AddPc(IReadOnlyDictionary<string, string> character, GatewayWorld world, int guid = 1)
     {
-        var shift = offset ?? (2.0, 0.0, 2.0);
+        var firstName = character.TryGetValue("FirstName", out var first) && first.Length > 0 ? first : "Test";
+        var lastName = character.TryGetValue("LastName", out var last) ? last : string.Empty;
         var spawn = world.Spawn;
         var head = $"<race>_<gender>_head_{HeadName(character)}.adr";
         const string hair = "<race>_<gender>_hair_eyebrows_bald.adr";
@@ -201,7 +197,7 @@ public static class Ps3Packets
             .I32(0).I32(0).I32(0).Str(firstName).Str(lastName) // name ids, names
             .I32(Number(character, "Model", 1))
             .I32(0).I32(0).I32(0) // chat bubble: foreground, background, size
-            .F32(spawn.X + shift.X).F32(spawn.Y + shift.Y).F32(spawn.Z + shift.Z).F32(spawn.W)
+            .F32(spawn.X).F32(spawn.Y).F32(spawn.Z).F32(spawn.W)
             .F32(SpawnRotation.X).F32(SpawnRotation.Y).F32(SpawnRotation.Z).F32(SpawnRotation.W)
             .I32(0) // attachments (equipment): none yet
             .Str(head).Str(hair)
