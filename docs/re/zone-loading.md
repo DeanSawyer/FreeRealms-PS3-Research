@@ -473,6 +473,10 @@ manifest's crc; only 1 of 54,146 local assets differs from the manifest), `Order
 wake-up delay of 200 froze the game at character creation. The bad pointer is `0xc0` every time, which looks like the address of a field
 at offset `0xc0` in an object that does not exist, reached through both a shader constant and a texture slot. `ZoneDetails` names no sky
 (as Sanctuary does for FabledRealms, but that is the 2014 PC client); `FR_SKY` sets one to test whether the 2011 PS3 build needs it.
+
+**Fixed (2026-11-07).** It does. With `FR_SKY=sky_wilds24.xml` the camera can look at the sky without a crash (C# server, Sanctuary
+flow; the run before, `fr_test_20261107_033337`, crashed reading `0x108` at `0x7845a4`: the renderer's current material at `+0x150`
+was null, so the sky had no material until the zone named it). Both servers now name `sky_wilds24.xml` by default.
 The render chain is thread entry `0x7ea570` -> `0xa60fe4` -> `0x35840` -> `0x7519c0` -> scene walk `0xcc73b0` (recursive) -> `0xcc6e50`
 -> `0x784518`, whose command list is at renderer `+3324` (count at `+3320`) and parameter table at `+0x2b8`.
 

@@ -68,7 +68,7 @@ public sealed class GatewayVectorTests
             var character = Character(scenario.Character);
             var label = scenario.Label;
 
-            AssertSame(scenario.ZoneDetails, Ps3Packets.ZoneDetails(world.Zone, world.ZoneType), label + ": ZoneDetails");
+            AssertSame(scenario.ZoneDetails, Ps3Packets.ZoneDetails(world.Zone, world.ZoneType, sky: world.Options.Sky), label + ": ZoneDetails");
             AssertSame(scenario.PlayerBlob, Ps3Packets.PlayerBlob(character, world, GatewayVectors.UnixTime), label + ": player blob");
             AssertSame(scenario.SendSelf, Ps3Packets.SendSelfToClient(character, world, GatewayVectors.UnixTime), label + ": SendSelfToClient");
             AssertSame(scenario.AddPc, Ps3Packets.AddPc(character, world), label + ": AddPc (guid 1)");
@@ -229,7 +229,8 @@ public sealed class GatewayVectorTests
 
         Assert.IsFalse(defaults.Sanctuary);
         Assert.AreEqual(0, defaults.Skip.Count);
-        Assert.AreEqual(string.Empty, defaults.Sky);
+        Assert.AreEqual(GatewayOptions.DefaultSky, defaults.Sky);
+        Assert.AreEqual(string.Empty, GatewayOptions.FromEnvironment(name => Get(new() { ["FR_SKY"] = " " }, name)).Sky, "FR_SKY= turns the sky off");
 
         var sanctuary = GatewayOptions.FromEnvironment(name => Get(new() { ["FR_SANCTUARY"] = " 1 ", ["FR_SKIP"] = " Mana,, SetClientArea ", ["FR_SKY"] = " sky.xml " }, name));
 
