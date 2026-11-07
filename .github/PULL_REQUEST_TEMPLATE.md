@@ -4,12 +4,13 @@
 
 ## Evidence
 
-<!-- For a finding: the game.elf address(es) or the test run (date, command, log lines) that support it.
-     Mark hypotheses as hypotheses. -->
+<!-- For a finding or a protocol change: the game.elf address(es) or the test run (date, settings, log lines, report zip)
+     that support it. Mark hypotheses as hypotheses. -->
 
 ## Checklist
 
 - [ ] No game files, keys, manifests, digests or unredacted logs are included
-- [ ] `python tools/check_docs.py` and `python -m compileall -q bootstrap tools` pass
-- [ ] New addresses are in `docs/re/addresses.csv`; new tools are listed in `tools/README.md`
+- [ ] `dotnet test src/ps3/Sanctuary.Ps3.slnx` passes
+- [ ] If what the server sends changed on purpose, the affected `*Vectors.g.cs` are updated and the reason is above
+- [ ] New addresses are in `docs/re/addresses.csv`
 - [ ] Docs separate observed facts from hypotheses

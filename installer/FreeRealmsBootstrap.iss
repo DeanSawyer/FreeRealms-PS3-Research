@@ -1,5 +1,5 @@
-#define MyAppName "Free Realms PS3 Bootstrap Manager"
-#define MyAppVersion "0.3.0"
+#define MyAppName "Free Realms PS3 Server Manager"
+#define MyAppVersion "1.0.0"
 #define MyAppExeName "FreeRealms.Bootstrap.exe"
 [Setup]
 AppId={{B2EF195C-88CB-4C27-8E84-391DE652C450}
@@ -23,4 +23,4 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Launch bootstrap manager"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "Launch the server manager"; Flags: nowait postinstall skipifsilent shellexec

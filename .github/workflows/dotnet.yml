@@ -1,25 +1,17 @@
 name: C# server (Sanctuary.Ps3)
 
-# Builds and tests the C# port in src/ps3. The tests compare the C# code with answers recorded from the Python
-# reference (tools/gen_ps3_vectors.py), so the two implementations cannot drift apart unnoticed.
+# Builds and tests the PS3 server in src/ps3. Besides the unit tests, the tests replay answers recorded from the original
+# reference server (*Vectors.g.cs), so a change in what the server sends turns the build red.
 
 on:
   push:
     branches: [main]
     paths:
       - "src/ps3/**"
-      - "bootstrap/**"
-      - "tools/gen_ps3_vectors.py"
-      - "tools/gen_ps3_web_vectors.py"
-      - "tools/gen_ps3_gateway_vectors.py"
       - ".github/workflows/dotnet.yml"
   pull_request:
     paths:
       - "src/ps3/**"
-      - "bootstrap/**"
-      - "tools/gen_ps3_vectors.py"
-      - "tools/gen_ps3_web_vectors.py"
-      - "tools/gen_ps3_gateway_vectors.py"
       - ".github/workflows/dotnet.yml"
   workflow_dispatch:
 
@@ -41,17 +33,6 @@ jobs:
           # The projects target net9.0 like the Sanctuary solution, so the 9.0 runtime must be there as well.
           dotnet-version: |
             9.0.x
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Reference vectors are up to date
-        working-directory: .
-        run: |
-          python tools/gen_ps3_vectors.py --check
-          python tools/gen_ps3_web_vectors.py --check
-          python tools/gen_ps3_gateway_vectors.py --check
 
       - name: Restore
         run: dotnet restore Sanctuary.Ps3.slnx
@@ -90,10 +71,8 @@ jobs:
           dll=$(ls Sanctuary.Ps3.Server/bin/*/*/Sanctuary.Ps3.Server.dll | head -1)
           client=$(mktemp -d)/client
           mkdir -p "$client/USRDIR/Digests"
-          python3 - "$client/USRDIR/Digests/NPUA30048.soe" <<'PY'
-          import sys, zlib
-          open(sys.argv[1], "wb").write(zlib.compress(b"digest body " * 20, 9) + bytes(129))
-          PY
+          # A tiny digest: a zlib stream and a 129-byte trailer.
+          perl -MIO::Compress::Deflate=deflate -e 'my $in = "digest body " x 20; deflate(\$in => \my $out) or die; print $out, "\0" x 129' > "$client/USRDIR/Digests/NPUA30048.soe"
 
           dotnet "$dll" --help | head -1 | grep -q '^usage:' || { echo "::error::--help did not print the usage"; exit 1; }
 

@@ -13,12 +13,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The item definitions the server sends (tools/gen_item_definitions.py); read by Gateway/Items.cs. -->
-    <EmbeddedResource Include="..\..\..\bootstrap\data\item_definitions.tsv.gz" LogicalName="Sanctuary.Ps3.item_definitions.tsv.gz" Link="Gateway\item_definitions.tsv.gz" />
-    <!-- Sanctuary's item class and category tables (bootstrap/reference_data.py); read by Gateway/ReferenceData.cs. -->
-    <EmbeddedResource Include="..\..\..\bootstrap\data\ItemClasses.txt" LogicalName="Sanctuary.Ps3.ItemClasses.txt" Link="Gateway\ItemClasses.txt" />
-    <EmbeddedResource Include="..\..\..\bootstrap\data\ItemCategories.txt" LogicalName="Sanctuary.Ps3.ItemCategories.txt" Link="Gateway\ItemCategories.txt" />
-    <EmbeddedResource Include="..\..\..\bootstrap\data\ItemCategoryGroups.txt" LogicalName="Sanctuary.Ps3.ItemCategoryGroups.txt" Link="Gateway\ItemCategoryGroups.txt" />
+    <!-- The item definitions the server sends (from Sanctuary's Resources/ClientItemDefinitions.json); read by Gateway/Items.cs. -->
+    <EmbeddedResource Include="Data\item_definitions.tsv.gz" LogicalName="Sanctuary.Ps3.item_definitions.tsv.gz" />
+    <!-- Sanctuary's item class and category tables (Resources/*.txt, unchanged); read by Gateway/ReferenceData.cs. -->
+    <EmbeddedResource Include="Data\ItemClasses.txt" LogicalName="Sanctuary.Ps3.ItemClasses.txt" />
+    <EmbeddedResource Include="Data\ItemCategories.txt" LogicalName="Sanctuary.Ps3.ItemCategories.txt" />
+    <EmbeddedResource Include="Data\ItemCategoryGroups.txt" LogicalName="Sanctuary.Ps3.ItemCategoryGroups.txt" />
   </ItemGroup>
 
 </Project>

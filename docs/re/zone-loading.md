@@ -414,7 +414,7 @@ graph of the loading screen (callers of `0x7ea164`, `0x182834`, `0x1441b0`, `0xc
 EdenFPS (Clover community, 3 October 2026) showed the PS3 client in the world on RPCS3 with a modified Sanctuary server. Eden named
 only one change, an exact `SendSelfToClient` for the build, and the character was drawn without clothes, so empty item data does not
 hold the world back. The difference that remains between that setup and this server is everything else Sanctuary sends around the zone
-change. `FR_SANCTUARY=1` (or `tools/run_test.py --sanctuary`) sends exactly that, built in [`bootstrap/sanctuary_flow.py`](../../bootstrap/sanctuary_flow.py)
+change. `FR_SANCTUARY=1` (or `tools/run_test.py --sanctuary`) sends exactly that, built in [`bootstrap/sanctuary_flow.py`](https://github.com/DeanSawyer/FreeRealms-PS3-Research/blob/python-archive/bootstrap/sanctuary_flow.py)
 from Sanctuary's own serializers:
 
 | When | Sanctuary sends (and now so does this server) | What this server sent before |

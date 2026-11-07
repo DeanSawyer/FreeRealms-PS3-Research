@@ -2,7 +2,7 @@
 
 ## Scope
 
-This repository contains a **research test server** (`bootstrap/`) that redirects DNS and serves HTTP and UDP to a game
+This repository contains a **research test server** (`src/ps3`, run by the Server Manager) that redirects DNS and serves HTTP and UDP to a game
 client on a test machine. It has no authentication and is **not** hardened for production or for the open internet.
 
 * Run it only on a machine and network you control, with the firewall limited to the test client.

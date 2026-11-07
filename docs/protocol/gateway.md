@@ -1,7 +1,9 @@
 # PS3 game-server (gateway) connection
 
-What the PS3 client does after `character/login`, observed with `bootstrap/gateway_probe.py` in RPCS3. The same behaviour is implemented in C# in
-[`src/ps3/Sanctuary.Ps3/Gateway`](../../src/ps3/Sanctuary.Ps3/Gateway), which CI compares with the Python code packet by packet.
+What the PS3 client does after `character/login`, observed in RPCS3. It is implemented in the C# server in
+[`src/ps3/Sanctuary.Ps3/Gateway`](../../src/ps3/Sanctuary.Ps3/Gateway), whose tests replay the recorded conversations packet by packet.
+The notes name the Python reference server and tools the findings were first made with (`bootstrap/…`, `tools/ppc_trace.py`);
+they are on the [`python-archive`](https://github.com/DeanSawyer/FreeRealms-PS3-Research/tree/python-archive) branch.
 
 ## Transport
 
