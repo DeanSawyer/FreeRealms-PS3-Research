@@ -55,14 +55,14 @@ public static class Clothing
     }
 
     /// <summary>
-    /// PlayerUpdate (35) sub-opcode 6, EquipItemChange: put one piece on character <paramref name="guid"/>. The PS3 client (handler
-    /// 0x112c24, then 0x11daec) reads the guid, the item id, the attachment, the profile id, the item class and the wield type.
-    /// Every piece in the table is item class 1.
+    /// ClientUpdate (38) sub-opcode 5, EquipItem: put one piece on your own character in profile <paramref name="profileId"/>, as
+    /// Sanctuary tells your client when you equip something. The PS3 client (handler 0xfa600, then 0xfec54) reads the item id, the
+    /// attachment, the profile id and one unused int; the PC packet's trailing Equip bool is not there.
     /// </summary>
-    public static byte[] EquipItemChange(ulong guid, int itemId, Attachment piece, int profileId, int itemClass = 1, int wieldType = 0) =>
-        new PacketWriter().U16(35).U16(6).U64(guid).I32(itemId)
+    public static byte[] EquipItem(int itemId, Attachment piece, int profileId) =>
+        new PacketWriter().U16(38).U16(5).I32(itemId)
             .Str(piece.Model).Str(piece.TextureAlias).Str(piece.TintAlias).I32(piece.Tint).I32(piece.CompositeEffect).I32(piece.Slot)
-            .I32(profileId).I32(itemClass).I32(wieldType)
+            .I32(profileId).I32(0)
             .ToArray();
 
     /// <summary>

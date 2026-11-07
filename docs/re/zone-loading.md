@@ -496,11 +496,14 @@ First test in RPCS3 (2026-11-06): the clothes went on, but the character first p
 before attaching, `0x11cc58`..`0x11cc8c` plays effect 4005 on the character, because on the PC this packet is what a job change
 sends (Sanctuary's `CommandPacketSetProfileHandler`).
 
-So the server now sends EquipItemChange (PlayerUpdate sub-opcode 6) instead, one per piece. Its handler (`0x112c24`) reads u16 35,
-u16 6, u64 guid, i32 item id, one attachment (the same three strings and three ints), then profile id, item class and wield type,
-and acts only on the whole packet. `0x11daec` finds the character by guid, attaches the piece when the model name is not empty,
-stores the profile id at character `+344` and sets the wield type (`0x19f410`); no 4005. Item ids are 1, 2, 3... as Sanctuary
-numbers a new character's items, the profile id is the starter job's, item class 1, wield type 0.
+Second try: EquipItemChange (PlayerUpdate sub-opcode 6), one per piece. Its handler (`0x112c24` -> `0x11daec`) plays no effect,
+but in RPCS3 nothing went on at all. In Sanctuary that packet only goes to other players (`SendTunneledToVisible` without
+`sendToSelf`); your own client gets ClientUpdate (38) sub-opcode 5, EquipItem (`InventoryPacketEquipByGuidHandler`).
+
+So the server now sends EquipItem, one per piece. The PS3 handler (`0xfa600`) reads u16 38, u16 5, i32 item id, one attachment (the
+same three strings and three ints), profile id and one unused int; the PC packet's trailing `Equip` bool is not there. It acts only
+on the whole packet: `0xfec54` calls `0x5aab0` (player, slot, attachment, profile id) and then looks the profile up and redraws when
+it is the active one. Item ids are 1, 2, 3... as Sanctuary numbers a new character's items; the profile id is the starter job's.
 
 The pieces come from `bootstrap/data/clothing_items.tsv.gz` (the tint is the creator's, or the definition's icon tint when that is
 0, as in Sanctuary's `Player.GetAttachment`), sent for guid 1 a second after `ClientFinishedLoading` in both flows. `FR_EQUIP=7`

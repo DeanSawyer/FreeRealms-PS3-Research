@@ -5,10 +5,13 @@ data/clothing_items.tsv.gz (tools/gen_clothing_items.py, from Sanctuary's Resour
 each id's model, texture alias, tint alias and slot. Sanctuary builds the same attachment in Player.GetAttachment: the
 item's tint, or the definition's icon tint when the item's tint is 0, and no composite effect.
 
-equip_item_change() is PlayerUpdate (35) sub-opcode 6, EquipItemChange: one piece. The PS3 1.77 handler (0x112c24)
-reads u16 35, u16 6, u64 guid, i32 item id, the attachment (model, texture alias and tint alias strings, then tint,
-composite effect and slot ints), then profile id, item class and wield type, and only acts when that is the whole
-packet. It finds the character by guid and attaches the piece (0x11daec), stores the profile id and sets the wield type.
+equip_item() is ClientUpdate (38) sub-opcode 5, EquipItem: one piece of your own character's outfit, what Sanctuary sends
+your client when you equip something (InventoryPacketEquipByGuidHandler). The PS3 1.77 handler (0xfa600) reads u16 38,
+u16 5, i32 item id, the attachment (model, texture alias and tint alias strings, then tint, composite effect and slot
+ints), profile id and one unused int (the PC packet's trailing Equip bool is not there), and only acts when that is the
+whole packet. Then 0xfec54 calls 0x5aab0 (player, slot, attachment, profile id) and redraws when the profile is the
+active one. PlayerUpdate sub-opcode 6 (EquipItemChange) is the same news for other players; sent about yourself it
+changed nothing in RPCS3.
 
 equipped_items_change() is sub-opcode 7, EquippedItemsChange: the whole outfit at once (handler 0x112afc, attachment
 list reader 0xb03e90). It is what Sanctuary sends when you change jobs, and the client plays the job change effect
@@ -63,15 +66,14 @@ def _string(text):
     return len(data).to_bytes(4, "little") + data
 
 
-def equip_item_change(guid, item_id, piece, profile_id, item_class=1, wield_type=0):
-    """PlayerUpdate sub-opcode 6: put one piece on character `guid` (Sanctuary's PlayerUpdatePacketEquipItemChange:
-    guid, item id, attachment, profile id, item class, wield type). Every piece in the table is item class 1."""
+def equip_item(item_id, piece, profile_id):
+    """ClientUpdate sub-opcode 5: put one piece on your character in profile `profile_id` (Sanctuary's
+    ClientUpdatePacketEquipItem without the Equip bool: item id, attachment, profile id, an unused int)."""
     model, texture, tint_alias, tint, composite, slot = piece
     out = bytearray()
-    out += (35).to_bytes(2, "little") + (6).to_bytes(2, "little") + int(guid).to_bytes(8, "little")
-    out += int(item_id).to_bytes(4, "little", signed=True)
+    out += (38).to_bytes(2, "little") + (5).to_bytes(2, "little") + int(item_id).to_bytes(4, "little", signed=True)
     out += _string(model) + _string(texture) + _string(tint_alias)
-    for value in (tint, composite, slot, profile_id, item_class, wield_type):
+    for value in (tint, composite, slot, profile_id, 0):
         out += int(value).to_bytes(4, "little", signed=True)
     return bytes(out)
 

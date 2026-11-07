@@ -142,9 +142,9 @@ public static class Ps3Packets
     }
 
     /// <summary>
-    /// The packets that dress the character in the clothes the character creator picked (<see cref="Clothing"/>): one EquipItemChange
-    /// (PlayerUpdate sub-opcode 6) per piece, item ids 1, 2, 3... as Sanctuary numbers a new character's items. With
-    /// <c>FR_EQUIP=7</c> one EquippedItemsChange (sub-opcode 7) instead; with <c>FR_EQUIP=0</c> none. The player data carries no items
+    /// The packets that dress the character in the clothes the character creator picked (<see cref="Clothing"/>): one EquipItem
+    /// (ClientUpdate sub-opcode 5) per piece, item ids 1, 2, 3... as Sanctuary numbers a new character's items. With
+    /// <c>FR_EQUIP=7</c> one EquippedItemsChange (PlayerUpdate sub-opcode 7) instead; with <c>FR_EQUIP=0</c> none. The player data carries no items
     /// yet, so this is what dresses the character; the gateway sends it after ClientFinishedLoading, once the character exists.
     /// </summary>
     public static List<byte[]> EquipmentPackets(IReadOnlyDictionary<string, string> character, GatewayOptions options, ulong guid = 1)
@@ -160,7 +160,7 @@ public static class Ps3Packets
         var packets = new List<byte[]>();
 
         for (var index = 0; index < pieces.Count; index++)
-            packets.Add(Clothing.EquipItemChange(guid, index + 1, pieces[index], ProfileId));
+            packets.Add(Clothing.EquipItem(index + 1, pieces[index], ProfileId));
 
         return packets;
     }

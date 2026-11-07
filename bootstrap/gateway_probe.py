@@ -263,9 +263,9 @@ def player_blob(character=None, guid=1):
 
 def equipment_packets(character=None, guid=1):
     """The packets that dress the character in the clothes the character creator picked (bootstrap/clothing.py): one
-    EquipItemChange (PlayerUpdate sub-opcode 6) per piece, item ids 1, 2, 3... as Sanctuary numbers a new character's
-    items. FR_EQUIP=7 sends one EquippedItemsChange (sub-opcode 7) instead, which also plays the job change effect;
-    FR_EQUIP=0 sends nothing. The player data carries no items yet, so this is what dresses the character; it is sent
+    EquipItem (ClientUpdate sub-opcode 5) per piece, item ids 1, 2, 3... as Sanctuary numbers a new character's items.
+    FR_EQUIP=7 sends one EquippedItemsChange (PlayerUpdate sub-opcode 7) instead, which also plays the job change
+    effect; FR_EQUIP=0 sends nothing. The player data carries no items yet, so this is what dresses the character; it is sent
     after ClientFinishedLoading, once the character exists."""
     mode = os.environ.get("FR_EQUIP", "1").strip()
     pieces = clothing.attachments(character or {})
@@ -273,7 +273,7 @@ def equipment_packets(character=None, guid=1):
         return []
     if mode == "7":
         return [clothing.equipped_items_change(guid, pieces)]
-    return [clothing.equip_item_change(guid, n + 1, piece, PROFILE_ID) for n, piece in enumerate(pieces)]
+    return [clothing.equip_item(n + 1, piece, PROFILE_ID) for n, piece in enumerate(pieces)]
 
 
 def send_self_to_client(character=None):
@@ -562,8 +562,8 @@ class GatewayProbe:
         packets = equipment_packets(CHARACTER)
         if not packets:
             return
-        LOG.info("gateway: dressing your character (guid 1) with %d packet(s) of sub-opcode %d: %s", len(packets),
-                 struct.unpack_from("<H", packets[0], 2)[0], ", ".join(
+        LOG.info("gateway: dressing your character (guid 1) with %d packet(s) of opcode %d/%d: %s", len(packets),
+                 *struct.unpack_from("<HH", packets[0]), ", ".join(
                      "slot %d %s" % (slot, model) for model, _t, _a, _tint, _c, slot in clothing.attachments(CHARACTER)))
         for packet in packets:
             _trace("equipment", peer=addr[0], size=len(packet))

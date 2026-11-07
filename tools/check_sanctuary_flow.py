@@ -279,18 +279,18 @@ def main():
     old = run({})
     check(len(old[3]) == 1 and old[3][0][:2] == b"\x8d\x00", "without FR_SANCTUARY the 141/1 reply is still sent")
 
-    # The creator's clothes go on a second after FinishedLoading: one EquipItemChange (PlayerUpdate sub-opcode 6) per
-    # piece; FR_EQUIP=7 sends one EquippedItemsChange (sub-opcode 7) instead.
+    # The creator's clothes go on a second after FinishedLoading: one EquipItem (ClientUpdate sub-opcode 5) per piece;
+    # FR_EQUIP=7 sends one EquippedItemsChange (PlayerUpdate sub-opcode 7) instead.
     def piece(model, texture, tint, slot):
         return (harness.string(model) + harness.string(texture) + harness.string("dyetint")
                 + struct.pack("<iii", tint, 0, slot))
     pieces = [piece("freestyle_<race>_m_chest_rolledslvshirt.adr", "freestyle-stitchup-L1", 234, 3),
               piece("freestyle_<race>_<gender>_legs_bootcutpants.adr", "freestyle-smallstitch-L1", 262, 4),
               piece("freestyle_<race>_m_feet_shoeswsocks.adr", "freestyle-suede-L1", 234, 5)]
-    want_each = [struct.pack("<HHQi", 35, 6, 1, n + 1) + p + struct.pack("<iii", 1, 1, 0) for n, p in enumerate(pieces)]
+    want_each = [struct.pack("<HHi", 38, 5, n + 1) + p + struct.pack("<ii", 1, 0) for n, p in enumerate(pieces)]
     want_all = struct.pack("<HHQi", 35, 7, 1, 3) + b"".join(pieces) + struct.pack("<i", 0)
     dressed = run({"FR_SANCTUARY": "1"}, harness.CHARACTER_DRESSED)
-    check(dressed[7] == want_each, "dressed character: one EquipItemChange per piece after FinishedLoading")
+    check(dressed[7] == want_each, "dressed character: one EquipItem per piece after FinishedLoading")
     check(dressed[6] == finished, "dressed character: FinishedLoading packets unchanged")
     check(run({"FR_SANCTUARY": "1", "FR_EQUIP": "7"}, harness.CHARACTER_DRESSED)[7] == [want_all],
           "FR_EQUIP=7 sends one EquippedItemsChange")
