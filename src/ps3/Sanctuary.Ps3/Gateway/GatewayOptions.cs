@@ -55,8 +55,14 @@ public sealed record GatewayOptions
     /// <summary><c>FR_SKIP</c>: names of Sanctuary flow packets to leave out (lower case; "Name,Name").</summary>
     public IReadOnlySet<string> Skip { get; init; } = new HashSet<string>();
 
-    /// <summary><c>FR_SKY</c>: the sky named in ZoneDetails (empty by default, as Sanctuary sends for FabledRealms).</summary>
-    public string Sky { get; init; } = string.Empty;
+    /// <summary>The FabledRealms sky the client opens; naming it in ZoneDetails stops the render crash when the camera looks up.</summary>
+    public const string DefaultSky = "sky_wilds24.xml";
+
+    /// <summary>
+    /// <c>FR_SKY</c>: the sky named in ZoneDetails, <see cref="DefaultSky"/> unless set (<c>FR_SKY=</c> with nothing sends none). Sanctuary
+    /// sends none for FabledRealms, but without one the PS3 client's renderer crashes on the sky (docs/re/zone-loading.md).
+    /// </summary>
+    public string Sky { get; init; } = DefaultSky;
 
     /// <summary>Reads the <c>FR_*</c> variables through <paramref name="get"/> (null means unset). Problems are reported to <paramref name="warn"/>.</summary>
     public static GatewayOptions FromEnvironment(Func<string, string?> get, Action<string>? warn = null)
@@ -102,7 +108,7 @@ public sealed record GatewayOptions
             Items = Env(get, "FR_ITEMS", "1") != "0",
             Sanctuary = Value("FR_SANCTUARY") == "1",
             Skip = ParseSkip(get("FR_SKIP")),
-            Sky = Value("FR_SKY"),
+            Sky = Env(get, "FR_SKY", DefaultSky),
             EquipPacket = Env(get, "FR_EQUIP", "1") switch
             {
                 "0" => 0,
