@@ -62,6 +62,36 @@ public sealed class GatewayTests
         new PacketWriter().U16(1).Str("0").U64(1).Str("1.77").Str("name").ToArray();
 
     [TestMethod]
+    public void TheSessionSnapshotShowsEachConnectedClient()
+    {
+        var (gateway, _) = Make();
+
+        Assert.AreEqual(0, gateway.SessionSnapshot().Count);
+
+        gateway.Receive(Connect(), Client, TimeSpan.FromSeconds(1));
+        gateway.Receive(Reliable(0, 0, Login()), Client, TimeSpan.FromSeconds(3));
+
+        var session = gateway.SessionSnapshot().Single();
+
+        Assert.AreEqual(Client, session.Peer);
+        Assert.AreEqual(TimeSpan.FromSeconds(1), session.ConnectedAt);
+        Assert.AreEqual(TimeSpan.FromSeconds(3), session.LastPacketAt);
+        Assert.AreEqual(2, session.Packets);
+        Assert.IsTrue(session.LoggedIn);
+        Assert.IsFalse(session.InWorld);
+        Assert.AreEqual("name", session.OnlineId);
+        Assert.AreEqual("1.77", session.ClientVersion);
+        Assert.AreEqual(Jobs.StarterJob, session.ActiveJob);
+        Assert.AreEqual(TimeSpan.FromSeconds(3), gateway.Clock);
+
+        gateway.Receive([0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06], Client, TimeSpan.FromSeconds(4));
+
+        Assert.AreEqual(0, gateway.SessionSnapshot().Count, "a Terminate ends the session");
+        Assert.AreEqual("Archer", Jobs.NameOf(35));
+        Assert.AreEqual("Job 999", Jobs.NameOf(999));
+    }
+
+    [TestMethod]
     public void ConnectIsAnsweredWithAConfirmThatEchoesTheCodeAndSize()
     {
         var (gateway, capture) = Make();

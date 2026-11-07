@@ -3,7 +3,7 @@
 Everything here was read out of `game.elf` (NPUA30048, build 1.77). Function and data addresses are virtual
 addresses; they are listed with the check text that proves them in [`addresses.csv`](addresses.csv) and re-verified
 against the analysed binary by `tools/re/verify_addresses.py`. Readers for every format below are in
-[`bootstrap/assetlib.py`](../../bootstrap/assetlib.py).
+[`bootstrap/assetlib.py`](https://github.com/DeanSawyer/FreeRealms-PS3-Research/blob/python-archive/bootstrap/assetlib.py).
 
 ## Pack files — `assets_ps3_NNN.pack`
 

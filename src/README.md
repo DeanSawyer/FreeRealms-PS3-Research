@@ -1,58 +1,64 @@
-# Windows manager (C# preview)
+# Free Realms PS3 Server Manager
 
-A **.NET 10 / WPF** desktop wrapper around the PS3 bootstrap server: editable settings
-(client folder, bind and advertised address, port, DNS on/off, describe local files in the digest), **Start/Stop** buttons and a live
-log window. It runs the C# server ([`ps3/`](ps3/README.md)) inside the manager; a checkbox switches to the Python
-[reference server](../bootstrap/README.md), which needs Python 3 on `PATH`.
+A Windows app (**.NET 10, WPF**) that runs the PS3 server ([`ps3/`](ps3/README.md)) in-process and shows what it is doing:
+start and stop, the state of each service, connected players, the gameplay switches, a filtered live log, test runs in RPCS3
+and diagnostics reports.
 
-> [!WARNING]
-> **Preview.** The installer builds successfully in CI, but the manager has not been validated end to end against RPCS3.
-> It does not pass `--digest` or `--extra-client`; for a full test use [`tools/run_test.py`](../tools/README.md) (Python server).
+## Install
 
-## Requirements
+1. Download `FreeRealmsPS3Bootstrap-Setup.exe` from the [latest release](https://github.com/DeanSawyer/FreeRealms-PS3-Research/releases).
+   Between releases, open a successful run of the
+   [Windows build](https://github.com/DeanSawyer/FreeRealms-PS3-Research/actions/workflows/windows-build.yml) and download the
+   artifact `FreeRealmsPS3Bootstrap-Windows-Setup` (GitHub requires a login for artifacts).
+2. Run the installer. The manager asks for administrator rights when it starts, because the DNS stand-in binds UDP 53 and the
+   web server TCP 80.
 
-* Windows. Python 3 on `PATH` (`python` or `py`) is needed only for the Python reference server option; the installer does not bundle it.
-* Administrator rights to bind ports 53 and 80; close any other service using them first.
-* Your own `NPUA30048` client folder. No game files are packaged.
+No game files are packaged; you need your own `NPUA30048` client folder.
 
-## Download a CI installer
+## Pages
 
-1. Open the [Windows installer workflow](https://github.com/DeanSawyer/FreeRealms-PS3-Research/actions/workflows/windows-build.yml).
-2. Open a **successful** run and download the artifact `FreeRealmsPS3Bootstrap-Windows-Setup`.
-3. Extract the ZIP and run `FreeRealmsPS3Bootstrap-Setup.exe`.
+| Page | What it does |
+| :--- | :--- |
+| **Dashboard** | **Start server** / **Stop server**; a card for each service (DNS, web server, game server) with its state and port; uptime, connected players, packets received and the last character created; the recent activity. **Test run in RPCS3** starts the server if needed, then RPCS3 on the game, and saves a report when RPCS3 is closed. |
+| **Players** | Every connected PS3 client, refreshed each second: online id and character, address, current job, state (connecting, logged in, in world), packets received, time since the last packet and since it connected. |
+| **Gameplay** | **Sanctuary flow** (what the PC server Sanctuary sends, with inventory and job switching; on by default), **starter items**, **jobs** (`all` or a list of ids), **sky** (keep `sky_wilds24.xml`), **spawn point**, how the creator's clothes go on, and the basic flow's welcome screen and game time. **Save and restart server** applies them. |
+| **Settings** | Client folder; an optional second client folder and original patch digest; whether the digest describes your local files; `rpcs3.exe` and `game.elf`; restoring the original game scripts before a test run; listen address, the address the PS3 connects to, the web and game server ports, and the DNS stand-in. |
+| **Logs** | The live log of every service. Search, filter by level (all, warnings, errors) and by source (game server, web and DNS); pause, copy, clear. |
+| **Diagnostics** | Start a test run; **Export now** saves the logs and traces to a zip on the Desktop without RPCS3; open the trace and settings folders; check GitHub for a newer release. |
 
-GitHub requires repository access and a login to download artifacts. If there is no successful run, no installer is available.
+On first start, the paths of the usual test layout are filled in when they exist: `Desktop\FR_INSTALL_TEST\NPUA30048`,
+`Desktop\FR_INSTALL_TEST\RPCS3_TEST\rpcs3.exe` and its `dev_hdd0\game\NPUA30048\USRDIR\game.elf`, and
+`Downloads\NPUA30048.original.soe`.
+
+## Test reports
+
+A test run (or **Export now**) writes a folder and a zip named `fr_test_<date>_<time>` (or `fr_diagnostics_…`) to the Desktop with:
+
+| File | Contents |
+| :--- | :--- |
+| `steps.txt` | What the test run did, and the gameplay switches it used |
+| `server.log`, `lines_of_interest.txt` | The server's log during the run, and the lines that matter most |
+| `rpcs3_log_tail.txt`, `rpcs3_log_filtered.txt` | The end of RPCS3's log, and its lines about packs, patches and crashes |
+| `config_*.yml`, `patches_*.yml` | RPCS3's settings and game patches |
+| `ps3_gateway_trace_tail.jsonl`, `ps3_protocol_trace_tail.jsonl` | The end of the server's trace files |
+
+Redact before sharing: the files can contain local paths and your online id.
+
+## Files
+
+`%LOCALAPPDATA%\FreeRealmsPS3Server` holds `settings.json` and the `traces` folder.
 
 ## Run from source
 
-With the .NET 10 SDK:
+With the .NET 10 SDK, from an Administrator PowerShell:
 
 ```powershell
-dotnet run --project src/FreeRealms.Bootstrap/FreeRealms.Bootstrap.csproj
+dotnet run --project src\FreeRealms.Bootstrap
 ```
-
-Choose the local `NPUA30048` folder. The manager reads the digest from `USRDIR\Digests\NPUA30048.soe`.
-
-**Addresses.** Defaults are bind `127.0.0.1`, advertise `127.0.0.1`, HTTP `80`, DNS `53` (optional). When RPCS3 or a PS3 reaches the
-server over the network, bind `0.0.0.0` and advertise your real LAN IPv4; `0.0.0.0` is a bind address only.
-
-## How it works
-
-`NativeServerHost.cs` starts `Sanctuary.Ps3` in the manager's own process and shows its log in the panel; the trace files are written to
-`%LOCALAPPDATA%\FreeRealmsPS3Bootstrap\traces`. With the Python option, `PythonProcessHost.cs` launches the bundled script as a hidden
-child process instead; **Stop** ends it. All Python modules of `bootstrap/` are copied into the publish output by
-`FreeRealms.Bootstrap.csproj`.
-
-## Limitations
-
-* **Check GitHub** looks at the latest GitHub Release, and if it is newer offers to download `FreeRealmsPS3Bootstrap-Setup.exe`
-  (HTTPS from github.com only), checks its SHA-256 when GitHub supplies one, and runs it. It needs a Release built from a `v*` tag
-  and a repository readable without login; it reports "unavailable" if no release has been published or the repository is private.
-* The C# server has been checked against the Python one by tests, not yet as often against the real PS3 client; if a run works with the
-  Python option and not with the default, please report it (see [`ps3/README.md`](ps3/README.md#differences-from-the-python-script)).
 
 ## Build pipeline
 
-[`windows-build.yml`](../.github/workflows/windows-build.yml) publishes the app for `win-x64`, runs the Inno Setup script
-[`installer/FreeRealmsBootstrap.iss`](../installer/FreeRealmsBootstrap.iss) and uploads `FreeRealmsPS3Bootstrap-Setup.exe` as a
-workflow artifact (and as a release asset when a `v*` tag is pushed).
+The [Windows build](../.github/workflows/windows-build.yml) runs on every pull request that touches `src/` and on every push to
+`main`. It publishes the manager and the console server as self-contained single files and builds the Inno Setup installer
+([`installer/FreeRealmsBootstrap.iss`](../installer/FreeRealmsBootstrap.iss)). A `v*` tag publishes both as a GitHub release, which
+**Check for updates** reads.

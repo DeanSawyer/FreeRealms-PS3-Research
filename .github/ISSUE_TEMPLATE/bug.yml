@@ -1,5 +1,5 @@
-name: Bug in the tools or server
-description: A script crashes, a report is wrong, or the server behaves unexpectedly
+name: Bug in the server or the Server Manager
+description: The server or the manager crashes, a report is wrong, or the server behaves unexpectedly
 labels: [bug]
 body:
   - type: textarea
@@ -17,5 +17,5 @@ body:
   - type: input
     id: system
     attributes:
-      label: Python and Windows version
-      placeholder: "Python 3.12, Windows 11"
+      label: Manager version and Windows version
+      placeholder: "Server Manager 1.0.0, Windows 11"

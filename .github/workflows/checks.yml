@@ -5,22 +5,15 @@ on:
   push:
     branches: [main]
 jobs:
-  python-and-docs:
+  repository:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Python syntax
-        run: python -m compileall -q bootstrap tools
-      - name: Character mapping tables (C# copy up to date)
-        run: python tools/gen_character_mappings.py --check
-      - name: Sanctuary packet flow (FR_SANCTUARY=1)
-        run: python tools/check_sanctuary_flow.py
-      - name: Documentation links and referenced paths
-        run: python tools/check_docs.py
       - name: No game files are tracked
         run: |
           bad=$(git ls-files | grep -Ei '\.(self|elf|pack|zs|soe|sprx|prx|pkg|edat|rap|rif|sdat|bin|gcnk|gzne|cob|odd)$|^NPUA30048/|EBOOT\.BIN' || true)
           if [ -n "$bad" ]; then echo "Game files are tracked:"; echo "$bad"; exit 1; fi
+      - name: The repository is C# only
+        run: |
+          bad=$(git ls-files | grep -Ei '\.py$' || true)
+          if [ -n "$bad" ]; then echo "::error::Python files are tracked (the Python tools live on the python-archive branch):"; echo "$bad"; exit 1; fi

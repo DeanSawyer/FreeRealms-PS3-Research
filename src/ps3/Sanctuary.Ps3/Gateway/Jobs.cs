@@ -97,6 +97,17 @@ public static class Jobs
         [20] = [(69, 1), (143, 3), (144, 1), (145, 0), (146, 0), (147, 0), (148, 0), (149, 0), (150, 0), (153, 0), (154, 0), (155, 0), (156, 0), (157, 0), (158, 0), (160, 0), (161, 0), (162, 3), (168, 0), (173, 0), (999, 0), (26, 0), (1, 0)], // Enforcer
     };
 
+    /// <summary>The jobs' English names, for the server manager (the client shows its own localized names).</summary>
+    public static readonly IReadOnlyDictionary<int, string> Names = new Dictionary<int, string>
+    {
+        [1] = "Adventurer", [2] = "Ninja", [4] = "Postman", [11] = "Medic", [12] = "Wizard", [14] = "Miner", [16] = "Blacksmith",
+        [32] = "Warrior", [35] = "Archer", [43] = "Brawler", [45] = "Chef", [48] = "Kart Driver", [49] = "Demo Derby Driver",
+        [52] = "Soccer Star", [137] = "Fisherman", [58] = "Referee", [20] = "Enforcer",
+    };
+
+    /// <summary>A job's English name, or "Job n" for one this table lacks.</summary>
+    public static string NameOf(int id) => Names.TryGetValue(id, out var name) ? name : $"Job {id}";
+
     private static readonly Dictionary<int, Job> ById = All.ToDictionary(job => job.Id);
 
     public static bool TryGet(int id, out Job job) => ById.TryGetValue(id, out job);

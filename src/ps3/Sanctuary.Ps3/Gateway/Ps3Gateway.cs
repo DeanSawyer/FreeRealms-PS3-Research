@@ -12,6 +12,27 @@ using Sanctuary.Ps3.Web;
 
 namespace Sanctuary.Ps3.Gateway;
 
+/// <summary>One connected PS3 client as the server manager shows it.</summary>
+/// <param name="Peer">The client's address and UDP port.</param>
+/// <param name="ConnectedAt">Gateway clock time of its Connect.</param>
+/// <param name="LastPacketAt">Gateway clock time of the last datagram it sent.</param>
+/// <param name="Packets">Datagrams received from it.</param>
+/// <param name="LoggedIn">It sent the gateway Login.</param>
+/// <param name="InWorld">It said ClientIsReady (the world is loading or loaded).</param>
+/// <param name="OnlineId">The online id in its Login packet; empty before the login.</param>
+/// <param name="ClientVersion">The client version in its Login packet; empty before the login.</param>
+/// <param name="ActiveJob">The job it is playing (changes with job switches in the Sanctuary flow).</param>
+public sealed record GatewaySession(
+    IPEndPoint Peer,
+    TimeSpan ConnectedAt,
+    TimeSpan LastPacketAt,
+    int Packets,
+    bool LoggedIn,
+    bool InWorld,
+    string OnlineId,
+    string ClientVersion,
+    int ActiveJob);
+
 /// <summary>Where the gateway's datagrams go. The UDP socket implements it; Clover's UdpLibrary could too.</summary>
 public interface IGatewayTransport
 {
@@ -81,6 +102,10 @@ public sealed class Ps3Gateway
     private readonly Dictionary<IPEndPoint, int> _maxRaw = [];
     private readonly HashSet<IPEndPoint> _clientReady = [];
     private readonly Dictionary<IPEndPoint, Inventory> _inventories = [];
+    private readonly Dictionary<IPEndPoint, TimeSpan> _connectedAt = [];
+    private readonly Dictionary<IPEndPoint, TimeSpan> _lastPacketAt = [];
+    private readonly Dictionary<IPEndPoint, int> _packetsFrom = [];
+    private readonly Dictionary<IPEndPoint, (string Version, string OnlineId)> _logins = [];
     private readonly Dictionary<(IPEndPoint Peer, int Channel), int> _sendSequence = [];
     private readonly Dictionary<(IPEndPoint Peer, int Channel, int Sequence), Pending> _pending = [];
     private readonly List<Scheduled> _scheduled = [];
@@ -121,6 +146,37 @@ public sealed class Ps3Gateway
         }
     }
 
+    /// <summary>The gateway clock at the last datagram or tick (the time the host passes in).</summary>
+    public TimeSpan Clock
+    {
+        get
+        {
+            lock (_gate)
+                return _now;
+        }
+    }
+
+    /// <summary>The connected clients, oldest first, for the server manager.</summary>
+    public IReadOnlyList<GatewaySession> SessionSnapshot()
+    {
+        lock (_gate)
+        {
+            return _sessions.Keys
+                .Select(peer => new GatewaySession(
+                    peer,
+                    _connectedAt.GetValueOrDefault(peer),
+                    _lastPacketAt.GetValueOrDefault(peer),
+                    _packetsFrom.GetValueOrDefault(peer),
+                    _logins.ContainsKey(peer),
+                    _clientReady.Contains(peer),
+                    _logins.TryGetValue(peer, out var login) ? login.OnlineId : string.Empty,
+                    _logins.TryGetValue(peer, out var seen) ? seen.Version : string.Empty,
+                    _inventories.TryGetValue(peer, out var inventory) ? inventory.Active : Jobs.StarterJob))
+                .OrderBy(session => session.ConnectedAt)
+                .ToList();
+        }
+    }
+
     /// <summary>Reliable packets sent and not yet acknowledged.</summary>
     public int PendingCount
     {
@@ -137,6 +193,8 @@ public sealed class Ps3Gateway
         lock (_gate)
         {
             _now = now;
+            _lastPacketAt[peer] = now;
+            _packetsFrom[peer] = _packetsFrom.GetValueOrDefault(peer) + 1;
 
             Handle(data, peer, 0);
         }
@@ -232,6 +290,8 @@ public sealed class Ps3Gateway
 
             _sessions[peer] = code;
             _maxRaw[peer] = maxRaw;
+            _connectedAt[peer] = _now;
+            _logins.Remove(peer);
 
             _logger?.LogInformation("gateway Connect from {Peer}: protocol v{Version} name='{Name}' code=0x{Code:x8} max_raw={MaxRaw}", peer, version, protocol, code, maxRaw);
 
@@ -391,6 +451,8 @@ public sealed class Ps3Gateway
 
             _logger?.LogInformation("gateway Login: ticket='{Ticket}' guid={Guid} version='{Version}' unknown='{Unknown}'", login.Ticket, login.Guid, login.Version, login.Unknown);
             _trace.Write("login", ("ticket", login.Ticket), ("guid", login.Guid), ("version", login.Version), ("unknown", login.Unknown));
+
+            _logins[peer] = (login.Version, login.Unknown);
 
             SendReliable(peer, Ps3Packets.LoginReply(), channel);
 

@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+  pull_request:
+    paths:
+      - "src/**"
+      - "installer/**"
+      - ".github/workflows/windows-build.yml"
 jobs:
   build:
     runs-on: windows-latest
@@ -44,4 +49,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create "${{ github.ref_name }}" "dist/FreeRealmsPS3Bootstrap-Setup.exe" "publish-server/Sanctuary.Ps3.Server.exe" --title "Bootstrap Manager ${{ github.ref_name }}" --notes "Windows installer for the experimental C# bootstrap manager." --verify-tag
+          gh release create "${{ github.ref_name }}" "dist/FreeRealmsPS3Bootstrap-Setup.exe" "publish-server/Sanctuary.Ps3.Server.exe" --title "Server Manager ${{ github.ref_name }}" --notes "Windows installer for the Free Realms PS3 Server Manager, and the console server." --verify-tag

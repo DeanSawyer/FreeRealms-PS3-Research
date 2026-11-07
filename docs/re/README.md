@@ -17,7 +17,7 @@ Goal: a working PS3 client against a local server ("restore the client first"). 
 
 * `game.elf` — PowerPC64 big-endian ELF with 32-bit pointers. **vaddr = file offset + 0x10000.** TOC `0xf1f758`,
   function descriptors (OPD) at `0xeeb530`. Not committed (user's own file).
-* Ghidra headless project built by [`tools/re/`](../../tools/re/README.md); queries go through a small file-queue
+* Ghidra headless project built by [`tools/re/`](https://github.com/DeanSawyer/FreeRealms-PS3-Research/blob/python-archive/tools/re/README.md); queries go through a small file-queue
   server so the analysis is done once and answered many times.
 * Python tools in `tools/` read the user's install read-only (pack indexes, manifest, `.gzne` header).
 
