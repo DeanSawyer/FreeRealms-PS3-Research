@@ -79,6 +79,7 @@ answers the game's hostnames, pass `--no-dns`.
 | `FR_EQUIP` | How the clothes picked in the character creator go on, a second after `ClientFinishedLoading` (see [`clothing.py`](clothing.py)). Default (or `7`): one EquippedItemsChange (PlayerUpdate sub-opcode 7), which dresses you but also plays the job change effect. `5`: one EquipItem (ClientUpdate sub-opcode 5) per piece, as Sanctuary sends your own client (nothing went on in RPCS3 yet). `0`: not at all. |
 | `FR_SKY=name.xml` | Name a sky in `ZoneDetails` (default: none, as Sanctuary sends for FabledRealms). Experiment for the crash when the camera looks at the sky. |
 | `FR_SANCTUARY=1` | Send exactly what the PC server Sanctuary sends at login, `ClientIsReady` and `ClientFinishedLoading`, and answer the client's requests as it does (no reply to 141/1, no `AddPc`). See [`sanctuary_flow.py`](sanctuary_flow.py) and [`docs/re/zone-loading.md`](../docs/re/zone-loading.md#experiment-the-sanctuary-flow-one-for-one). Python server only. |
+| (inventory) | With `FR_SANCTUARY=1` the server keeps your items, each job's equipment and the active job for the session, and answers equip, unequip and job switch requests as Sanctuary does (see [`inventory.py`](inventory.py)). |
 | `FR_SKIP="Name,Name"` | With `FR_SANCTUARY=1`: leave out single packets by the names in `sanctuary_flow.py` (case does not matter; `SetClientArea` drops every area). |
 | `FR_TRACE_DIR` | Folder for the two trace files (default: next to the scripts, or the temp folder when that is not writable). |
 

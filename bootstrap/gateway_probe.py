@@ -34,6 +34,7 @@ from datetime import datetime, timezone
 
 import character_mappings
 import clothing
+import inventory
 import items
 import jobs
 import sanctuary_flow
@@ -458,6 +459,7 @@ class GatewayProbe:
         self.sessions = {}   # addr -> connect code
         self.max_raw = {}    # addr -> largest datagram the client accepts (512 for the PS3 client)
         self.client_ready = set()   # peers that sent ClientIsReady
+        self.inventories = {}       # peer -> inventory.Inventory (FR_SANCTUARY=1)
         self.count = 0
         self.send_seq = {}   # (addr, channel) -> next reliable sequence to send
         self.pending = {}    # (addr, channel, seq) -> [packet, last_send_time, tries]
@@ -686,6 +688,9 @@ class GatewayProbe:
                 if sanctuary_flow.enabled():
                     self.send_named(addr, channel, "login", sanctuary_flow.login_packets(
                         zone_details(), send_self_to_client(CHARACTER), item_definition_packets(CHARACTER)))
+                    if not hasattr(self, "inventories"):
+                        self.inventories = {}
+                    self.inventories[addr] = inventory.Inventory(CHARACTER, profile)
                 else:
                     for packet in world_packets():
                         self.send_reliable(addr, packet, channel)
@@ -721,7 +726,17 @@ class GatewayProbe:
     def on_sanctuary_packet(self, addr, channel, opcode, inner_op, inner):
         """FR_SANCTUARY=1: answer the client as Sanctuary does (bootstrap/sanctuary_flow.py). Sanctuary answers the
         mini-game list and the game time, never the matchmaking queue list (141/1), and sends no AddPc for a lone
-        player (FR_ADDPC, when set, still adds one after FinishedLoading)."""
+        player (FR_ADDPC, when set, still adds one after FinishedLoading). Inventory requests (42) and job switches (26/13)
+        go to the session's bootstrap/inventory.py, as Sanctuary's handlers."""
+        if inner_op in (42, 26):
+            inv = getattr(self, "inventories", {}).get(addr)
+            replies = inv.handle(inner) if inv else None
+            if replies is not None:
+                sub = struct.unpack_from("<H", inner, 2)[0] if len(inner) >= 4 else -1
+                LOG.info("sanctuary: inventory request %d/%d %s", inner_op, sub, inner.hex())
+                _trace("inventory", peer=addr[0], opcode=inner_op, sub=sub, hex=inner.hex())
+                self.send_named(addr, channel, "inventory %d/%d" % (inner_op, sub), replies)
+                return
         if opcode == 6 and inner_op == 102 and inner[2:4] == b"\x01\x00":
             self.send_named(addr, channel, "lobby request", [("LobbyGameDefinitions", sanctuary_flow.lobby_definitions_reply())])
         if inner_op == 141:

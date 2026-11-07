@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import gen_ps3_gateway_vectors as harness  # noqa: E402  (sets FR_TRACE_DIR and imports gateway_probe)
 
 gp = harness.gp
+import inventory  # noqa: E402
 import items  # noqa: E402
 import reference_data  # noqa: E402
 import sanctuary_flow as sf  # noqa: E402
@@ -338,6 +339,56 @@ def main():
     check(run({"FR_SANCTUARY": "1", "FR_EQUIP": "5"}, harness.CHARACTER_DRESSED)[7] == want_each,
           "FR_EQUIP=5 sends one EquipItem per piece")
     check(run({"FR_SANCTUARY": "1", "FR_EQUIP": "0"}, harness.CHARACTER_DRESSED)[7] == [], "FR_EQUIP=0 sends no clothes")
+
+    # The inventory, as Sanctuary's handlers (bootstrap/inventory.py), on the dressed character's items.
+    with harness.Scenario("inventory", {"FR_SANCTUARY": "1"}, "FabledRealms", (-128.0, -128.0), harness.CHARACTER_DRESSED):
+        inv = inventory.Inventory(gp.CHARACTER, gp.profile)
+        archer_bow = inv.equipment[35][7]
+        names = lambda replies: [n for n, _ in replies]
+        check(inv.equipment[1] == {3: 1, 4: 2, 5: 3}, "the starter job wears the creator's pieces")
+        unequip = inv.handle(struct.pack("<HHii", 42, 2, 4, 1))
+        check(names(unequip) == ["UnequipSlot 4", "AbilitySetDefinition"] and 4 not in inv.equipment[1],
+              "42/2 empties the slot: %s" % names(unequip))
+        check(unequip[0][1] == struct.pack("<HHii", 38, 6, 4, 1), "UnequipSlot bytes")
+        equip = inv.handle(struct.pack("<HHii", 42, 3, 2, 1))
+        check(names(equip) == ["EquipItem 2", "AbilitySetDefinition"] and inv.equipment[1][4] == 2, "42/3 equips: %s" % names(equip))
+        check(equip[0][1][:8] == struct.pack("<HHi", 38, 5, 2), "EquipItem header")
+        check(inv.handle(struct.pack("<HHii", 42, 3, 999, 1)) == [], "42/3 with an item not owned does nothing")
+        check(inv.handle(struct.pack("<HHii", 42, 3, archer_bow, 1)) != [] and inv.equipment[1][7] == archer_bow,
+              "42/3 puts the archer's bow on the adventurer, as Sanctuary allows any owned type 1 item")
+        weapon = inv.handle(struct.pack("<HHii", 42, 3, archer_bow, 1))
+        check("EquipItemChange (weapon)" in names(weapon) and "SlotCompositeEffectOverride" in names(weapon),
+              "equipping a weapon refreshes the weapon flair: %s" % names(weapon))
+        record = inv.handle(struct.pack("<HHiiii", 42, 8, 28216, 234, 1, 3))
+        check(names(record)[:1] == ["EquipItem 1"], "42/8 finds the item by definition and tint: %s" % names(record))
+        switch = inv.handle(struct.pack("<HHii", 26, 13, 0, 35))
+        check(names(switch) == ["SlotCompositeEffectOverride (clear)", "ActivateProfile 35", "AbilitySetDefinition"]
+              and inv.active == 35, "26/13 switches to the archer: %s" % names(switch))
+        activate = switch[1][1]
+        size = struct.unpack_from("<i", activate, 4)[0]
+        entry = activate[8:8 + size]
+        check(entry == gp.profile(35, inv.equipment[35]), "ActivateProfile carries the job's profile entry")
+        r = Reader(activate[8 + size:])
+        pieces = r.take("i")
+        for _ in range(pieces):
+            r.string(), r.string(), r.string(), r.take("iii")
+        check(pieces == len(inv.equipment[35]) and r.take("iii") == (3001, 4005, 0) and r.done(),
+              "ActivateProfile: %d attachments, animation 3001, effect 4005" % pieces)
+        check(inv.handle(struct.pack("<HHii", 26, 13, 0, 4242)) == [], "26/13 to a job the character lacks does nothing")
+        check(inv.handle(struct.pack("<HHi", 26, 32, 5)) is None, "other command packets are not inventory requests")
+
+    # Through the gateway: an inventory request after login gets the replies.
+    def inventory_session():
+        a = 50102
+        t, r_, i = harness.tunnel, harness.reliable, harness.inner_op
+        return [("recv", a, harness.connect()), ("recv", a, r_(0, 0, harness.login_payload())),
+                ("recv", a, r_(0, 1, t(6, i(42, struct.pack("<Hii", 2, 4, 1)))))]
+    scenario = harness.Scenario("inventory session", {"FR_SANCTUARY": "1"}, "FabledRealms", (-128.0, -128.0),
+                                harness.CHARACTER_DRESSED)
+    with mock.patch.object(sf.datetime, "date", wraps=datetime.date):
+        _steps, outputs = harness.run_conversation(scenario, inventory_session)
+    replies = tunneled_inners(reassemble(outputs[2]))
+    check(replies[:1] == [struct.pack("<HHii", 38, 6, 4, 1)], "the gateway answers 42/2 with UnequipSlot")
 
     print()
     if FAILURES:

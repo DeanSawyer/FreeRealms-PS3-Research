@@ -176,6 +176,33 @@ Not checked in the emulator: the item objects themselves, because the reader han
 readers that check it (the item class list's `0xa83104`, for one) then skip their entries, so with the default setup such a
 list looks empty. Clear the byte (`emu.mem.write(reader + 16, b"\0")`) when checking a whole player blob.
 
+## Inventory requests and job switches
+
+With `FR_SANCTUARY=1` the server keeps each session's items, equipment and active job and answers the client's inventory
+requests as Sanctuary's handlers do (`bootstrap/inventory.py`, checks and replies one for one). The PS3 client builds the
+requests with Sanctuary's numbers:
+
+| Request | Built at | Reply |
+|---|---|---|
+| Inventory (42) 3, EquipByGuid | `0x2848d0`, `0x21805c` | ClientUpdate 5 EquipItem; toolbar; weapon flair for slots 7 and 13 |
+| 42/8, EquipByItemRecord | `0x5d494` | the same, finding the item by definition and tint |
+| 42/2, EquippedRemove | `0x284858` | ClientUpdate 6 UnequipSlot (`i32` slot, `i32` job); toolbar; weapon flair |
+| Command (26) 13, SetProfile | `0xcff00` | flair cleared; ClientUpdate 21 ActivateProfile; toolbar |
+
+The requests' exact byte layout is not read yet: the server takes the fields as little-endian ints after the opcode and
+sub-opcode, in Sanctuary's order, and logs every request with its bytes (`sanctuary: inventory request`), so the first
+real request shows the layout. Reply layouts read from the client:
+
+* **ClientUpdate (38) 21, ActivateProfile** (`0xf9e88`): `i32` length and the job's profile entry (as in the player data),
+  the attachment list (`0xb03e90`), then `i32` animation (3001, emo_outfit_all), `i32` effect (4005, PFX_Job_Swirl) and
+  an unused `i32`; acted on only when that is the whole packet.
+* **ClientUpdate 6, UnequipSlot** (`0xfa264`): `i32` slot, `i32` job.
+* ClientUpdate's own dispatcher is `0xf9214` (jump table `0xf936c`, sub-opcodes 0 to 27); the client's handler for opcode 38
+  is vtable slot +324, for opcode 26 slot +284 (`0xc1e40`).
+
+Not done yet: 42/6 ItemActionBarAssign, the style cards (42/10 to 12), the combat jobs' toolbar abilities, and saving to a
+database (the state lasts for the session).
+
 ## Item classes and categories (ReferenceData, opcode 44)
 
 The client's handler for opcode 44 is `0xd4764` (vtable slot +340 of the object whose slot +320 handles PlayerUpdate). With
