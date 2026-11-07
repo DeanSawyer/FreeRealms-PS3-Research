@@ -226,9 +226,9 @@ def main():
 
     # Build the expected packets with the same inputs the gateway used.
     with harness.Scenario("expected", {"FR_SANCTUARY": "1"}, "FabledRealms", (-128.0, -128.0), harness.CHARACTER_FULL):
-        head, hair, skin = gp.appearance(gp.CHARACTER)
+        look = gp.appearance(gp.CHARACTER)
         want_login = sf.login_packets(gp.zone_details(), gp.send_self_to_client(gp.CHARACTER))
-        want_ready = sf.client_is_ready_packets(1, gp.CHARACTER, head, hair, skin)
+        want_ready = sf.client_is_ready_packets(1, gp.CHARACTER, *look)
         x, _y, z, _w = gp.configured_spawn()
         want_finished = sf.finished_loading_packets(1, x, z, gp.PROFILE_ID, datetime.date(2026, 11, 6))
 

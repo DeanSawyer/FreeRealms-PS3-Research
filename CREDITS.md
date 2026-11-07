@@ -2,6 +2,8 @@
 
 This project stands on other people's work. Thank you.
 
+* **Character-creator mapping tables.** `bootstrap/character_mappings.py` (and its C# copy) holds Sanctuary's
+  `Resources/CharacterCreate/*Mappings.txt` unchanged: which head, hair, skin tone, face paint and body option each creator choice means.
 * **OSFR and the Sanctuary / Clover server.** The C# *Free Realms* server emulator (Sanctuary, the solution behind Clover) is where the
   packet layouts come from: the gateway login packet, `AddPc`, the lobby and queue replies and many opcode numbers in
   [`docs/protocol/gateway.md`](docs/protocol/gateway.md) are named after and compared with it, and the C# port in

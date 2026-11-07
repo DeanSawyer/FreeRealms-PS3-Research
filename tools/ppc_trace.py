@@ -104,6 +104,7 @@ class Emu:
         self.mem = Memory()
         self.gpr = [0] * 32
         self.fpr = [0.0] * 32
+        self.vr = [bytes(16)] * 32   # AltiVec registers, only moved around (lvx/stvx), never computed on
         self.cr = 0
         self.lr = 0
         self.ctr = 0
@@ -526,6 +527,13 @@ class Emu:
         g = self.gpr
         xo = (w >> 1) & 0x3FF
         pc = self.pc
+        if xo in (103, 359, 231, 487):   # lvx, lvxl, stvx, stvxl: 16 aligned bytes (struct copies use them)
+            ea = (((g[ra] if ra else 0) + g[rb]) & M64) & ~0xF
+            if xo in (103, 359):
+                self.vr[rd] = self.lread(ea, 16).to_bytes(16, "big")
+            else:
+                self.lwrite(ea, 16, int.from_bytes(self.vr[rd], "big"))
+            return
         # XO-form arithmetic (9-bit extended opcode, OE ignored)
         x9 = xo & 0x1FF
         if x9 == 266:   # add

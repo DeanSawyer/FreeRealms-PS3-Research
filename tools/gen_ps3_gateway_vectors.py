@@ -92,14 +92,18 @@ class Scenario:
 
 CHARACTER_FULL = {"Model": "2", "Head": "3", "SkinTone": "0", "HairColor": "7", "EyeColor": "9",
                   "FirstName": "Zoë", "LastName": "Dean"}
+CHARACTER_STYLED = {"Model": "1", "Head": "2", "Hair": "4", "SkinTone": "2", "FacePaint": "3", "ModelCustomization": "2",
+                    "HairColor": "10", "EyeColor": "63", "FirstName": "Aedon", "LastName": "Amberarm"}
 CHARACTER_JUNK = {"Model": " 4 ", "Head": "abc", "SkinTone": "-2", "HairColor": "", "EyeColor": "x9", "FirstName": "",
                   "LastName": "O'Neil"}
 
 PACKET_SCENARIOS = [
     Scenario("defaults"),
     Scenario("install zone and spawn", install_zone="FabledRealms", install_spawn=(-128.0, -128.0)),
-    Scenario("install spawn with FR_SPAWN_Y", {"FR_SPAWN_Y": "123.5"}, "FabledRealms", (64.25, 300.75)),
-    Scenario("bad FR_SPAWN_Y", {"FR_SPAWN_Y": "high"}, "FabledRealms", (64.25, 300.75)),
+    Scenario("FR_SPAWN=local", {"FR_SPAWN": "local"}, "FabledRealms", (-128.0, -128.0)),
+    Scenario("FR_SPAWN=local without a picked spawn", {"FR_SPAWN": "Local"}),
+    Scenario("install spawn with FR_SPAWN_Y", {"FR_SPAWN": "local", "FR_SPAWN_Y": "123.5"}, "FabledRealms", (64.25, 300.75)),
+    Scenario("bad FR_SPAWN_Y", {"FR_SPAWN": "local", "FR_SPAWN_Y": "high"}, "FabledRealms", (64.25, 300.75)),
     Scenario("FR_SPAWN wins", {"FR_SPAWN": "10.5; 20 ,30.25"}, "FabledRealms", (1.0, 2.0)),
     Scenario("bad FR_SPAWN", {"FR_SPAWN": "1,2"}, "FabledRealms", (1.0, 2.0)),
     Scenario("FR_ZONE and type", {"FR_ZONE": " Other_Zone ", "FR_ZONE_TYPE": "1"}, "FabledRealms", (1.0, 2.0)),
@@ -109,6 +113,7 @@ PACKET_SCENARIOS = [
     Scenario("extra without time", {"FR_EXTRA": "1", "FR_TIME": "0"}),
     Scenario("full character", {}, "FabledRealms", (-128.0, -128.0), CHARACTER_FULL),
     Scenario("odd character values", {}, "FabledRealms", (-128.0, -128.0), CHARACTER_JUNK),
+    Scenario("styled character", {}, "FabledRealms", (-128.0, -128.0), CHARACTER_STYLED),
 ]
 
 LOGIN_PAYLOADS = [

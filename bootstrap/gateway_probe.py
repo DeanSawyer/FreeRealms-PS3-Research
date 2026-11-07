@@ -32,6 +32,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
+import character_mappings
 import sanctuary_flow
 import tracing
 
@@ -220,12 +221,11 @@ def profile(profile_id):
 
 
 def appearance(character):
-    """Head, hair and skin-tone strings of the player data (and of Sanctuary's customization packet)."""
+    """Head, hair, skin tone, face paint and body option (facial hair) the character creator chose, as the asset names
+    the client draws (Sanctuary's mapping tables, bootstrap/character_mappings.py)."""
     c = character or {}
-    head = f"<race>_<gender>_head_{HEAD_NAMES.get(_int(c.get('Head'), 1), 'caucasian')}.adr"
-    hair = "<race>_m_hair_eyebrows_bald.adr"
-    skin = f"skintone{_int(c.get('SkinTone'), 1) or 1}"
-    return head, hair, skin
+    return (character_mappings.head(c), character_mappings.hair(c), character_mappings.skin_tone(c),
+            character_mappings.face_paint(c), character_mappings.model_customization(c))
 
 
 def player_blob(character=None, guid=1):
@@ -238,13 +238,13 @@ def player_blob(character=None, guid=1):
     """
     c = character or {}
     model = _int(c.get("Model"), 1)
-    head, hair, skin = appearance(c)
+    head, hair, skin, face_paint, model_customization = appearance(c)
     out = bytearray()
     out += struct.pack("<QQ", 0, guid)                       # launch ticket, guid
     out += struct.pack("<i", model)
     out += _string(head) + _string(hair)
     out += struct.pack("<ii", _int(c.get("HairColor")), _int(c.get("EyeColor")))
-    out += _string(skin) + _string("none") + _string("")     # skin tone, face paint, model customization
+    out += _string(skin) + _string(face_paint) + _string(model_customization)
     out += struct.pack("<4f", *configured_spawn())          # position (the client's camera follows this player)
     out += struct.pack("<4f", *SPAWN_ROTATION)               # rotation
     out += struct.pack("<iii", 0, 0, 0)                      # name ids
@@ -265,27 +265,31 @@ def send_self_to_client(character=None):
     return struct.pack("<Hi", 12, len(blob)) + blob
 
 
-SPAWN = (-1904.883, -39.7098, 412.6024, 1.0)   # the PC game's position (Clover); its tile is not in the PS3 packs
+SPAWN = (-1904.883, -39.7098, 412.6024, 1.0)   # Sanctuary's FabledRealms.json SpawnPosition (the PC game's)
 DEFAULT_SPAWN_Y = 400.0   # height used with a position picked from the packs; the terrain height there is unknown
 
 
 def configured_spawn():
-    """Where AddPc puts the player. The loading overlay waits for the terrain tiles around this position, so the
-    default is the centre of a tile whose neighbourhood is stored in the packs (docs/re/zone-loading.md).
-    FR_SPAWN="x,y,z" sets it outright; FR_SPAWN_Y sets only the height."""
+    """Where the player data and AddPc put the player. Default: Sanctuary's spawn (position, height and, with
+    SPAWN_ROTATION, rotation). Its terrain tile, FabledRealms_-32_4.gcnk, is only in the manifest of a typical PS3
+    install, so the ground there may be missing. FR_SPAWN=local uses the centre of a tile whose neighbourhood is in the
+    packs instead (height FR_SPAWN_Y, default 400; the ground on tile (-4, -4) is at about 36). FR_SPAWN="x,y,z" sets
+    it outright."""
     raw = os.environ.get("FR_SPAWN", "").strip()
+    if raw.lower() == "local":
+        if _install_spawn:
+            try:
+                y = float(os.environ.get("FR_SPAWN_Y", DEFAULT_SPAWN_Y))
+            except ValueError:
+                y = DEFAULT_SPAWN_Y
+            return (_install_spawn[0], y, _install_spawn[1], 1.0)
+        return SPAWN
     if raw:
         try:
             x, y, z = (float(v) for v in raw.replace(";", ",").split(","))
             return (x, y, z, 1.0)
         except ValueError:
             LOG.warning("FR_SPAWN=%r is not 'x,y,z'; ignored", raw)
-    if _install_spawn:
-        try:
-            y = float(os.environ.get("FR_SPAWN_Y", DEFAULT_SPAWN_Y))
-        except ValueError:
-            y = DEFAULT_SPAWN_Y
-        return (_install_spawn[0], y, _install_spawn[1], 1.0)
     return SPAWN
 
 
@@ -647,9 +651,9 @@ class GatewayProbe:
             self.send_named(addr, channel, "game time request", [("GameTimeSync", sanctuary_flow.game_time_sync())])
         if inner_op == 13:
             self.client_ready.add(addr)
-            head, hair, skin = appearance(CHARACTER)
+            head, hair, skin, face_paint, model_customization = appearance(CHARACTER)
             self.send_named(addr, channel, "ClientIsReady", sanctuary_flow.client_is_ready_packets(
-                1, CHARACTER, head, hair, skin))
+                1, CHARACTER, head, hair, skin, face_paint, model_customization))
         if inner_op == 10:
             x, _y, z, _w = configured_spawn()
             self.send_named(addr, channel, "ClientFinishedLoading", sanctuary_flow.finished_loading_packets(

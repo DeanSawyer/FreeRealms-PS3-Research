@@ -31,8 +31,11 @@ public sealed record GatewayOptions
     /// <summary><c>FR_ZONE_TYPE</c>: terrain implementation (0 TileStatic, 1 TileSeamless, 2 RuntimeSeamless, 3 Mesh; only 2 is set up at startup).</summary>
     public int ZoneType { get; init; } = 2;
 
-    /// <summary><c>FR_SPAWN</c>: <c>x,y,z</c> of the player; null uses the position picked from the packs.</summary>
+    /// <summary><c>FR_SPAWN</c>: <c>x,y,z</c> of the player; null uses Sanctuary's spawn, or with <see cref="SpawnLocal"/> the position picked from the packs.</summary>
     public (double X, double Y, double Z)? Spawn { get; init; }
+
+    /// <summary><c>FR_SPAWN=local</c>: use the position picked from the packs instead of Sanctuary's spawn.</summary>
+    public bool SpawnLocal { get; init; }
 
     /// <summary><c>FR_SPAWN_Y</c>: height used with a position picked from the packs (the terrain height there is unknown).</summary>
     public double SpawnY { get; init; } = 400.0;
@@ -62,8 +65,9 @@ public sealed record GatewayOptions
 
         (double, double, double)? spawn = null;
         var rawSpawn = Value("FR_SPAWN");
+        var spawnLocal = string.Equals(rawSpawn, "local", StringComparison.OrdinalIgnoreCase);
 
-        if (rawSpawn.Length > 0)
+        if (rawSpawn.Length > 0 && !spawnLocal)
         {
             spawn = ParseSpawn(rawSpawn);
 
@@ -86,6 +90,7 @@ public sealed record GatewayOptions
             Zone = Value("FR_ZONE") is { Length: > 0 } zone ? zone : null,
             ZoneType = zoneType,
             Spawn = spawn,
+            SpawnLocal = spawnLocal,
             SpawnY = spawnY,
             AddPc = mode switch
             {

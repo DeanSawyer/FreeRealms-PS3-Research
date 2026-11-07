@@ -71,15 +71,14 @@ public static class Ps3Packets
     public static byte[] PlayerBlob(IReadOnlyDictionary<string, string> character, GatewayWorld world, long unixTime, int guid = 1)
     {
         var spawn = world.Spawn;
-        var head = $"<race>_<gender>_head_{HeadName(character)}.adr";
-        const string hair = "<race>_m_hair_eyebrows_bald.adr";
 
         return new PacketWriter()
             .U64(0).U64((ulong)guid) // launch ticket, guid
             .I32(Number(character, "Model", 1))
-            .Str(head).Str(hair)
+            .Str(CharacterMappings.Head(character)).Str(CharacterMappings.Hair(character))
             .I32(Number(character, "HairColor", 0)).I32(Number(character, "EyeColor", 0))
-            .Str(SkinTone(character)).Str("none").Str(string.Empty) // skin tone, face paint, model customization
+            .Str(CharacterMappings.SkinTone(character)).Str(CharacterMappings.FacePaint(character))
+            .Str(CharacterMappings.ModelCustomization(character)) // skin tone, face paint, model customization
             .F32(spawn.X).F32(spawn.Y).F32(spawn.Z).F32(spawn.W) // position (the client's camera follows this player)
             .F32(SpawnRotation.X).F32(SpawnRotation.Y).F32(SpawnRotation.Z).F32(SpawnRotation.W)
             .I32(0).I32(0).I32(0) // name ids

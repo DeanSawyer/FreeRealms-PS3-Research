@@ -208,8 +208,8 @@ def customizations(character, head, hair, skin, face_paint="none", model_customi
         (2, hair, num("Hair")),
         (3, "", num("HairColor")),
         (4, "", num("EyeColor")),
-        (5, model_customization, 0),
-        (6, face_paint, 0),
+        (5, model_customization, num("ModelCustomization")),
+        (6, face_paint, num("FacePaint")),
         (8, "", num("Model") or 1),
     )
     out = struct.pack("<HHi", 35, 65, len(rows))
@@ -243,7 +243,7 @@ def welcome_screen(seconds_since_last_login=FIRST_LOGIN_SECONDS, station_cash=0)
     return out + struct.pack("<ii", seconds_since_last_login, station_cash)
 
 
-def client_is_ready_packets(guid, character, head, hair, skin, is_member=True):
+def client_is_ready_packets(guid, character, head, hair, skin, face_paint="none", model_customization="", is_member=True):
     """Sanctuary BaseZone.OnClientIsReady followed by WorldZone.OnClientIsReady, for a new character."""
     stats = b"".join(_stat(i, v) for i, v in STATS)
     return [
@@ -257,7 +257,7 @@ def client_is_ready_packets(guid, character, head, hair, skin, is_member=True):
         ("ItemClassDefinitions", struct.pack("<HHi", 44, 1, 0)),
         ("ItemCategoryDefinitions", struct.pack("<HHii", 44, 2, 0, 0)),
         ("ClientProfileData", struct.pack("<HHi", 44, 3, 0)),
-        ("CustomizationData", customizations(character, head, hair, skin)),
+        ("CustomizationData", customizations(character, head, hair, skin, face_paint, model_customization)),
         ("MembershipSubscriptionInfo", struct.pack("<HBB", 189, 1 if is_member else 0, 0)),
         ("EffectTagCompositeEffectsEnable", struct.pack("<HHB", 35, 43, 1)),
         ("ZoneDoneSendingInitialData", struct.pack("<H", 14)),
