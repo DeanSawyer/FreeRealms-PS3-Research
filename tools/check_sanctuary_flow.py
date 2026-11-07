@@ -279,8 +279,8 @@ def main():
     old = run({})
     check(len(old[3]) == 1 and old[3][0][:2] == b"\x8d\x00", "without FR_SANCTUARY the 141/1 reply is still sent")
 
-    # The creator's clothes go on a second after FinishedLoading: one EquipItem (ClientUpdate sub-opcode 5) per piece;
-    # FR_EQUIP=7 sends one EquippedItemsChange (PlayerUpdate sub-opcode 7) instead.
+    # The creator's clothes go on a second after FinishedLoading: one EquippedItemsChange (PlayerUpdate sub-opcode 7);
+    # FR_EQUIP=5 sends one EquipItem (ClientUpdate sub-opcode 5) per piece instead.
     def piece(model, texture, tint, slot):
         return (harness.string(model) + harness.string(texture) + harness.string("dyetint")
                 + struct.pack("<iii", tint, 0, slot))
@@ -290,10 +290,10 @@ def main():
     want_each = [struct.pack("<HHi", 38, 5, n + 1) + p + struct.pack("<ii", 1, 0) for n, p in enumerate(pieces)]
     want_all = struct.pack("<HHQi", 35, 7, 1, 3) + b"".join(pieces) + struct.pack("<i", 0)
     dressed = run({"FR_SANCTUARY": "1"}, harness.CHARACTER_DRESSED)
-    check(dressed[7] == want_each, "dressed character: one EquipItem per piece after FinishedLoading")
+    check(dressed[7] == [want_all], "dressed character: one EquippedItemsChange after FinishedLoading")
     check(dressed[6] == finished, "dressed character: FinishedLoading packets unchanged")
-    check(run({"FR_SANCTUARY": "1", "FR_EQUIP": "7"}, harness.CHARACTER_DRESSED)[7] == [want_all],
-          "FR_EQUIP=7 sends one EquippedItemsChange")
+    check(run({"FR_SANCTUARY": "1", "FR_EQUIP": "5"}, harness.CHARACTER_DRESSED)[7] == want_each,
+          "FR_EQUIP=5 sends one EquipItem per piece")
     check(run({"FR_SANCTUARY": "1", "FR_EQUIP": "0"}, harness.CHARACTER_DRESSED)[7] == [], "FR_EQUIP=0 sends no clothes")
 
     print()

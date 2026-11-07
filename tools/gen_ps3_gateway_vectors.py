@@ -119,7 +119,7 @@ PACKET_SCENARIOS = [
     Scenario("styled character", {}, "FabledRealms", (-128.0, -128.0), CHARACTER_STYLED),
     Scenario("dressed character", {}, "FabledRealms", (-128.0, -128.0), CHARACTER_DRESSED),
     Scenario("dressed character, FR_EQUIP=0", {"FR_EQUIP": "0"}, "FabledRealms", (-128.0, -128.0), CHARACTER_DRESSED),
-    Scenario("dressed character, FR_EQUIP=7", {"FR_EQUIP": " 7 "}, "FabledRealms", (-128.0, -128.0), CHARACTER_DRESSED),
+    Scenario("dressed character, FR_EQUIP=5", {"FR_EQUIP": " 5 "}, "FabledRealms", (-128.0, -128.0), CHARACTER_DRESSED),
 ]
 
 LOGIN_PAYLOADS = [

@@ -142,9 +142,10 @@ public static class Ps3Packets
     }
 
     /// <summary>
-    /// The packets that dress the character in the clothes the character creator picked (<see cref="Clothing"/>): one EquipItem
-    /// (ClientUpdate sub-opcode 5) per piece, item ids 1, 2, 3... as Sanctuary numbers a new character's items. With
-    /// <c>FR_EQUIP=7</c> one EquippedItemsChange (PlayerUpdate sub-opcode 7) instead; with <c>FR_EQUIP=0</c> none. The player data carries no items
+    /// The packets that dress the character in the clothes the character creator picked (<see cref="Clothing"/>): by default one
+    /// EquippedItemsChange (PlayerUpdate sub-opcode 7), the only one seen to work in RPCS3 (the client plays the job change effect
+    /// with it). With <c>FR_EQUIP=5</c> one EquipItem (ClientUpdate sub-opcode 5) per piece, item ids 1, 2, 3... as Sanctuary numbers
+    /// a new character's items; with <c>FR_EQUIP=0</c> none. The player data carries no items
     /// yet, so this is what dresses the character; the gateway sends it after ClientFinishedLoading, once the character exists.
     /// </summary>
     public static List<byte[]> EquipmentPackets(IReadOnlyDictionary<string, string> character, GatewayOptions options, ulong guid = 1)
@@ -154,7 +155,7 @@ public static class Ps3Packets
         if (options.EquipPacket == 0 || pieces.Count == 0)
             return [];
 
-        if (options.EquipPacket == 7)
+        if (options.EquipPacket != 5)
             return [Clothing.EquippedItemsChange(guid, pieces)];
 
         var packets = new List<byte[]>();

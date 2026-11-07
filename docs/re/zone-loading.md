@@ -500,11 +500,14 @@ Second try: EquipItemChange (PlayerUpdate sub-opcode 6), one per piece. Its hand
 but in RPCS3 nothing went on at all. In Sanctuary that packet only goes to other players (`SendTunneledToVisible` without
 `sendToSelf`); your own client gets ClientUpdate (38) sub-opcode 5, EquipItem (`InventoryPacketEquipByGuidHandler`).
 
-So the server now sends EquipItem, one per piece. The PS3 handler (`0xfa600`) reads u16 38, u16 5, i32 item id, one attachment (the
+Third try, EquipItem, one per piece. The PS3 handler (`0xfa600`) reads u16 38, u16 5, i32 item id, one attachment (the
 same three strings and three ints), profile id and one unused int; the PC packet's trailing `Equip` bool is not there. It acts only
 on the whole packet: `0xfec54` calls `0x5aab0` (player, slot, attachment, profile id) and then looks the profile up and redraws when
 it is the active one. Item ids are 1, 2, 3... as Sanctuary numbers a new character's items; the profile id is the starter job's.
+In RPCS3 nothing went on with it either. Not yet known why: `0xfec54` skips the redraw when client `+712` is null or the profile
+lookup misses, and `0x5aab0` may only record the piece on the profile. So the default is back to EquippedItemsChange, the one that
+dresses the character (with the job change effect); `FR_EQUIP=5` sends EquipItem for testing.
 
 The pieces come from `bootstrap/data/clothing_items.tsv.gz` (the tint is the creator's, or the definition's icon tint when that is
-0, as in Sanctuary's `Player.GetAttachment`), sent for guid 1 a second after `ClientFinishedLoading` in both flows. `FR_EQUIP=7`
-goes back to the one EquippedItemsChange; `FR_EQUIP=0` sends nothing.
+0, as in Sanctuary's `Player.GetAttachment`), sent for guid 1 a second after `ClientFinishedLoading` in both flows. `FR_EQUIP=0`
+sends nothing.

@@ -835,14 +835,11 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
         ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), [
             Convert.FromBase64String(
-            "JgAFAAEAAAArAAAAZnJlZXN0eWxlXzxyYWNlPl9tX2NoZXN0X3JvbGxlZHNsdnNoaXJ0LmFkchUAAABmcmVlc3R5bGUtc3RpdGNo" +
-            "dXAtTDEHAAAAZHlldGludOoAAAAAAAAAAwAAAAEAAAAAAAAA"),
-            Convert.FromBase64String(
-            "JgAFAAIAAAAvAAAAZnJlZXN0eWxlXzxyYWNlPl88Z2VuZGVyPl9sZWdzX2Jvb3RjdXRwYW50cy5hZHIYAAAAZnJlZXN0eWxlLXNt" +
-            "YWxsc3RpdGNoLUwxBwAAAGR5ZXRpbnQGAQAAAAAAAAQAAAABAAAAAAAAAA=="),
-            Convert.FromBase64String(
-            "JgAFAAMAAAAnAAAAZnJlZXN0eWxlXzxyYWNlPl9tX2ZlZXRfc2hvZXN3c29ja3MuYWRyEgAAAGZyZWVzdHlsZS1zdWVkZS1MMQcA" +
-            "AABkeWV0aW506gAAAAAAAAAFAAAAAQAAAAAAAAA="),
+            "IwAHAAEAAAAAAAAAAwAAACsAAABmcmVlc3R5bGVfPHJhY2U+X21fY2hlc3Rfcm9sbGVkc2x2c2hpcnQuYWRyFQAAAGZyZWVzdHls" +
+            "ZS1zdGl0Y2h1cC1MMQcAAABkeWV0aW506gAAAAAAAAADAAAALwAAAGZyZWVzdHlsZV88cmFjZT5fPGdlbmRlcj5fbGVnc19ib290" +
+            "Y3V0cGFudHMuYWRyGAAAAGZyZWVzdHlsZS1zbWFsbHN0aXRjaC1MMQcAAABkeWV0aW50BgEAAAAAAAAEAAAAJwAAAGZyZWVzdHls" +
+            "ZV88cmFjZT5fbV9mZWV0X3Nob2Vzd3NvY2tzLmFkchIAAABmcmVlc3R5bGUtc3VlZGUtTDEHAAAAZHlldGludOoAAAAAAAAABQAA" +
+            "AAAAAAA="),
         ]),
         new PacketScenario("dressed character, FR_EQUIP=0", [
             ("FR_EQUIP", "0"),
@@ -910,8 +907,8 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
         ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
-        new PacketScenario("dressed character, FR_EQUIP=7", [
-            ("FR_EQUIP", " 7 "),
+        new PacketScenario("dressed character, FR_EQUIP=5", [
+            ("FR_EQUIP", " 5 "),
         ], "FabledRealms", true, -128.0, -128.0, [
             ("EyeColor", "63"),
             ("FacePaint", "3"),
@@ -977,11 +974,14 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
         ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), [
             Convert.FromBase64String(
-            "IwAHAAEAAAAAAAAAAwAAACsAAABmcmVlc3R5bGVfPHJhY2U+X21fY2hlc3Rfcm9sbGVkc2x2c2hpcnQuYWRyFQAAAGZyZWVzdHls" +
-            "ZS1zdGl0Y2h1cC1MMQcAAABkeWV0aW506gAAAAAAAAADAAAALwAAAGZyZWVzdHlsZV88cmFjZT5fPGdlbmRlcj5fbGVnc19ib290" +
-            "Y3V0cGFudHMuYWRyGAAAAGZyZWVzdHlsZS1zbWFsbHN0aXRjaC1MMQcAAABkeWV0aW50BgEAAAAAAAAEAAAAJwAAAGZyZWVzdHls" +
-            "ZV88cmFjZT5fbV9mZWV0X3Nob2Vzd3NvY2tzLmFkchIAAABmcmVlc3R5bGUtc3VlZGUtTDEHAAAAZHlldGludOoAAAAAAAAABQAA" +
-            "AAAAAAA="),
+            "JgAFAAEAAAArAAAAZnJlZXN0eWxlXzxyYWNlPl9tX2NoZXN0X3JvbGxlZHNsdnNoaXJ0LmFkchUAAABmcmVlc3R5bGUtc3RpdGNo" +
+            "dXAtTDEHAAAAZHlldGludOoAAAAAAAAAAwAAAAEAAAAAAAAA"),
+            Convert.FromBase64String(
+            "JgAFAAIAAAAvAAAAZnJlZXN0eWxlXzxyYWNlPl88Z2VuZGVyPl9sZWdzX2Jvb3RjdXRwYW50cy5hZHIYAAAAZnJlZXN0eWxlLXNt" +
+            "YWxsc3RpdGNoLUwxBwAAAGR5ZXRpbnQGAQAAAAAAAAQAAAABAAAAAAAAAA=="),
+            Convert.FromBase64String(
+            "JgAFAAMAAAAnAAAAZnJlZXN0eWxlXzxyYWNlPl9tX2ZlZXRfc2hvZXN3c29ja3MuYWRyEgAAAGZyZWVzdHlsZS1zdWVkZS1MMQcA" +
+            "AABkeWV0aW506gAAAAAAAAAFAAAAAQAAAAAAAAA="),
         ]),
     ];
 
@@ -1548,14 +1548,11 @@ internal static class GatewayVectors
             "ZW5kZXI+X2hhaXJfZXllYnJvd3NfYmFsZC5hZHIKAAAAPwAAAAAAAAAJAAAAc2tpbnRvbmUyBAAAAG5vbmUAAAAAAAAAQQAAAAAA" +
             "AAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8AAAAA")),
                 (50010, Convert.FromBase64String(
-            "AAkACgUAAW8AAAAmAAUAAQAAACsAAABmcmVlc3R5bGVfPHJhY2U+X21fY2hlc3Rfcm9sbGVkc2x2c2hpcnQuYWRyFQAAAGZyZWVz" +
-            "dHlsZS1zdGl0Y2h1cC1MMQcAAABkeWV0aW506gAAAAAAAAADAAAAAQAAAAAAAAA=")),
-                (50010, Convert.FromBase64String(
-            "AAkACwUAAXYAAAAmAAUAAgAAAC8AAABmcmVlc3R5bGVfPHJhY2U+XzxnZW5kZXI+X2xlZ3NfYm9vdGN1dHBhbnRzLmFkchgAAABm" +
-            "cmVlc3R5bGUtc21hbGxzdGl0Y2gtTDEHAAAAZHlldGludAYBAAAAAAAABAAAAAEAAAAAAAAA")),
-                (50010, Convert.FromBase64String(
-            "AAkADAUAAWgAAAAmAAUAAwAAACcAAABmcmVlc3R5bGVfPHJhY2U+X21fZmVldF9zaG9lc3dzb2Nrcy5hZHISAAAAZnJlZXN0eWxl" +
-            "LXN1ZWRlLUwxBwAAAGR5ZXRpbnTqAAAAAAAAAAUAAAABAAAAAAAAAA==")),
+            "AAkACgUAATEBAAAjAAcAAQAAAAAAAAADAAAAKwAAAGZyZWVzdHlsZV88cmFjZT5fbV9jaGVzdF9yb2xsZWRzbHZzaGlydC5hZHIV" +
+            "AAAAZnJlZXN0eWxlLXN0aXRjaHVwLUwxBwAAAGR5ZXRpbnTqAAAAAAAAAAMAAAAvAAAAZnJlZXN0eWxlXzxyYWNlPl88Z2VuZGVy" +
+            "Pl9sZWdzX2Jvb3RjdXRwYW50cy5hZHIYAAAAZnJlZXN0eWxlLXNtYWxsc3RpdGNoLUwxBwAAAGR5ZXRpbnQGAQAAAAAAAAQAAAAn" +
+            "AAAAZnJlZXN0eWxlXzxyYWNlPl9tX2ZlZXRfc2hvZXN3c29ja3MuYWRyEgAAAGZyZWVzdHlsZS1zdWVkZS1MMQcAAABkeWV0aW50" +
+            "6gAAAAAAAAAFAAAAAAAAAA==")),
             ]),
             new ConversationStep(false, 0, [], 30.0, []),
         ]),
@@ -1616,14 +1613,11 @@ internal static class GatewayVectors
             ]),
             new ConversationStep(false, 0, [], 1.0, [
                 (50010, Convert.FromBase64String(
-            "AAkACAUAAW8AAAAmAAUAAQAAACsAAABmcmVlc3R5bGVfPHJhY2U+X21fY2hlc3Rfcm9sbGVkc2x2c2hpcnQuYWRyFQAAAGZyZWVz" +
-            "dHlsZS1zdGl0Y2h1cC1MMQcAAABkeWV0aW506gAAAAAAAAADAAAAAQAAAAAAAAA=")),
-                (50010, Convert.FromBase64String(
-            "AAkACQUAAXYAAAAmAAUAAgAAAC8AAABmcmVlc3R5bGVfPHJhY2U+XzxnZW5kZXI+X2xlZ3NfYm9vdGN1dHBhbnRzLmFkchgAAABm" +
-            "cmVlc3R5bGUtc21hbGxzdGl0Y2gtTDEHAAAAZHlldGludAYBAAAAAAAABAAAAAEAAAAAAAAA")),
-                (50010, Convert.FromBase64String(
-            "AAkACgUAAWgAAAAmAAUAAwAAACcAAABmcmVlc3R5bGVfPHJhY2U+X21fZmVldF9zaG9lc3dzb2Nrcy5hZHISAAAAZnJlZXN0eWxl" +
-            "LXN1ZWRlLUwxBwAAAGR5ZXRpbnTqAAAAAAAAAAUAAAABAAAAAAAAAA==")),
+            "AAkACAUAATEBAAAjAAcAAQAAAAAAAAADAAAAKwAAAGZyZWVzdHlsZV88cmFjZT5fbV9jaGVzdF9yb2xsZWRzbHZzaGlydC5hZHIV" +
+            "AAAAZnJlZXN0eWxlLXN0aXRjaHVwLUwxBwAAAGR5ZXRpbnTqAAAAAAAAAAMAAAAvAAAAZnJlZXN0eWxlXzxyYWNlPl88Z2VuZGVy" +
+            "Pl9sZWdzX2Jvb3RjdXRwYW50cy5hZHIYAAAAZnJlZXN0eWxlLXNtYWxsc3RpdGNoLUwxBwAAAGR5ZXRpbnQGAQAAAAAAAAQAAAAn" +
+            "AAAAZnJlZXN0eWxlXzxyYWNlPl9tX2ZlZXRfc2hvZXN3c29ja3MuYWRyEgAAAGZyZWVzdHlsZS1zdWVkZS1MMQcAAABkeWV0aW50" +
+            "6gAAAAAAAAAFAAAAAAAAAA==")),
             ]),
             new ConversationStep(false, 0, [], 30.0, []),
         ]),

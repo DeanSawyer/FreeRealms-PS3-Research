@@ -53,10 +53,10 @@ public sealed record GatewayOptions
     public bool TimeSync { get; init; } = true;
 
     /// <summary>
-    /// <c>FR_EQUIP</c>: how to dress the character in the creator's clothes after loading. 5 (default): one EquipItem (ClientUpdate) per piece;
-    /// 7 (<c>FR_EQUIP=7</c>): one EquippedItemsChange, which also plays the job change effect; 0 (<c>FR_EQUIP=0</c>): not at all.
+    /// <c>FR_EQUIP</c>: how to dress the character in the creator's clothes after loading. 7 (default): one EquippedItemsChange, which also plays the job
+    /// change effect; 5 (<c>FR_EQUIP=5</c>): one EquipItem (ClientUpdate) per piece; 0 (<c>FR_EQUIP=0</c>): not at all.
     /// </summary>
-    public int EquipPacket { get; init; } = 5;
+    public int EquipPacket { get; init; } = 7;
 
     /// <summary>Reads the <c>FR_*</c> variables through <paramref name="get"/> (null means unset). Problems are reported to <paramref name="warn"/>.</summary>
     public static GatewayOptions FromEnvironment(Func<string, string?> get, Action<string>? warn = null)
@@ -111,8 +111,8 @@ public sealed record GatewayOptions
             EquipPacket = Env(get, "FR_EQUIP", "1") switch
             {
                 "0" => 0,
-                "7" => 7,
-                _ => 5,
+                "5" => 5,
+                _ => 7,
             },
         };
     }

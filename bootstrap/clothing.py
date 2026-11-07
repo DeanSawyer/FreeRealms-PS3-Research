@@ -10,12 +10,12 @@ your client when you equip something (InventoryPacketEquipByGuidHandler). The PS
 u16 5, i32 item id, the attachment (model, texture alias and tint alias strings, then tint, composite effect and slot
 ints), profile id and one unused int (the PC packet's trailing Equip bool is not there), and only acts when that is the
 whole packet. Then 0xfec54 calls 0x5aab0 (player, slot, attachment, profile id) and redraws when the profile is the
-active one. PlayerUpdate sub-opcode 6 (EquipItemChange) is the same news for other players; sent about yourself it
+active one. In RPCS3 nothing went on with it, so it is only sent with FR_EQUIP=5. PlayerUpdate sub-opcode 6 (EquipItemChange) is the same news for other players; sent about yourself it
 changed nothing in RPCS3.
 
 equipped_items_change() is sub-opcode 7, EquippedItemsChange: the whole outfit at once (handler 0x112afc, attachment
 list reader 0xb03e90). It is what Sanctuary sends when you change jobs, and the client plays the job change effect
-(4005, at 0x11cc74) before it puts the clothes on, so it is only used with FR_EQUIP=7.
+(4005, at 0x11cc74) before it puts the clothes on. It is the only one seen to dress the character, so it is the default.
 """
 import gzip
 import os

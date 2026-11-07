@@ -262,18 +262,18 @@ def player_blob(character=None, guid=1):
 
 
 def equipment_packets(character=None, guid=1):
-    """The packets that dress the character in the clothes the character creator picked (bootstrap/clothing.py): one
-    EquipItem (ClientUpdate sub-opcode 5) per piece, item ids 1, 2, 3... as Sanctuary numbers a new character's items.
-    FR_EQUIP=7 sends one EquippedItemsChange (PlayerUpdate sub-opcode 7) instead, which also plays the job change
-    effect; FR_EQUIP=0 sends nothing. The player data carries no items yet, so this is what dresses the character; it is sent
+    """The packets that dress the character in the clothes the character creator picked (bootstrap/clothing.py). Default
+    (or FR_EQUIP=7): one EquippedItemsChange (PlayerUpdate sub-opcode 7), the only one seen to work in RPCS3; the client
+    plays the job change effect with it. FR_EQUIP=5: one EquipItem (ClientUpdate sub-opcode 5) per piece, item ids 1, 2,
+    3... as Sanctuary numbers a new character's items (sent in RPCS3, nothing went on). FR_EQUIP=0 sends nothing. The player data carries no items yet, so this is what dresses the character; it is sent
     after ClientFinishedLoading, once the character exists."""
     mode = os.environ.get("FR_EQUIP", "1").strip()
     pieces = clothing.attachments(character or {})
     if mode == "0" or not pieces:
         return []
-    if mode == "7":
-        return [clothing.equipped_items_change(guid, pieces)]
-    return [clothing.equip_item(n + 1, piece, PROFILE_ID) for n, piece in enumerate(pieces)]
+    if mode == "5":
+        return [clothing.equip_item(n + 1, piece, PROFILE_ID) for n, piece in enumerate(pieces)]
+    return [clothing.equipped_items_change(guid, pieces)]
 
 
 def send_self_to_client(character=None):
