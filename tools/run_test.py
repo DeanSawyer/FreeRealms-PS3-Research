@@ -221,8 +221,10 @@ def main():
     # RPCS3 lines that show what the client opened (packs, tiles) and every patch line, kept in full.
     keep = re.compile(r"PAT|patch|assets_ps3|\.gcnk|\.gzne|FabledRealms|\.cob|\.odd|FreeRealms\.log|GameRuntimeTerrain"
                       r"|fatal|terminated|Call stack|Registers|Access violation|main_thread|LoadingScreenThread", re.I)
+    kept = [ln for ln in tail_lines(rpcs3_log, 200000) if keep.search(ln)]
+    applied = [ln for ln in kept[:-1500] if "PAT: Applied" in ln]   # startup patch lines, so a run shows which patches were on
     with open(os.path.join(out_dir, "rpcs3_log_filtered.txt"), "w", encoding="utf-8") as f:
-        f.write("".join([ln for ln in tail_lines(rpcs3_log, 200000) if keep.search(ln)][-1500:]))
+        f.write("".join(applied + kept[-1500:]))
     # The patch files and RPCS3 settings (text only), so the diagnostic patch can use the exact same format.
     rp = os.path.join(install, "RPCS3_TEST")
     for rel in ("config\\patch_config.yml", "config\\log.yml", "config\\config.yml"):

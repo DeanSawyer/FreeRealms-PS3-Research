@@ -346,6 +346,18 @@ search for the address.
 If 1 fires and 2 does not, the packet is dispatched but the per-frame update never gets to the flag, which points at the main thread being stuck
 before that (run 3 splits it). If 2 fires, the main loop is alive after the packet and `Hide` not running becomes the question.
 
+### Results (2026-11-06, `--sanctuary`)
+
+| Run | Patch | Result |
+|---|---|---|
+| `fr_test_20261106_163749` | none | Same hang as every earlier run: the second `LoadingScreenThread` starts at the zone change, the game reads files for 3.4 s (the client's `ClientZoneTime.log` says 3345 ms), then opens nothing, starts no thread and never joins the splash thread. The game ignores RPCS3's exit request. |
+| `fr_test_20261106_164824` | fault at `0xecd68` (RPCS3 logged `PAT: Applied ... fault at 0x000ecd68`) | **No fault in two minutes**: `WaitForWorldReady` never reaches its common exit, so `HideLoadingScreen` never runs. At shutdown the main thread was at `0x71fda8`, in the Lua C API next to `lua_getfield` (`0x71ff9c`), with 97 s of CPU time in a 120 s run: the third sample in the Lua runtime. |
+
+So the main thread is stuck, busy, between the ClientLog lines and `0xecd68`: in `FUN_007ced38(holder, 1)`, the Lua call
+`HUD:SetIsInStartingZone` (`0xe43ec`) or the list walk `0x160dcc`. Next: `--fault-at 0xed920` (right after the Lua call). No fault patch
+has been seen to fire on this RPCS3 yet; if `0xed920` stays silent too, a run at `0xe1754` (opcode 93, which the client receives every run) checks
+that the method works.
+
 ### Repaired disassembly (why some earlier "no caller" results were unreliable)
 
 Ghidra's PowerPC language does not know the Cell-only vector loads `lvlx` / `lvrx`. It stops disassembling at the first one, so every
