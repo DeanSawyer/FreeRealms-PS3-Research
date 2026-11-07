@@ -132,33 +132,33 @@ public sealed class GatewayTests
         gateway.Receive(Connect(), Client, TimeSpan.Zero);
         gateway.Receive(Reliable(0, 0, Login()), Client, TimeSpan.Zero);
 
-        // LoginReply (0), ZoneDetails (1), the player data (every job and item) in 23 fragments (2 to 24) and the 77 ItemAdd
-        // packets of an empty character (25 to 101).
-        Assert.AreEqual(102, gateway.PendingCount);
+        // LoginReply (0), ZoneDetails (1), the player data (every job and item) in 22 fragments (2 to 23) and the 77 ItemAdd
+        // packets of an empty character (24 to 100).
+        Assert.AreEqual(101, gateway.PendingCount);
 
         // An Ack removes one sequence; an AckAll removes everything up to and including its sequence.
         gateway.Receive([0, 0x11, 0, 1], Client, TimeSpan.Zero);
 
-        Assert.AreEqual(101, gateway.PendingCount);
+        Assert.AreEqual(100, gateway.PendingCount);
 
-        gateway.Receive([0, 0x15, 0, 100], Client, TimeSpan.Zero);
+        gateway.Receive([0, 0x15, 0, 99], Client, TimeSpan.Zero);
 
         Assert.AreEqual(1, gateway.PendingCount);
 
         // An ack for another channel or another peer does nothing.
-        gateway.Receive([0, 0x12, 0, 101], Client, TimeSpan.Zero);
-        gateway.Receive([0, 0x11, 0, 101], new IPEndPoint(IPAddress.Loopback, 1), TimeSpan.Zero);
+        gateway.Receive([0, 0x12, 0, 100], Client, TimeSpan.Zero);
+        gateway.Receive([0, 0x11, 0, 100], new IPEndPoint(IPAddress.Loopback, 1), TimeSpan.Zero);
 
         Assert.AreEqual(1, gateway.PendingCount);
 
         capture.Sent.Clear();
         gateway.Maintain(TimeSpan.FromSeconds(1.5));
 
-        // Only the still pending packet (the last ItemAdd, sequence 101) is repeated.
+        // Only the still pending packet (the last ItemAdd, sequence 100) is repeated.
         var again = capture.Sent.Single(datagram => datagram[1] is 9 or 13);
 
         Assert.AreEqual(9, again[1]);
-        Assert.AreEqual(101, BinaryPrimitives.ReadUInt16BigEndian(again.AsSpan(2)));
+        Assert.AreEqual(100, BinaryPrimitives.ReadUInt16BigEndian(again.AsSpan(2)));
     }
 
     [TestMethod]
@@ -171,7 +171,7 @@ public sealed class GatewayTests
 
         var pending = gateway.PendingCount;
 
-        Assert.AreEqual(102, pending);
+        Assert.AreEqual(101, pending);
 
         capture.Sent.Clear();
         gateway.Maintain(TimeSpan.FromSeconds(0.5));

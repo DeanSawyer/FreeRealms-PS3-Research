@@ -62,7 +62,7 @@ public static class Ps3Packets
     /// <summary>
     /// One entry of the profile list (a job; the client reads 179 bytes per entry): id, name id, description id, type, icon, the three
     /// image sets and the members-only byte from <see cref="Jobs"/> (an id it does not have gets only the id), the rank at
-    /// <see cref="ProfileRankOffset"/>, the equipment ({slot: item id}; slot n at <see cref="ProfileEquipmentOffset"/> + 4 * (n - 1),
+    /// <see cref="ProfileRankOffset"/>, the equipment ({slot: item id}; slot n at <see cref="ProfileEquipmentOffset"/> + 4 * n (word 0 unused),
     /// as the client's RequestEquippedAttachments reads it), zeros for everything else.
     /// </summary>
     public static byte[] Profile(int profileId, IReadOnlyDictionary<int, int>? equipment = null, bool itemClasses = true)
@@ -82,7 +82,7 @@ public static class Ps3Packets
         var entry = writer.Zeros(ProfileRankOffset - writer.Length).I32(ProfileRank).Zeros(ProfileSize - ProfileRankOffset - 4).ToArray();
 
         foreach (var (slot, itemId) in equipment ?? new Dictionary<int, int>())
-            BinaryPrimitives.WriteInt32LittleEndian(entry.AsSpan(ProfileEquipmentOffset + 4 * (slot - 1)), itemId);
+            BinaryPrimitives.WriteInt32LittleEndian(entry.AsSpan(ProfileEquipmentOffset + 4 * slot), itemId);
 
         // The job's item classes (what it can equip) are the list at ProfileItemClassesOffset; everything after it moves by its size.
         var classes = itemClasses ? Jobs.ItemClasses.GetValueOrDefault(profileId, []) : Array.Empty<(int Class, int Unknown)>();
@@ -101,7 +101,7 @@ public static class Ps3Packets
     /// <summary>Offset of a job's item class list inside a profile entry: a count, then 12 bytes each (the class as the key, the class, a value).</summary>
     public const int ProfileItemClassesOffset = 0x25;
 
-    /// <summary>Offset of a job's equipment inside a profile entry: 17 item ids, slot 1 first.</summary>
+    /// <summary>Offset of a job's equipment inside a profile entry: 17 item ids indexed by slot (the client reads word n for slot n; word 0 is unused).</summary>
     public const int ProfileEquipmentOffset = 0x43;
 
     /// <summary>Offset of the item list's count in the player data, counted from the end of the active profile id.</summary>

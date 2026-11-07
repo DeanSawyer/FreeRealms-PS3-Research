@@ -31,8 +31,8 @@ public static class Items
     public const int GenderUsageField = 15;
     public const int TintAliasField = 30;
 
-    /// <summary>Slots in a job's equipment (entry offset 0x43, slot 1 first).</summary>
-    public const int EquipmentSlots = 17;
+    /// <summary>Highest equipment slot: a job's 17 equipment words (entry offset 0x43) are indexed by slot, word 0 unused.</summary>
+    public const int EquipmentSlots = 16;
 
     private static readonly (string Item, string Tint)[] CreatorItems =
     [

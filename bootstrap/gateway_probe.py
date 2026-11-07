@@ -216,7 +216,9 @@ def profile(profile_id, equipment=None):
     words, 8 ability lists (each a count; zero here) and an ability-experience list. The fields Sanctuary fills from
     Resources/Profiles.json come from bootstrap/jobs.py (an id it does not have gets only the id); the rank is
     Sanctuary's level 20; the lists are empty. `equipment` is {slot: item id} (bootstrap/items.py): slot n's item id
-    goes at 0x43 + 4 * (n - 1), as the client's RequestEquippedAttachments (0xeba4c) reads it. The job's item classes
+    goes at 0x43 + 4 * n: the client indexes the 17 words by slot number (the equipment screen's 0x46e04 passes the
+    definition's slot, 1 to 16, to 0x5911c, and RequestEquippedAttachments at 0xeba4c walks 0 to 16), so word 0 is
+    never used. The job's item classes
     (what it can equip, bootstrap/jobs.py) are the list at 0x25, so with them the entry is longer than 179 bytes and
     every later offset moves by its size. FR_ITEMS=0 leaves the list empty.
 
@@ -232,13 +234,14 @@ def profile(profile_id, equipment=None):
         struct.pack_into("<i", entry, 0, profile_id)
     struct.pack_into("<i", entry, PROFILE_RANK_OFFSET, PROFILE_RANK)
     for slot, item_id in (equipment or {}).items():
-        struct.pack_into("<i", entry, PROFILE_EQUIPMENT_OFFSET + 4 * (slot - 1), item_id)
+        struct.pack_into("<i", entry, PROFILE_EQUIPMENT_OFFSET + 4 * slot, item_id)
     classes = jobs.JOB_ITEM_CLASSES.get(profile_id, ()) if items.enabled() else ()
     item_classes = struct.pack("<i", len(classes)) + b"".join(struct.pack("<iii", c, c, u) for c, u in classes)
     return bytes(entry[:PROFILE_ITEM_CLASSES_OFFSET]) + item_classes + bytes(entry[PROFILE_ITEM_CLASSES_OFFSET + 4:])
 
 
-PROFILE_EQUIPMENT_OFFSET = 0x43   # 17 item ids, slot 1 first (offsets as if the item class list were empty)
+PROFILE_EQUIPMENT_OFFSET = 0x43   # 17 item ids indexed by slot, so word 0 is unused and the head (slot 1) is the second
+                                  # (offsets as if the item class list were empty)
 PROFILE_ITEM_CLASSES_OFFSET = 0x25   # the job's item class list (count, then 12 bytes each); everything after moves
 
 

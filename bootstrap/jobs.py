@@ -5,7 +5,8 @@ Sanctuary's login.json sets UnlockAllProfiles, so a new character gets every job
 job's name, description, type, icon, image sets and members-only flag into the player data
 (GatewayConnection: ClientPcProfile) and sets the rank to the level.
 
-JOBS is that file's entries in its order, with the fields the PS3 1.77 profile entry has room for (read with
+JOBS is that file's entries in its order, without Card Duelist (job 120: the PS3 game had no trading card game),
+with the fields the PS3 1.77 profile entry has room for (read with
 tools/ppc_trace.py; see docs/protocol/gateway.md): id 0x00, name id 0x04, description id 0x08, type 0x0c, icon 0x10,
 ability background, badge and button image sets 0x14, 0x18, 0x1c, members only 0x20 (one byte), rank 0x33.
 
@@ -33,15 +34,14 @@ JOBS = (
     (48, 2917, 2918, 5, 20725, 4, 46, 7494, False),      # Kart Driver
     (49, 2919, 2920, 7, 8059, 4, 46, 7494, False),       # Demo Derby Driver
     (52, 4650, 2920, 8, 20743, 4, 4842, 21, False),      # Soccer Star
-    (120, 2410, 2411, 17, 396, 4, 1783, 1782, False),    # Card Duelist
     (137, 20178, 407842, 21, 20740, 4, 4843, 5885, False),  # Fisherman
     (58, 23268, 2302, 9, 258, 4, 19, 21, False),         # Referee
     (20, 2301, 2302, 9, 258, 4, 19, 21, False),          # Enforcer
 )
 BY_ID = {job[0]: job for job in JOBS}
 
-# Each job's DefaultItems in Resources/Profiles.json (item definition ids). Jobs not listed (Adventurer, Card Duelist)
-# have none and wear the character creator's clothes.
+# Each job's DefaultItems in Resources/Profiles.json (item definition ids). Jobs not listed (Adventurer) have none and
+# wear the character creator's clothes.
 JOB_ITEMS = {
     2: (19522, 19431, 19197, 19787, 19253, 75091),            # Ninja
     4: (13137, 12827, 13197, 13317, 12957),                   # Postman
@@ -79,7 +79,6 @@ JOB_ITEM_CLASSES = {
     48: ((24, 5), (69, 1), (144, 0), (145, 0), (146, 0), (150, 0), (153, 0), (154, 0), (155, 0), (156, 0), (158, 0), (161, 0), (162, 0), (168, 0), (173, 0), (999, 0)),   # Kart Driver
     49: ((22, 5), (69, 1), (144, 0), (145, 0), (146, 0), (150, 0), (153, 0), (154, 0), (155, 0), (156, 0), (158, 0), (161, 0), (162, 0), (168, 0), (173, 0), (999, 0)),   # Demo Derby Driver
     52: ((69, 1), (134, 5), (135, 5), (136, 5), (143, 3), (144, 0), (145, 0), (146, 0), (150, 0), (153, 0), (154, 0), (155, 0), (156, 0), (158, 0), (161, 0), (162, 0), (168, 0), (173, 0), (999, 0)),   # Soccer Star
-    120: ((1, 3), (62, 5), (69, 1), (144, 0), (145, 0), (146, 0), (147, 0), (148, 0), (149, 0), (150, 0), (153, 0), (154, 0), (155, 0), (156, 0), (157, 0), (158, 0), (160, 0), (161, 0), (162, 3), (168, 0), (173, 0), (179, 3), (181, 3), (182, 3), (999, 0)),   # Card Duelist
     137: ((69, 1), (137, 5), (138, 5), (139, 5), (144, 0), (145, 0), (146, 0), (150, 0), (153, 0), (154, 0), (155, 0), (156, 0), (158, 0), (161, 0), (162, 0), (168, 0), (173, 0), (999, 0)),   # Fisherman
     58: ((69, 1), (143, 3), (144, 1), (145, 0), (146, 0), (147, 0), (148, 0), (149, 0), (150, 0), (153, 0), (154, 0), (155, 0), (156, 0), (157, 0), (158, 0), (160, 0), (161, 0), (162, 3), (168, 0), (173, 0), (999, 0), (26, 0), (1, 0)),   # Referee
     20: ((69, 1), (143, 3), (144, 1), (145, 0), (146, 0), (147, 0), (148, 0), (149, 0), (150, 0), (153, 0), (154, 0), (155, 0), (156, 0), (157, 0), (158, 0), (160, 0), (161, 0), (162, 3), (168, 0), (173, 0), (999, 0), (26, 0), (1, 0)),   # Enforcer

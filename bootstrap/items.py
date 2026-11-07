@@ -18,7 +18,8 @@ On the PS3 1.77 client (read with tools/ppc_trace.py; docs/protocol/gateway.md, 
   RequestEquippedAttachments (0xeba4c) and the inventory look items up.
 * item_record() is one entry of the player data's item list (reader 0xb0f10c, 37 bytes): id, an int, definition, tint,
   id again, count, a byte, an int, an empty list, an int. The client keys the item by the first field (0x59a34).
-* A job's equipment is 17 item ids at entry offset 0x43 (slot n at 0x43 + 4 * (n - 1)); 0 is an empty slot.
+* A job's equipment is 17 item ids at entry offset 0x43, indexed by slot (slot n at 0x43 + 4 * n, word 0 unused);
+  0 is an empty slot.
 
 FR_ITEMS=0 sends none of this (no items, no definitions, empty equipment), as before.
 """
@@ -32,7 +33,7 @@ import jobs
 TABLE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "item_definitions.tsv.gz")
 FIELD_KINDS = "iiiiiiiiiiibbssiiibbiiiiiiibibsbui"   # i32, bool and u8 (one byte), string; tools/gen_item_definitions.py
 SLOT_FIELD = 10
-EQUIPMENT_SLOTS = 17
+EQUIPMENT_SLOTS = 16   # slots 1 to 16; a job's 17 equipment words are indexed by slot, word 0 unused
 CREATOR_ITEMS = (("ItemChest", "ItemChestTint"), ("ItemLegs", "ItemLegsTint"), ("ItemFeet", "ItemFeetTint"))
 CREATOR_EXTRAS = (("ItemHead", "ItemHeadTint"), ("ItemHands", "ItemHandsTint"), ("ItemShoulders", "ItemShouldersTint"))
 GENDER_BY_MODEL = {1: 1, 2: 1, 60: 2, 61: 2}   # Sanctuary's Models.txt: human and fairy, male and female

@@ -26,7 +26,7 @@ public static class Jobs
     /// <summary>Sanctuary's <c>DbProfile</c> level for every job of a new character; the client reads it as the rank.</summary>
     public const int Rank = 20;
 
-    /// <summary>Sanctuary's <c>Resources/Profiles.json</c>, in its order.</summary>
+    /// <summary>Sanctuary's <c>Resources/Profiles.json</c>, in its order, without Card Duelist (job 120: the PS3 game had no trading card game).</summary>
     public static readonly IReadOnlyList<Job> All =
     [
         new(1, 2836, 2837, 1, 1334, 4, 19, 21, false), // Adventurer
@@ -43,15 +43,14 @@ public static class Jobs
         new(48, 2917, 2918, 5, 20725, 4, 46, 7494, false), // Kart Driver
         new(49, 2919, 2920, 7, 8059, 4, 46, 7494, false), // Demo Derby Driver
         new(52, 4650, 2920, 8, 20743, 4, 4842, 21, false), // Soccer Star
-        new(120, 2410, 2411, 17, 396, 4, 1783, 1782, false), // Card Duelist
         new(137, 20178, 407842, 21, 20740, 4, 4843, 5885, false), // Fisherman
         new(58, 23268, 2302, 9, 258, 4, 19, 21, false), // Referee
         new(20, 2301, 2302, 9, 258, 4, 19, 21, false), // Enforcer
     ];
 
     /// <summary>
-    /// Each job's DefaultItems in Sanctuary's <c>Resources/Profiles.json</c> (item definition ids). Jobs not listed (Adventurer, Card
-    /// Duelist) have none and wear the character creator's clothes.
+    /// Each job's DefaultItems in Sanctuary's <c>Resources/Profiles.json</c> (item definition ids). Jobs not listed (Adventurer) have none
+    /// and wear the character creator's clothes.
     /// </summary>
     public static readonly IReadOnlyDictionary<int, int[]> DefaultItems = new Dictionary<int, int[]>
     {
@@ -93,7 +92,6 @@ public static class Jobs
         [48] = [(24, 5), (69, 1), (144, 0), (145, 0), (146, 0), (150, 0), (153, 0), (154, 0), (155, 0), (156, 0), (158, 0), (161, 0), (162, 0), (168, 0), (173, 0), (999, 0)], // Kart Driver
         [49] = [(22, 5), (69, 1), (144, 0), (145, 0), (146, 0), (150, 0), (153, 0), (154, 0), (155, 0), (156, 0), (158, 0), (161, 0), (162, 0), (168, 0), (173, 0), (999, 0)], // Demo Derby Driver
         [52] = [(69, 1), (134, 5), (135, 5), (136, 5), (143, 3), (144, 0), (145, 0), (146, 0), (150, 0), (153, 0), (154, 0), (155, 0), (156, 0), (158, 0), (161, 0), (162, 0), (168, 0), (173, 0), (999, 0)], // Soccer Star
-        [120] = [(1, 3), (62, 5), (69, 1), (144, 0), (145, 0), (146, 0), (147, 0), (148, 0), (149, 0), (150, 0), (153, 0), (154, 0), (155, 0), (156, 0), (157, 0), (158, 0), (160, 0), (161, 0), (162, 3), (168, 0), (173, 0), (179, 3), (181, 3), (182, 3), (999, 0)], // Card Duelist
         [137] = [(69, 1), (137, 5), (138, 5), (139, 5), (144, 0), (145, 0), (146, 0), (150, 0), (153, 0), (154, 0), (155, 0), (156, 0), (158, 0), (161, 0), (162, 0), (168, 0), (173, 0), (999, 0)], // Fisherman
         [58] = [(69, 1), (143, 3), (144, 1), (145, 0), (146, 0), (147, 0), (148, 0), (149, 0), (150, 0), (153, 0), (154, 0), (155, 0), (156, 0), (157, 0), (158, 0), (160, 0), (161, 0), (162, 3), (168, 0), (173, 0), (999, 0), (26, 0), (1, 0)], // Referee
         [20] = [(69, 1), (143, 3), (144, 1), (145, 0), (146, 0), (147, 0), (148, 0), (149, 0), (150, 0), (153, 0), (154, 0), (155, 0), (156, 0), (157, 0), (158, 0), (160, 0), (161, 0), (162, 3), (168, 0), (173, 0), (999, 0), (26, 0), (1, 0)], // Enforcer

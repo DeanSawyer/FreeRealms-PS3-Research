@@ -136,12 +136,12 @@ A profile entry (a job) is 179 bytes in this build when its item class list is e
 | 0x33 | i32 | rank (the reader stores it at profile+20); offsets from here on are for an empty class list |
 | 0x37 | i32 | rank percent |
 | 0x3b, 0x3f | i32 | stars |
-| 0x43 | 17 x i32 | equipment |
+| 0x43 | 17 x i32 | equipment: item ids indexed by slot (word n is slot n; word 0 is unused) |
 | then | | eight ability lists (each starts with a count) and an ability-experience list |
 
-The server sends every job Sanctuary gives a new character (`UnlockAllProfiles`: all 18 in its `Resources/Profiles.json`, at
+The server sends every job Sanctuary gives a new character (`UnlockAllProfiles`: its `Resources/Profiles.json` without Card Duelist, which the PS3 game did not have: 17 jobs, at
 level 20, starter job first; `bootstrap/jobs.py`, `FR_JOBS` to pick some), with the fields Sanctuary fills: id to members only and
-the rank. Everything else is zero. With the 18 jobs the client's reader consumes the whole 3,577 byte player blob and builds each
+the rank. Everything else is zero. With all the jobs the client's reader consumes the whole player blob and builds each
 job with its id, name id, description id, type and rank 20 (`tools/ppc_trace.py`). A rank of 0 hangs the client after loading: see
 `docs/re/zone-loading.md`, *Cause of the stuck loading screen*.
 This differs from Clover's `ClientPcProfile` (no item-class or item maps), so the PS3 build is an older layout.
@@ -157,7 +157,9 @@ the definition's slot; the starter job, and jobs without default items, wear the
 * **Item list.** In the player blob, the count `ITEM_LIST_OFFSET` (0x31) bytes after the active profile id. Each entry is 37
   bytes (reader `0xb0f10c`): `i32` id, `i32` (0), `i32` definition, `i32` tint, `i32` id, `i32` count, `u8`, `i32`, `u32` count
   of a list (0), `i32`. The client keys the item by the first field (`0x59a34` -> `0x26bc18`).
-* **Equipment.** 17 `i32` item ids at profile entry offset 0x43, slot 1 first; 0 is an empty slot. The reader keeps them in an
+* **Equipment.** 17 `i32` item ids at profile entry offset 0x43, indexed by slot: word n holds slot n, word 0 is never
+  used; 0 is an empty slot. (Writing slot n into word n - 1 put the hat in the unused word and the shoulders in the
+  feet slot: in RPCS3 the equipment screen showed no hat category and two feet categories.) The reader keeps them in an
   array the profile points to (`+152`); `RequestEquippedAttachments` (`0xeba4c`) goes through the active profile's 17 slots
   after the player loads, looks each item up (`0x5911c`) and its definition (`0x146ad0`, the cache at client `+3076`), and logs
   "Client item definition %d not yet available" when one is missing.
@@ -176,7 +178,7 @@ the definition's slot; the starter job, and jobs without default items, wear the
 
 Each job also gets its `ItemClasses` from Sanctuary's `Profiles.json` (16 to 27 per job) in the list at entry offset 0x25.
 With the user's character the client's readers consume the whole 11,267 byte player blob and every definition exactly, and each
-job's equipment array holds the right ids (Adventurer slots 3, 4, 5 = items 1, 2, 3; Archer slots 1 to 7 = items 43 to 49).
+job's equipment array holds the right ids (Adventurer words 3, 4, 5 = items 1, 2, 3; Archer words 1 to 7 = items 43 to 49).
 Not checked in the emulator: the item objects themselves, because the reader hands them to the inventory manager
 (`client +31748`), which does not exist there. `FR_ITEMS=0` sends no items, no definitions and empty item class lists.
 
