@@ -346,6 +346,60 @@ search for the address.
 If 1 fires and 2 does not, the packet is dispatched but the per-frame update never gets to the flag, which points at the main thread being stuck
 before that (run 3 splits it). If 2 fires, the main loop is alive after the packet and `Hide` not running becomes the question.
 
+### Results (2026-11-06, `--sanctuary`)
+
+| Run | Patch | Result |
+|---|---|---|
+| `fr_test_20261106_163749` | none | Same hang as every earlier run: the second `LoadingScreenThread` starts at the zone change, the game reads files for 3.4 s (the client's `ClientZoneTime.log` says 3345 ms), then opens nothing, starts no thread and never joins the splash thread. The game ignores RPCS3's exit request. |
+| `fr_test_20261106_164824` | fault at `0xecd68` (RPCS3 logged `PAT: Applied ... fault at 0x000ecd68`) | **No fault in two minutes**: `WaitForWorldReady` never reaches its common exit, so `HideLoadingScreen` never runs. At shutdown the main thread was at `0x71fda8`, in the Lua C API next to `lua_getfield` (`0x71ff9c`), with 97 s of CPU time in a 120 s run: the third sample in the Lua runtime. |
+
+So the main thread is stuck, busy, between the ClientLog lines and `0xecd68`: in `FUN_007ced38(holder, 1)`, the Lua call
+`HUD:SetIsInStartingZone` (`0xe43ec`) or the list walk `0x160dcc`. Next: `--fault-at 0xed920` (right after the Lua call). No fault patch
+has been seen to fire on this RPCS3 yet; if `0xed920` stays silent too, a run at `0xe1754` (opcode 93, which the client receives every run) checks
+that the method works.
+
+| Run | Patch | Result |
+|---|---|---|
+| `fr_test_20261106_165400` | fault at `0xed920` (applied) | No fault: the main thread never returns from `HUD:SetIsInStartingZone`. Main thread sampled at `0x71fc18` (Lua). |
+| `fr_test_20261106_165838` | fault at `0xe1754` (applied) | No fault. Not a test of the method: in the Sanctuary order opcode 93 arrives after 14 and 38/26, and the main thread hangs before it dispatches it. |
+| `fr_test_20261106_170218` | fault at `0xec3dc` (applied) | **Fault**, `Access violation reading location 0x0` on `main_thread` with `LR = 0xf12d0` (RPCS3's recompiler reports the caller's position): the method works. |
+
+## Cause of the stuck loading screen: `GroupHandler:GetNextJob` never finds a job with a rank
+
+Paused in RPCS3's debugger at the stuck screen, the main thread's call stack was (innermost first):
+
+| Return address | Function |
+|---|---|
+| `0xa332c8`, `0xa334c0` | `0xa33124`, the C library's string-to-number conversion (`strtod`: the exponent limits -1074 / 1075 / 538 / -537 in the float registers) |
+| `0x70fd90`, `0x7385d8` | `lua_tonumber` and the function registered as Lua `tonumber` (`0x738350`, name table entry at `0xeb6e88`) |
+| `0x71e428`, `0x7288e4` | `luaD_precall` and the one `luaV_execute` (`0x727150`): the spinning code is plain Lua calling `tonumber` |
+| `0x71444c` ... `0x7185ac` | the Lua call machinery |
+| `0x1f2a0c` | the game's script-call helper |
+| `0xe44e4` | `0xe43ec`, which calls `HUD:SetIsInStartingZone` |
+| `0xed920` | `WaitForWorldReady`, right after that call |
+| `0xf12d0`, `0x10fc4`, `0x104d8`, `0x10250` | the zone-change routine, the main loop and start-up |
+
+The scripts (`tools/undat.py`, `tools/luadis.py`) give the rest of the chain:
+
+```
+HUD:SetIsInStartingZone [40,18] -> HUD:SetShowNormalState [40,19] -> HUD:showMain [40,6] (pc 174)
+  -> GroupHandler:SetJobSwitchOnOrOff(true) [46,38] -> GroupHandler:GetNextJob(0) [46,40]
+```
+
+`GetNextJob` walks the `DS_PROFILES` data source inside `while not done do for i = ... do ... end end`; the only way out is a row after the
+active job (wrapping round) whose `tonumber(Rank)` is above 0. The server sent one profile with every field but the id at 0, so the rank was
+0 and the loop never ends. The server now sends rank 1 for the starter job (`PROFILE_RANK` in `bootstrap/gateway_probe.py`,
+`Ps3Packets.ProfileRank` in the C# port).
+
+**Where the rank is.** The job list is a data source class (method table at `0xec9c0c`): its column names come from `0x264ea4` (Id, Name,
+Description, Type, Rank, StarsAvailable, ...: the order of the script's `ProfileDsColumns`), its row count from `0x265020`, its rows are filled by
+`0x2661a8` from the player's own profile list (`player+408`, one row per profile, so our one profile is one row), and its values come from
+`0x2656c0`, which looks the row's id up in the player's profile table and jumps on the column (table at `0x265844`): **Rank returns
+`profile+20`**, RankPercent `profile+24`, Id `profile+0`. The player-data reader stores entry offset `0x33` (blob `0x124`, read at `0xb09788`)
+into `profile+20` and `0x37` into `+24`. So the rank is at entry offset **`0x33`**. A first attempt put the 1 at `0x37` by following
+Sanctuary's field order (the PS3 entry lacks one of its unknown fields before the rank); that set RankPercent, and the run of 2026-11-06 17:26
+still hung in `GetNextJob` (same call stack).
+
 ### Repaired disassembly (why some earlier "no caller" results were unreliable)
 
 Ghidra's PowerPC language does not know the Cell-only vector loads `lvlx` / `lvrx`. It stops disassembling at the first one, so every
@@ -354,6 +408,33 @@ among others in the per-frame function `fn_000ee7bc` (everything from `0xeed40` 
 them to the plain AltiVec `lvx` in the Ghidra copy (same registers; each gets an end-of-line comment with the original word; the file on
 disk is unchanged) before the functions are created. All 59 rows of `addresses.csv` were verified again on the rebuilt project, and the call
 graph of the loading screen (callers of `0x7ea164`, `0x182834`, `0x1441b0`, `0xc5ca8`, `0xc72f8`, `0x14420c`) is the same as before.
+
+## Experiment: the Sanctuary flow one for one
+
+EdenFPS (Clover community, 3 October 2026) showed the PS3 client in the world on RPCS3 with a modified Sanctuary server. Eden named
+only one change, an exact `SendSelfToClient` for the build, and the character was drawn without clothes, so empty item data does not
+hold the world back. The difference that remains between that setup and this server is everything else Sanctuary sends around the zone
+change. `FR_SANCTUARY=1` (or `tools/run_test.py --sanctuary`) sends exactly that, built in [`bootstrap/sanctuary_flow.py`](../../bootstrap/sanctuary_flow.py)
+from Sanctuary's own serializers:
+
+| When | Sanctuary sends (and now so does this server) | What this server sent before |
+|---|---|---|
+| After `LoginReply` | EncounterOverworldCombat (41/132), InitializationParameters (`live`), ZoneDetails, ClientGameSettings, ItemDefinitions (empty), SendSelfToClient | ZoneDetails, SendSelfToClient (the rest only with `FR_EXTRA=1`) |
+| `ClientIsReady` | quick chat, 20 stats, hit points, mana, wield type, can-create-guild, item classes / categories / profile reference data, customizations, membership (189), composite effects on, **then** 14 and 38/26, friend and ignore lists, points of interest, adventurer's journal (209), coin store and marketplace (165, 66), announcement (193), welcome screen (93, first login: seconds since last login `-1`), objective target off | GameTimeSync, 93 (empty), 14, 38/26 |
+| `ClientFinishedLoading` | client areas (4173, plus the 13 Halloween areas between 20 September and 11 November), POI change and chat area, weapon flair override, empty toolbar for profile 1 | `AddPc` of a second test character one second later |
+| 102/1, 141/1, 52 | one test lobby game; **no reply** to 141/1; game clock `8 x (now - 1221361670)` | empty lobby list; a guessed 141/2 reply; Unix time |
+
+Kept from this server: the PS3 layouts of ZoneDetails and SendSelfToClient, and DoneSendingPreloadCharacters with its bool set (the
+PS3 client counts it only then; Sanctuary sends 0). Lists that Sanctuary fills from its resource files (quick chats, item classes,
+profiles, points of interest, coin store) are sent empty: their record layouts are not checked against build 1.77 yet. Three of
+Sanctuary's opcodes (189, 193, 209) lie outside the 12-180 range the 1.77 dispatcher handles, so the client most likely ignores them;
+the server logs them. `tools/check_sanctuary_flow.py` checks the order and every layout without a PS3.
+
+| After the run | Meaning |
+|---|---|
+| the world appears | one of Sanctuary's packets is what the client waits for; `FR_SKIP` narrows down which |
+| still stuck, same place | the packet flow is not the cause; the fault probes above locate the main thread |
+| the client crashes or disconnects earlier | one packet has a different layout in 1.77; leave packets out with `FR_SKIP=Name,Name` (names in `bootstrap.log`, `sanctuary:` lines) until it stops |
 
 ## Not yet verified
 
@@ -368,3 +449,65 @@ graph of the loading screen (callers of `0x7ea164`, `0x182834`, `0x1441b0`, `0xc
   the 141 reply parser). Which of them fires here is not known; either would show that script or event code ran after the logs.
 * The player data (`SendSelfToClient`) is not a suspect for the stall: the reader (`0xb1e460`) and its finisher (`0x59de8`) contain no wait and
   no loop that depends on the zero counts we send (see `docs/protocol/gateway.md`).
+
+## After the loading screen: the world, and a render crash on the area sky
+
+With the rank fixed (run `fr_test_20261106_173318`) the loading screen drops and the client plays: the player falls from the spawn
+height (y 400) and lands at about y 36 on tile (-4, -4), the client sends movement (opcode 125, about 10 a second) and camera updates
+(126), asks to join the chat channels `WorldArea`, `WorldTrade`, `WorldLfg` and `WorldMembersOnly` (opcode 26), requests store data (66)
+and logs `ClientStartTime.log` and `ClientSystemInfo.log`.
+
+Looking at the sky (or moving until the area sky loads) then breaks the game's render thread. The client opens
+`resources/sky/sky_wilds24.xml` and, within seconds, one of these happens:
+
+| Run | RPCS3 settings | Server | Result |
+|---|---|---|---|
+| `173318` | defaults (FIFO `Atomic`) | AddPc helper sent | `Deep Engine Renderer`: read of `0xc0` in `0x784518` (render command type 6: copy a 16-byte shader constant from the renderer's parameter table, slot 57 holds `0xc0`) |
+| 17:44 (`crash_logs`) | defaults | no AddPc | RSX `Dead FIFO commands queue state` |
+| `175319` | FIFO `Ordered & Atomic` | | hang: the renderer waits on a semaphore for the GPU, the main thread waits on the renderer |
+| `180138` | FIFO `Ordered & Atomic` | no GameTimeSync (`FR_TIME=0`) | read of `0xc0` in `0x784518`, command type 2 (bind the material's 16 texture slots; a slot holds `0xc0`) |
+| `180505` | plus `Accurate RSX reservation access` | | same as `180138` |
+
+Ruled out: the helper character, the game clock, missing or outdated sky assets (all 13 files the sky names are in the packs with the
+manifest's crc; only 1 of 54,146 local assets differs from the manifest), `Ordered & Atomic` and accurate RSX reservations. A driver
+wake-up delay of 200 froze the game at character creation. The bad pointer is `0xc0` every time, which looks like the address of a field
+at offset `0xc0` in an object that does not exist, reached through both a shader constant and a texture slot. `ZoneDetails` names no sky
+(as Sanctuary does for FabledRealms, but that is the 2014 PC client); `FR_SKY` sets one to test whether the 2011 PS3 build needs it.
+The render chain is thread entry `0x7ea570` -> `0xa60fe4` -> `0x35840` -> `0x7519c0` -> scene walk `0xcc73b0` (recursive) -> `0xcc6e50`
+-> `0x784518`, whose command list is at renderer `+3324` (count at `+3320`) and parameter table at `+0x2b8`.
+
+## Dressing the character: the creator's clothes
+
+The creator sends item definition ids and tints (`ItemChest=28216`, `ItemChestTint=234`, `ItemLegs=392`, `ItemFeet=17397`, ...).
+Sanctuary turns them into items in the player data and equips them in the profile; the PC client then looks each item's definition
+up and draws it. On the PS3 that needs two things this server does not have yet: item definitions (PlayerUpdate sub-opcode 33 on
+1.77: an i32-length payload whose first part, read by `0xac53b8`, is Sanctuary's `BaseItemDefinition` up to `VipRankRequired`; then
+`0xa90d10`, `0xac3c24`, `0xac3788`, `0x147108` and the cache insert `0x148420`) and the player data's item list and equipment slots.
+
+The shorter way is the packet Sanctuary sends when a profile changes, EquippedItemsChange (PlayerUpdate sub-opcode 7 on the PC and
+on 1.77). Its handler (`0x112afc`) reads u16 35, u16 7, u64 guid, an attachment list (`0xb03e90`), one more int, and acts only when
+that is the whole packet: `0x11cc34` finds the character by guid (`0x1bd598`) and puts the attachments on it (`0x1b0264`). Each
+attachment is three strings (model, texture alias, tint alias, at node offsets 0, 84 and 168) and three ints (tint, composite effect,
+slot, at 252, 256 and 260), Sanctuary's `CharacterAttachmentData`. Run through `tools/ppc_trace.py` with the list object the handler
+builds (vtable `0xebeeb8`; the reader's byte at +16 is an error flag, 0 = fine), the client's reader consumed all 289 bytes of the
+three-piece list for the character above and built three nodes with the right strings and ints.
+
+First test in RPCS3 (2026-11-06): the clothes went on, but the character first played the job change. That is in the handler:
+before attaching, `0x11cc58`..`0x11cc8c` plays effect 4005 on the character, because on the PC this packet is what a job change
+sends (Sanctuary's `CommandPacketSetProfileHandler`).
+
+Second try: EquipItemChange (PlayerUpdate sub-opcode 6), one per piece. Its handler (`0x112c24` -> `0x11daec`) plays no effect,
+but in RPCS3 nothing went on at all. In Sanctuary that packet only goes to other players (`SendTunneledToVisible` without
+`sendToSelf`); your own client gets ClientUpdate (38) sub-opcode 5, EquipItem (`InventoryPacketEquipByGuidHandler`).
+
+Third try, EquipItem, one per piece. The PS3 handler (`0xfa600`) reads u16 38, u16 5, i32 item id, one attachment (the
+same three strings and three ints), profile id and one unused int; the PC packet's trailing `Equip` bool is not there. It acts only
+on the whole packet: `0xfec54` calls `0x5aab0` (player, slot, attachment, profile id) and then looks the profile up and redraws when
+it is the active one. Item ids are 1, 2, 3... as Sanctuary numbers a new character's items; the profile id is the starter job's.
+In RPCS3 nothing went on with it either. Not yet known why: `0xfec54` skips the redraw when client `+712` is null or the profile
+lookup misses, and `0x5aab0` may only record the piece on the profile. So the default is back to EquippedItemsChange, the one that
+dresses the character (with the job change effect); `FR_EQUIP=5` sends EquipItem for testing.
+
+The pieces come from `bootstrap/data/item_definitions.tsv.gz` (the tint is the creator's, or the definition's icon tint when that is
+0, as in Sanctuary's `Player.GetAttachment`), sent for guid 1 a second after `ClientFinishedLoading` in both flows. `FR_EQUIP=0`
+sends nothing.

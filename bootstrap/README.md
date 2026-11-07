@@ -70,10 +70,17 @@ answers the game's hostnames, pass `--no-dns`.
 | Variable | Effect |
 | :--- | :--- |
 | `FR_ZONE`, `FR_ZONE_TYPE` | Override the zone name and type sent in `ZoneDetails` (default: chosen from your install, type `2`). |
-| `FR_SPAWN="x,y,z"`, `FR_SPAWN_Y` | Override the spawn position, or only its height (default 400). |
+| `FR_SPAWN` | Where the player starts. Default: Sanctuary's spawn (-1904.9, -39.7, 412.6), whose terrain tile is only in the manifest of a typical install. `local`: the centre of a tile stored in your packs (height `FR_SPAWN_Y`, default 400; the ground on tile (-4, -4) is at about 36). `"x,y,z"`: exactly there. |
 | `FR_ADDPC` | Which character `AddPc` adds: `other` (default), `self`, `both`, `none`. |
 | `FR_EXTRA=1` | Also send hit points, mana, game settings and an empty item list (layouts from the PC server, untested on the PS3 client). |
 | `FR_WELCOME=0`, `FR_TIME=0` | Leave out the welcome-screen packet or the game-time reply. |
+| `FR_JOBS` | Which jobs the character has. Default (or `all`): every job Sanctuary gives a new character except Card Duelist, which the PS3 game did not have (17, at level 20; see [`jobs.py`](jobs.py)). A list of ids (`"1,11,35"`) sends only those; the starter job (1, Adventurer) is always included. |
+| `FR_ITEMS=0` | Give the character no items. By default it owns what Sanctuary gives a new character: the creator's clothes and every job's starter outfit and weapon, each job wearing its own, with their item definitions sent after the player data (see [`items.py`](items.py)). |
+| `FR_EQUIP` | How the clothes picked in the character creator go on, a second after `ClientFinishedLoading` (see [`clothing.py`](clothing.py)). Default (or `7`): one EquippedItemsChange (PlayerUpdate sub-opcode 7), which dresses you but also plays the job change effect. `5`: one EquipItem (ClientUpdate sub-opcode 5) per piece, as Sanctuary sends your own client (nothing went on in RPCS3 yet). `0`: not at all. |
+| `FR_SKY=name.xml` | Name a sky in `ZoneDetails` (default: none, as Sanctuary sends for FabledRealms). Experiment for the crash when the camera looks at the sky. |
+| `FR_SANCTUARY=1` | Send exactly what the PC server Sanctuary sends at login, `ClientIsReady` and `ClientFinishedLoading`, and answer the client's requests as it does (no reply to 141/1, no `AddPc`). See [`sanctuary_flow.py`](sanctuary_flow.py) and [`docs/re/zone-loading.md`](../docs/re/zone-loading.md#experiment-the-sanctuary-flow-one-for-one). Python server only. |
+| (inventory) | With `FR_SANCTUARY=1` the server keeps your items, each job's equipment and the active job for the session, and answers equip, unequip and job switch requests as Sanctuary does (see [`inventory.py`](inventory.py)). |
+| `FR_SKIP="Name,Name"` | With `FR_SANCTUARY=1`: leave out single packets by the names in `sanctuary_flow.py` (case does not matter; `SetClientArea` drops every area). |
 | `FR_TRACE_DIR` | Folder for the two trace files (default: next to the scripts, or the temp folder when that is not writable). |
 
 ## Which zone and spawn the server sends

@@ -38,7 +38,8 @@ from gen_ps3_web_vectors import cs_str  # noqa: E402
 OUT = os.path.join(ROOT, "src", "ps3", "Sanctuary.Ps3.Tests", "GatewayVectors.g.cs")
 UNIX_TIME = 1700000000
 ENCRYPT_CODE = 0x01020304
-FR_KEYS = ("FR_ZONE", "FR_ZONE_TYPE", "FR_SPAWN", "FR_SPAWN_Y", "FR_ADDPC", "FR_WELCOME", "FR_EXTRA", "FR_TIME")
+FR_KEYS = ("FR_ZONE", "FR_ZONE_TYPE", "FR_SPAWN", "FR_SPAWN_Y", "FR_ADDPC", "FR_WELCOME", "FR_EXTRA", "FR_TIME",
+           "FR_SANCTUARY", "FR_SKIP", "FR_EQUIP", "FR_JOBS", "FR_ITEMS")
 
 
 def string(text):
@@ -91,14 +92,21 @@ class Scenario:
 
 CHARACTER_FULL = {"Model": "2", "Head": "3", "SkinTone": "0", "HairColor": "7", "EyeColor": "9",
                   "FirstName": "Zoë", "LastName": "Dean"}
+CHARACTER_STYLED = {"Model": "1", "Head": "2", "Hair": "4", "SkinTone": "2", "FacePaint": "3", "ModelCustomization": "2",
+                    "HairColor": "10", "EyeColor": "63", "FirstName": "Aedon", "LastName": "Amberarm"}
+CHARACTER_DRESSED = dict(CHARACTER_STYLED, ItemChest="28216", ItemChestTint="234", ItemLegs="392", ItemLegsTint="262",
+                         ItemFeet="17397", ItemFeetTint="0", ItemHands="0", ItemHandsTint="1", ItemHead="999999999",
+                         ItemHeadTint="1", ItemShoulders=" x", ItemShouldersTint="1")
 CHARACTER_JUNK = {"Model": " 4 ", "Head": "abc", "SkinTone": "-2", "HairColor": "", "EyeColor": "x9", "FirstName": "",
                   "LastName": "O'Neil"}
 
 PACKET_SCENARIOS = [
     Scenario("defaults"),
     Scenario("install zone and spawn", install_zone="FabledRealms", install_spawn=(-128.0, -128.0)),
-    Scenario("install spawn with FR_SPAWN_Y", {"FR_SPAWN_Y": "123.5"}, "FabledRealms", (64.25, 300.75)),
-    Scenario("bad FR_SPAWN_Y", {"FR_SPAWN_Y": "high"}, "FabledRealms", (64.25, 300.75)),
+    Scenario("FR_SPAWN=local", {"FR_SPAWN": "local"}, "FabledRealms", (-128.0, -128.0)),
+    Scenario("FR_SPAWN=local without a picked spawn", {"FR_SPAWN": "Local"}),
+    Scenario("install spawn with FR_SPAWN_Y", {"FR_SPAWN": "local", "FR_SPAWN_Y": "123.5"}, "FabledRealms", (64.25, 300.75)),
+    Scenario("bad FR_SPAWN_Y", {"FR_SPAWN": "local", "FR_SPAWN_Y": "high"}, "FabledRealms", (64.25, 300.75)),
     Scenario("FR_SPAWN wins", {"FR_SPAWN": "10.5; 20 ,30.25"}, "FabledRealms", (1.0, 2.0)),
     Scenario("bad FR_SPAWN", {"FR_SPAWN": "1,2"}, "FabledRealms", (1.0, 2.0)),
     Scenario("FR_ZONE and type", {"FR_ZONE": " Other_Zone ", "FR_ZONE_TYPE": "1"}, "FabledRealms", (1.0, 2.0)),
@@ -108,6 +116,15 @@ PACKET_SCENARIOS = [
     Scenario("extra without time", {"FR_EXTRA": "1", "FR_TIME": "0"}),
     Scenario("full character", {}, "FabledRealms", (-128.0, -128.0), CHARACTER_FULL),
     Scenario("odd character values", {}, "FabledRealms", (-128.0, -128.0), CHARACTER_JUNK),
+    Scenario("styled character", {}, "FabledRealms", (-128.0, -128.0), CHARACTER_STYLED),
+    Scenario("dressed character", {}, "FabledRealms", (-128.0, -128.0), CHARACTER_DRESSED),
+    Scenario("dressed character, FR_EQUIP=0", {"FR_EQUIP": "0"}, "FabledRealms", (-128.0, -128.0), CHARACTER_DRESSED),
+    Scenario("FR_JOBS list", {"FR_JOBS": " 35; 11,x, 999 "}),
+    Scenario("dressed character, FR_ITEMS=0", {"FR_ITEMS": " 0 "}, "FabledRealms", (-128.0, -128.0), CHARACTER_DRESSED),
+    Scenario("dressed character, three jobs", {"FR_JOBS": "35,2"}, "FabledRealms", (-128.0, -128.0), CHARACTER_DRESSED),
+    Scenario("FR_JOBS all", {"FR_JOBS": "ALL"}),
+    Scenario("FR_JOBS without the starter", {"FR_JOBS": "20"}),
+    Scenario("dressed character, FR_EQUIP=5", {"FR_EQUIP": " 5 "}, "FabledRealms", (-128.0, -128.0), CHARACTER_DRESSED),
 ]
 
 LOGIN_PAYLOADS = [
@@ -159,10 +176,11 @@ def packet_vectors():
                 cs_bytes(gp.add_pc(character, guid=1, first_name=self_name, last_name=character.get("LastName") or "", offset=(0, 0, 0))),
                 array("", [cs_bytes(p) for p in gp.world_packets()], "        "),
                 array("", [cs_bytes(p) for p in gp.zone_done_packets()], "        "),
-                cs_bytes(gp.game_time_sync()))
-        items.append("new PacketScenario(%s, %s, %s, %d, %s, %s, %s, %s, %s, %s, %s, %s, %s)" % (
+                cs_bytes(gp.game_time_sync()),
+                array("", [cs_bytes(p) for p in gp.equipment_packets(character)], "        "))
+        items.append("new PacketScenario(%s, %s, %s, %d, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)" % (
             fields[0], fields[1], fields[2], fields[3], fields[4], fields[5], fields[6], fields[7], fields[8], fields[9],
-            fields[10], fields[11], fields[12]))
+            fields[10], fields[11], fields[12], fields[13]))
     return items
 
 
@@ -339,6 +357,9 @@ CONVERSATIONS = [
     (Scenario("self AddPc with an empty name", {"FR_ADDPC": "self", "FR_SPAWN": "1.5,2.5,3.5"}, "FabledRealms", (1.0, 2.0),
               CHARACTER_JUNK), short_session),
     (Scenario("no AddPc", {"FR_ADDPC": "none"}, None, None, {}), short_session),
+    (Scenario("dressed, both AddPc", {"FR_ADDPC": "both"}, None, None, CHARACTER_DRESSED), short_session),
+    (Scenario("dressed, no AddPc", {"FR_ADDPC": "none"}, None, None, CHARACTER_DRESSED), short_session),
+    (Scenario("dressed, FR_EQUIP=0", {"FR_ADDPC": "none", "FR_EQUIP": "0"}, None, None, CHARACTER_DRESSED), short_session),
     (Scenario("empty FR_ADDPC sends nothing either", {"FR_ADDPC": ""}, None, None, {}), short_session),
     (Scenario("unknown FR_ADDPC sends nothing either", {"FR_ADDPC": "Everything"}, None, None, {}), short_session),
 ]
@@ -414,7 +435,8 @@ def generate():
     add("    byte[] AddPcSelf,")
     add("    byte[][] WorldPackets,")
     add("    byte[][] ZoneDone,")
-    add("    byte[] TimeSync);")
+    add("    byte[] TimeSync,")
+    add("    byte[][] Equipment);")
     add("")
     add("internal sealed record FixedPackets(byte[] Tunneled, byte[] TunneledUnreliable, byte[] TunneledEmpty, byte[] Lobby, byte[] Queues, byte[] Profile, byte[] ZoneDetailsArgs);")
     add("")

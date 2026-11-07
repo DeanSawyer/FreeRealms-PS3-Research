@@ -19,7 +19,7 @@ public sealed class GatewayWorld
     /// <summary>The PC game's zone name; unverified for the PS3 packs.</summary>
     public const string DefaultZone = "FabledRealms";
 
-    /// <summary>The PC game's position (Clover); its tile is not in the PS3 packs.</summary>
+    /// <summary>Sanctuary's spawn (FabledRealms.json); its terrain tile is only in the manifest of a typical PS3 install.</summary>
     public static readonly (double X, double Y, double Z, double W) PcSpawn = (-1904.883, -39.7098, 412.6024, 1.0);
 
     private readonly GatewayOptions _options;
@@ -47,7 +47,7 @@ public sealed class GatewayWorld
             if (_options.Spawn is { } set)
                 return (set.X, set.Y, set.Z, 1.0);
 
-            if (_installSpawn is { } picked)
+            if (_options.SpawnLocal && _installSpawn is { } picked)
                 return (picked.X, _options.SpawnY, picked.Z, 1.0);
 
             return PcSpawn;

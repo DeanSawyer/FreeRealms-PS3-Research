@@ -12,4 +12,9 @@
     <PackageReference Include="ZLibDotNet" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The item definitions the server sends (tools/gen_item_definitions.py); read by Gateway/Items.cs. -->
+    <EmbeddedResource Include="..\..\..\bootstrap\data\item_definitions.tsv.gz" LogicalName="Sanctuary.Ps3.item_definitions.tsv.gz" Link="Gateway\item_definitions.tsv.gz" />
+  </ItemGroup>
+
 </Project>

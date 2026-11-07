@@ -95,7 +95,7 @@ Layout: `i32` length, then the player blob. The blob's field widths come from ru
 | 0x7e | 5 x u32 | chat country, chat language, preferred language, chat language, login count |
 | 0x92 | u8 | grandfathered |
 | 0x93, 0x97 | u32 | the two vehicle loadouts (kart race, demo derby) |
-| 0x9b | u32 + n x 179 bytes | profile list: a count, then one entry per profile (below) |
+| 0x9b | u32 + n entries | profile list: a count, then one entry per profile (below; 179 bytes plus 12 per item class) |
 | after the profiles | u32 | active profile id |
 | the rest | | counts of the other lists (collections, items, pets, mounts, stats, ...) and a few scalars, all zero for now |
 
@@ -119,10 +119,117 @@ node, so the read goes through a null pointer. One profile is enough. The emulat
 (`tools/ppc_trace.py` records reads below `0x1000` as `null_reads`): the empty list reads address 0 at `0xebb30`; one
 profile with id 1 does not.
 
-A profile entry is 179 bytes in this build: nine integers (id, name id, description id, type, icon, three image
-sets, is-combat), a few flags and integers (rank, rank percent, stars), 17 equipment words, eight ability lists
-(each starts with a count) and an ability-experience list. Only the id is filled in so far; everything else is zero.
+A profile entry (a job) is 179 bytes in this build when its item class list is empty. Offsets inside the entry:
+
+| Offset | Width | Field |
+|---|---|---|
+| 0x00 | i32 | id |
+| 0x04 | i32 | name id |
+| 0x08 | i32 | description id |
+| 0x0c | i32 | type |
+| 0x10 | i32 | icon |
+| 0x14, 0x18, 0x1c | i32 | ability background, badge and button image sets |
+| 0x20 | u8 | members only |
+| 0x21 | i32 | is combat |
+| 0x25 | u32 + n x 12 | item classes the job can equip: `i32` class (the key), `i32` class, `i32` value; everything after moves by 12 n |
+| 0x29 .. 0x32 | u8, i32, i32, u8 | unknown |
+| 0x33 | i32 | rank (the reader stores it at profile+20); offsets from here on are for an empty class list |
+| 0x37 | i32 | rank percent |
+| 0x3b, 0x3f | i32 | stars |
+| 0x43 | 17 x i32 | equipment: item ids indexed by slot (word n is slot n; word 0 is unused) |
+| then | | eight ability lists (each starts with a count) and an ability-experience list |
+
+The server sends every job Sanctuary gives a new character (`UnlockAllProfiles`: its `Resources/Profiles.json` without Card Duelist, which the PS3 game did not have: 17 jobs, at
+level 20, starter job first; `bootstrap/jobs.py`, `FR_JOBS` to pick some), with the fields Sanctuary fills: id to members only and
+the rank. Everything else is zero. With all the jobs the client's reader consumes the whole player blob and builds each
+job with its id, name id, description id, type and rank 20 (`tools/ppc_trace.py`). A rank of 0 hangs the client after loading: see
+`docs/re/zone-loading.md`, *Cause of the stuck loading screen*.
 This differs from Clover's `ClientPcProfile` (no item-class or item maps), so the PS3 build is an older layout.
+
+## Items
+
+The character owns what Sanctuary gives a new one (`bootstrap/items.py`): the creator's chest, legs and feet (item ids 1, 2, 3,
+with the creator's tints; head, hands and shoulders too when picked), then every job's `DefaultItems` from Sanctuary's
+`Profiles.json` that it does not own yet (the definition's icon tint; the other gender's skipped). Each job wears its items by
+the definition's slot; the starter job, and jobs without default items, wear the creator's. Read from the client with
+`tools/ppc_trace.py`:
+
+* **Item list.** In the player blob, the count `ITEM_LIST_OFFSET` (0x31) bytes after the active profile id. Each entry is 37
+  bytes (reader `0xb0f10c`): `i32` id, `i32` (0), `i32` definition, `i32` tint, `i32` id, `i32` count, `u8`, `i32`, `u32` count
+  of a list (0), `i32`. The client keys the item by the first field (`0x59a34` -> `0x26bc18`).
+* **Equipment.** 17 `i32` item ids at profile entry offset 0x43, indexed by slot: word n holds slot n, word 0 is never
+  used; 0 is an empty slot. (Writing slot n into word n - 1 put the hat in the unused word and the shoulders in the
+  feet slot: in RPCS3 the equipment screen showed no hat category and two feet categories.) The reader keeps them in an
+  array the profile points to (`+152`); `RequestEquippedAttachments` (`0xeba4c`) goes through the active profile's 17 slots
+  after the player loads, looks each item up (`0x5911c`) and its definition (`0x146ad0`, the cache at client `+3076`), and logs
+  "Client item definition %d not yet available" when one is missing.
+* **Definitions.** PlayerUpdate (35) sub-opcode 33, one definition per packet: `i32` payload length, then the 34 fields of
+  `bootstrap/data/item_definitions.tsv.gz` (Sanctuary's `BaseItemDefinition` up to `VipRankRequired`; `MemberDiscount` is one
+  byte here), one `i32` and two empty lists (`0xac53b8`, `0xa90d10`, `0xac3c24`, `0xac3788`). The handler (`0x110ab0`) skips the
+  packet until the player exists, so the definitions go right after the player data.
+* **ItemAdd** (ClientUpdate 38/2, what the server now sends after the player data, one per item): `i32` length, then the item
+  (`i32` definition, `i32` tint, `i32` id, `i32` count, `i32` consumed count, `i32` last cast time, `u8` rental), `u8`
+  ActivateEnabled and the definition as above. The handler (`0xfacf0`) builds the client's `Item` object (`0x8fdca0`, vtable
+  `0xee8330`: definition +4, tint +8, id +12, count +16, consumed +20), adds it to the player (`0x730a4`, player `+32024`),
+  then caches the definition. The equipment and inventory screens show these objects (the equipment lookup `0x5911c` reads the
+  player's item table at `+32448`). The player data's item list only feeds another manager (`0x59a34`), which is why the
+  screens stayed empty with it alone (seen in RPCS3 on 2026-11-06: job switching dressed the character, the equipment pane
+  showed nothing). Sanctuary sends ItemAdd the same way when it gives an item (`RewardManager`).
+
+Each job also gets its `ItemClasses` from Sanctuary's `Profiles.json` (16 to 27 per job) in the list at entry offset 0x25.
+With the user's character the client's readers consume the whole 11,267 byte player blob and every definition exactly, and each
+job's equipment array holds the right ids (Adventurer words 3, 4, 5 = items 1, 2, 3; Archer words 1 to 7 = items 43 to 49).
+Not checked in the emulator: the item objects themselves, because the reader hands them to the inventory manager
+(`client +31748`), which does not exist there. `FR_ITEMS=0` sends no items, no definitions and empty item class lists.
+
+`tools/ppc_trace.py` starts its reader with the byte at +16 set to 1. For this reader that byte is the read error flag, and
+readers that check it (the item class list's `0xa83104`, for one) then skip their entries, so with the default setup such a
+list looks empty. Clear the byte (`emu.mem.write(reader + 16, b"\0")`) when checking a whole player blob.
+
+## Inventory requests and job switches
+
+With `FR_SANCTUARY=1` the server keeps each session's items, equipment and active job and answers the client's inventory
+requests as Sanctuary's handlers do (`bootstrap/inventory.py`, checks and replies one for one). The PS3 client builds the
+requests with Sanctuary's numbers:
+
+| Request | Built at | Reply |
+|---|---|---|
+| Inventory (42) 3, EquipByGuid | `0x2848d0`, `0x21805c` | ClientUpdate 5 EquipItem; toolbar; weapon flair for slots 7 and 13 |
+| 42/8, EquipByItemRecord | `0x5d494` | the same, finding the item by definition and tint |
+| 42/2, EquippedRemove | `0x284858` | ClientUpdate 6 UnequipSlot (`i32` slot, `i32` job); toolbar; weapon flair |
+| Command (26) 13, SetProfile | `0xcff00` | flair cleared; ClientUpdate 21 ActivateProfile; toolbar |
+
+The requests' exact byte layout is not read yet: the server takes the fields as little-endian ints after the opcode and
+sub-opcode, in Sanctuary's order, and logs every request with its bytes (`sanctuary: inventory request`), so the first
+real request shows the layout. Reply layouts read from the client:
+
+* **ClientUpdate (38) 21, ActivateProfile** (`0xf9e88`): `i32` length and the job's profile entry (as in the player data),
+  the attachment list (`0xb03e90`), then `i32` animation (3001, emo_outfit_all), `i32` effect (4005, PFX_Job_Swirl) and
+  an unused `i32`; acted on only when that is the whole packet.
+* **ClientUpdate 6, UnequipSlot** (`0xfa264`): `i32` slot, `i32` job.
+* ClientUpdate's own dispatcher is `0xf9214` (jump table `0xf936c`, sub-opcodes 0 to 27); the client's handler for opcode 38
+  is vtable slot +324, for opcode 26 slot +284 (`0xc1e40`).
+
+Not done yet: 42/6 ItemActionBarAssign, the style cards (42/10 to 12), the combat jobs' toolbar abilities, and saving to a
+database (the state lasts for the session).
+
+## Item classes and categories (ReferenceData, opcode 44)
+
+The client's handler for opcode 44 is `0xd4764` (vtable slot +340 of the object whose slot +320 handles PlayerUpdate). With
+`FR_SANCTUARY=1` the server sends what Sanctuary's `BaseZone.OnClientIsReady` sends, from its `Resources` files
+(`bootstrap/reference_data.py`, `bootstrap/data/`):
+
+* **Sub-opcode 1, item classes** (reader `0xb0688c`, into client `+2292`): `u32` count, then per class `i32` id (the key) and the
+  six columns of `ItemClasses.txt`: 28 bytes each, Sanctuary's layout. 184 classes, 5,160 bytes.
+* **Sub-opcode 2, item categories** (reader `0xb066fc`, into client `+2388`): `u32` count, then per category `i32` id (the key),
+  `i32` id, `i32` name id, `i32` icon id, `i32` unknown, `u8` unknown 2. That is 21 bytes: Sanctuary's last field, `Display`, is
+  not in this build. Then `u32` count and per group entry `i32` group id (the key), `i32` group id, `i32` category id.
+  71 categories and 74 group entries, 2,391 bytes.
+* **Sub-opcode 3, profile data** goes to `0x15b5e4` with the raw packet, then the handler refreshes the two managers at
+  player `+31752` and `+31756`. Still sent empty.
+
+The client's readers consume both lists exactly. Until now they were sent empty, so the inventory had no categories to sort
+items into.
 
 ## Packets larger than 512 bytes must be fragmented
 

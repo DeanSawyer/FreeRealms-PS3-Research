@@ -32,6 +32,12 @@ import threading
 import time
 from datetime import datetime, timezone
 
+import character_mappings
+import clothing
+import inventory
+import items
+import jobs
+import sanctuary_flow
 import tracing
 
 LOG = logging.getLogger("gateway")
@@ -141,8 +147,12 @@ def configured_zone_type():
         return 2
 
 
-def zone_details(name=None, zone_type=None, tutorial=0, unknown=0, sky="", arena=0, zone_id=1):
-    """Inner packet 43 as the PS3 client (build 1.77) reads it; it must consume every byte."""
+def zone_details(name=None, zone_type=None, tutorial=0, unknown=0, sky=None, arena=0, zone_id=1):
+    """Inner packet 43 as the PS3 client (build 1.77) reads it; it must consume every byte.
+
+    The sky is empty unless FR_SKY names one (for example sky_wilds24.xml): an experiment for the render crash when the
+    camera looks at the area sky (docs/re/zone-loading.md, After the loading screen)."""
+    sky = os.environ.get("FR_SKY", "").strip() if sky is None else sky
     name = configured_zone() if name is None else name
     zone_type = configured_zone_type() if zone_type is None else zone_type
     return (struct.pack("<H", 43) + _string(name) + struct.pack("<iBB", zone_type, tutorial, unknown)
@@ -193,38 +203,100 @@ def describe_inner(opcode, inner):
 
 
 PROFILE_ID = 1          # Clover's DefaultProfileId (the first job a new character has)
-PROFILE_SIZE = 179      # bytes the client reads per profile entry
+PROFILE_SIZE = 179      # bytes the client reads per profile entry with an empty item class list
+PROFILE_RANK_OFFSET = 0x33   # the job's rank inside an entry: the reader stores it at profile+20, which the job list's Rank column returns
+PROFILE_RANK = jobs.JOB_RANK   # Sanctuary's level 20; rank 0 makes the HUD's GetNextJob loop forever
 
 
-def profile(profile_id):
-    """One entry of the profile list: the id, then zeros for everything else.
+def profile(profile_id, equipment=None):
+    """One entry of the profile list (a job).
 
-    The client reads 179 bytes per entry: 9 integers (id, name id, description id, type, icon and three image
-    sets, is-combat), a few flags, rank and stars, 17 equipment words, 8 ability lists (each a count; zero here)
-    and an ability-experience list. Only the id is meaningful so far; the rest is left empty.
+    The client reads 179 bytes per entry: id, name id, description id, type, icon, three image sets, a members-only
+    byte, is-combat, an item-class list, a few flags and integers (rank at 0x33, rank percent, stars), 17 equipment
+    words, 8 ability lists (each a count; zero here) and an ability-experience list. The fields Sanctuary fills from
+    Resources/Profiles.json come from bootstrap/jobs.py (an id it does not have gets only the id); the rank is
+    Sanctuary's level 20; the lists are empty. `equipment` is {slot: item id} (bootstrap/items.py): slot n's item id
+    goes at 0x43 + 4 * n: the client indexes the 17 words by slot number (the equipment screen's 0x46e04 passes the
+    definition's slot, 1 to 16, to 0x5911c, and RequestEquippedAttachments at 0xeba4c walks 0 to 16), so word 0 is
+    never used. The job's item classes
+    (what it can equip, bootstrap/jobs.py) are the list at 0x25, so with them the entry is longer than 179 bytes and
+    every later offset moves by its size. FR_ITEMS=0 leaves the list empty.
+
+    The rank must be above 0: after the zone loads, the HUD script GroupHandler:GetNextJob (called from HUD:showMain
+    through SetJobSwitchOnOrOff) loops until it finds a job with a rank, so with rank 0 the main thread never leaves
+    WaitForWorldReady and the loading screen stays up (docs/re/zone-loading.md).
     """
-    return struct.pack("<i", profile_id) + bytes(PROFILE_SIZE - 4)
+    entry = bytearray(PROFILE_SIZE)
+    job = jobs.BY_ID.get(profile_id)
+    if job:
+        struct.pack_into("<8iB", entry, 0, *job[:8], 1 if job[8] else 0)
+    else:
+        struct.pack_into("<i", entry, 0, profile_id)
+    struct.pack_into("<i", entry, PROFILE_RANK_OFFSET, PROFILE_RANK)
+    for slot, item_id in (equipment or {}).items():
+        struct.pack_into("<i", entry, PROFILE_EQUIPMENT_OFFSET + 4 * slot, item_id)
+    classes = jobs.JOB_ITEM_CLASSES.get(profile_id, ()) if items.enabled() else ()
+    item_classes = struct.pack("<i", len(classes)) + b"".join(struct.pack("<iii", c, c, u) for c, u in classes)
+    return bytes(entry[:PROFILE_ITEM_CLASSES_OFFSET]) + item_classes + bytes(entry[PROFILE_ITEM_CLASSES_OFFSET + 4:])
+
+
+PROFILE_EQUIPMENT_OFFSET = 0x43   # 17 item ids indexed by slot, so word 0 is unused and the head (slot 1) is the second
+                                  # (offsets as if the item class list were empty)
+PROFILE_ITEM_CLASSES_OFFSET = 0x25   # the job's item class list (count, then 12 bytes each); everything after moves
+
+
+def character_items(character=None):
+    """(items, equipment) the character owns and wears (bootstrap/items.py), or nothing with FR_ITEMS=0."""
+    if not items.enabled():
+        return [], {}
+    return items.inventory(character or {}, jobs.selected())
+
+
+def profile_list(character=None):
+    """The profile list of the player data: a count, then every job Sanctuary gives a new character (FR_JOBS), each
+    wearing its starter outfit."""
+    chosen = jobs.selected()
+    _owned, equipment = character_items(character)
+    return struct.pack("<i", len(chosen)) + b"".join(profile(job[0], equipment.get(job[0])) for job in chosen)
+
+
+ITEM_LIST_OFFSET = 0x31   # the item list's count, counted from the end of the active profile id
+
+
+def item_definition_packets(character=None):
+    """One ClientUpdate ItemAdd (38/2) per item the character owns, each with its definition (bootstrap/items.py).
+    Sent right after the player data: the client only takes them once the player exists. These, not the player
+    data's item list, are what put the items in the inventory and equipment screens."""
+    owned, _equipment = character_items(character)
+    return items.item_add_packets(owned)
+
+
+def appearance(character):
+    """Head, hair, skin tone, face paint and body option (facial hair) the character creator chose, as the asset names
+    the client draws (Sanctuary's mapping tables, bootstrap/character_mappings.py)."""
+    c = character or {}
+    return (character_mappings.head(c), character_mappings.hair(c), character_mappings.skin_tone(c),
+            character_mappings.face_paint(c), character_mappings.model_customization(c))
 
 
 def player_blob(character=None, guid=1):
     """The player data for SendSelfToClient, laid out like the PS3 client reads it (build 1.77).
 
-    Names follow Clover's ClientPcData where the order matches. There is one profile (the starter job) because
-    the client looks the active profile up right after loading the player and dereferences null when the list
-    is empty (found with tools/ppc_trace.py: the lookup at 0xeba4c reads the node it did not find). Every other
-    list is sent empty, so there are no items, pets, quests or stats yet.
+    Names follow Clover's ClientPcData where the order matches. The profile list holds the jobs Sanctuary gives a new
+    character (all of them; bootstrap/jobs.py, FR_JOBS). It must not be empty: the client looks the active profile up
+    right after loading the player and dereferences null when the list is empty (found with tools/ppc_trace.py: the
+    lookup at 0xeba4c reads the node it did not find). The item list holds the character's starter items
+    (bootstrap/items.py, FR_ITEMS); every other list is sent empty, so there are no pets, quests or stats yet.
     """
     c = character or {}
     model = _int(c.get("Model"), 1)
-    head = f"<race>_<gender>_head_{HEAD_NAMES.get(_int(c.get('Head'), 1), 'caucasian')}.adr"
-    hair = "<race>_m_hair_eyebrows_bald.adr"
-    skin = f"skintone{_int(c.get('SkinTone'), 1) or 1}"
+    head, hair, skin, face_paint, model_customization = appearance(c)
     out = bytearray()
     out += struct.pack("<QQ", 0, guid)                       # launch ticket, guid
     out += struct.pack("<i", model)
     out += _string(head) + _string(hair)
     out += struct.pack("<ii", _int(c.get("HairColor")), _int(c.get("EyeColor")))
-    out += _string(skin) + _string("none") + _string("")     # skin tone, face paint, model customization
+    out += _string(skin) + _string(face_paint) + _string(model_customization)
     out += struct.pack("<4f", *configured_spawn())          # position (the client's camera follows this player)
     out += struct.pack("<4f", *SPAWN_ROTATION)               # rotation
     out += struct.pack("<iii", 0, 0, 0)                      # name ids
@@ -234,10 +306,27 @@ def player_blob(character=None, guid=1):
     out += struct.pack("<iiiii", 0, 0, 0, 0, 1)              # chat country, chat language, preferred language, chat language, login count
     out += struct.pack("<B", 0)                              # grandfathered
     out += struct.pack("<ii", 0, 0)                          # two vehicle loadouts (kart race, demo derby)
-    out += struct.pack("<i", 1) + profile(PROFILE_ID)        # profile list: one entry
+    out += profile_list(c)                                   # profile list: the jobs (bootstrap/jobs.py)
     out += struct.pack("<i", PROFILE_ID)                     # active profile id
-    out += bytes(0x111 - 0xa3)                               # remaining fields: empty lists and zeros
+    tail = bytes(0x111 - 0xa3)                               # remaining fields: empty lists and zeros...
+    owned, _equipment = character_items(c)                   # ...except the item list
+    out += tail[:ITEM_LIST_OFFSET] + items.item_list(owned) + tail[ITEM_LIST_OFFSET + 4:]
     return bytes(out)
+
+
+def equipment_packets(character=None, guid=1):
+    """The packets that dress the character in the clothes the character creator picked (bootstrap/clothing.py). Default
+    (or FR_EQUIP=7): one EquippedItemsChange (PlayerUpdate sub-opcode 7), the only one seen to work in RPCS3; the client
+    plays the job change effect with it. FR_EQUIP=5: one EquipItem (ClientUpdate sub-opcode 5) per piece, item ids 1, 2,
+    3... as Sanctuary numbers a new character's items (sent in RPCS3, nothing went on). FR_EQUIP=0 sends nothing. The player data carries no items yet, so this is what dresses the character; it is sent
+    after ClientFinishedLoading, once the character exists."""
+    mode = os.environ.get("FR_EQUIP", "1").strip()
+    pieces = clothing.attachments(character or {})
+    if mode == "0" or not pieces:
+        return []
+    if mode == "5":
+        return [clothing.equip_item(n + 1, piece, PROFILE_ID) for n, piece in enumerate(pieces)]
+    return [clothing.equipped_items_change(guid, pieces)]
 
 
 def send_self_to_client(character=None):
@@ -245,27 +334,31 @@ def send_self_to_client(character=None):
     return struct.pack("<Hi", 12, len(blob)) + blob
 
 
-SPAWN = (-1904.883, -39.7098, 412.6024, 1.0)   # the PC game's position (Clover); its tile is not in the PS3 packs
+SPAWN = (-1904.883, -39.7098, 412.6024, 1.0)   # Sanctuary's FabledRealms.json SpawnPosition (the PC game's)
 DEFAULT_SPAWN_Y = 400.0   # height used with a position picked from the packs; the terrain height there is unknown
 
 
 def configured_spawn():
-    """Where AddPc puts the player. The loading overlay waits for the terrain tiles around this position, so the
-    default is the centre of a tile whose neighbourhood is stored in the packs (docs/re/zone-loading.md).
-    FR_SPAWN="x,y,z" sets it outright; FR_SPAWN_Y sets only the height."""
+    """Where the player data and AddPc put the player. Default: Sanctuary's spawn (position, height and, with
+    SPAWN_ROTATION, rotation). Its terrain tile, FabledRealms_-32_4.gcnk, is only in the manifest of a typical PS3
+    install, so the ground there may be missing. FR_SPAWN=local uses the centre of a tile whose neighbourhood is in the
+    packs instead (height FR_SPAWN_Y, default 400; the ground on tile (-4, -4) is at about 36). FR_SPAWN="x,y,z" sets
+    it outright."""
     raw = os.environ.get("FR_SPAWN", "").strip()
+    if raw.lower() == "local":
+        if _install_spawn:
+            try:
+                y = float(os.environ.get("FR_SPAWN_Y", DEFAULT_SPAWN_Y))
+            except ValueError:
+                y = DEFAULT_SPAWN_Y
+            return (_install_spawn[0], y, _install_spawn[1], 1.0)
+        return SPAWN
     if raw:
         try:
             x, y, z = (float(v) for v in raw.replace(";", ",").split(","))
             return (x, y, z, 1.0)
         except ValueError:
             LOG.warning("FR_SPAWN=%r is not 'x,y,z'; ignored", raw)
-    if _install_spawn:
-        try:
-            y = float(os.environ.get("FR_SPAWN_Y", DEFAULT_SPAWN_Y))
-        except ValueError:
-            y = DEFAULT_SPAWN_Y
-        return (_install_spawn[0], y, _install_spawn[1], 1.0)
     return SPAWN
 
 
@@ -358,8 +451,7 @@ def world_packets():
     else:
         item_defs = None
     return extra + [tunneled(zone_details())] + ([item_defs] if item_defs else [])\
-        + [tunneled(send_self_to_client(CHARACTER))]
-    return extra + [tunneled(zone_details()), tunneled(send_self_to_client(CHARACTER))]
+        + [tunneled(send_self_to_client(CHARACTER))] + [tunneled(p) for p in item_definition_packets(CHARACTER)]
 
 
 class GatewayProbe:
@@ -371,6 +463,7 @@ class GatewayProbe:
         self.sessions = {}   # addr -> connect code
         self.max_raw = {}    # addr -> largest datagram the client accepts (512 for the PS3 client)
         self.client_ready = set()   # peers that sent ClientIsReady
+        self.inventories = {}       # peer -> inventory.Inventory (FR_SANCTUARY=1)
         self.count = 0
         self.send_seq = {}   # (addr, channel) -> next reliable sequence to send
         self.pending = {}    # (addr, channel, seq) -> [packet, last_send_time, tries]
@@ -487,9 +580,21 @@ class GatewayProbe:
                  body[:MAX_LOGGED_BYTES].hex())
         _trace("send", peer=addr[0], channel=channel, seq=seq, kind=kind, size=len(body), hex=body[:512].hex())
 
+    def send_named(self, addr, channel, stage, packets):
+        """Send (name, inner) packets tunneled, logging each by name (FR_SANCTUARY=1, bootstrap/sanctuary_flow.py)."""
+        packets = sanctuary_flow.select(packets)
+        LOG.info("sanctuary: %s -> %d packets: %s", stage, len(packets), ", ".join(name for name, _ in packets))
+        for name, inner in packets:
+            note = sanctuary_flow.opcode_note(inner)
+            if note:
+                LOG.info("sanctuary: %s%s", name, note)
+            _trace("sanctuary", peer=addr[0], stage=stage, name=name, size=len(inner))
+            self.send_reliable(addr, tunneled(inner), channel)
+
     def spawn_characters(self, addr, channel):
-        """Send AddPc packets after the client finished loading (the server marks the player visible then)."""
-        if addr not in self.sessions or ADDPC_MODE == "none":
+        """Send AddPc packets after the client finished loading (the server marks the player visible then), then the
+        creator's clothes."""
+        if addr not in self.sessions:
             return
         packets = []
         if ADDPC_MODE in ("self", "both"):
@@ -501,11 +606,26 @@ class GatewayProbe:
         for label, packet in packets:
             LOG.info("gateway: AddPc for %s (%d bytes)", label, len(packet))
             self.send_reliable(addr, tunneled(packet), channel)
+        self.send_equipment(addr, channel)
+
+    def send_equipment(self, addr, channel):
+        """Dress your character (guid 1) in the clothes picked in the character creator (equipment_packets)."""
+        if addr not in self.sessions:
+            return
+        packets = equipment_packets(CHARACTER)
+        if not packets:
+            return
+        LOG.info("gateway: dressing your character (guid 1) with %d packet(s) of opcode %d/%d: %s", len(packets),
+                 *struct.unpack_from("<HH", packets[0]), ", ".join(
+                     "slot %d %s" % (slot, model) for model, _t, _a, _tint, _c, slot in clothing.attachments(CHARACTER)))
+        for packet in packets:
+            _trace("equipment", peer=addr[0], size=len(packet))
+            self.send_reliable(addr, tunneled(packet), channel)
 
     def ready_fallback(self, addr, channel):
         """If the client never says ClientIsReady, send the world-ready packets anyway so the log shows what it
         does next (it may be waiting for them before it says anything)."""
-        if addr in self.client_ready:
+        if addr in self.client_ready or sanctuary_flow.enabled():   # Sanctuary has no such fallback
             return
         LOG.info("gateway: no ClientIsReady from %s after %d s; sending ZoneDoneSendingInitialData and "
                  "DoneSendingPreloadCharacters anyway", addr, READY_FALLBACK_SECONDS)
@@ -569,8 +689,15 @@ class GatewayProbe:
             if self.login_reply:
                 self.send_reliable(addr, struct.pack("<HB", 2, 1), channel)   # LoginReply(success)
                 LOG.info("ZoneDetails: zone=%r type=%d (set FR_ZONE / FR_ZONE_TYPE to change)", configured_zone(), configured_zone_type())
-                for packet in world_packets():
-                    self.send_reliable(addr, packet, channel)
+                if sanctuary_flow.enabled():
+                    self.send_named(addr, channel, "login", sanctuary_flow.login_packets(
+                        zone_details(), send_self_to_client(CHARACTER), item_definition_packets(CHARACTER)))
+                    if not hasattr(self, "inventories"):
+                        self.inventories = {}
+                    self.inventories[addr] = inventory.Inventory(CHARACTER, profile)
+                else:
+                    for packet in world_packets():
+                        self.send_reliable(addr, packet, channel)
                 self.client_ready.discard(addr)
                 timer = threading.Timer(READY_FALLBACK_SECONDS, self.ready_fallback, (addr, channel))
                 timer.daemon = True
@@ -582,6 +709,9 @@ class GatewayProbe:
             LOG.info("gateway tunneled (%d) inner opcode %d%s from %s (%d bytes): %s", opcode, inner_op,
                      describe_inner(inner_op, inner), addr, len(inner), inner[:MAX_LOGGED_BYTES].hex())
             _trace("tunneled", peer=addr[0], outer=opcode, inner_opcode=inner_op, hex=inner[:512].hex())
+            if sanctuary_flow.enabled():
+                self.on_sanctuary_packet(addr, channel, opcode, inner_op, inner)
+                return
             if opcode == 6 and inner_op == 102 and inner[2:4] == b"\x01\x00":   # mini-game list request
                 self.send_reliable(addr, tunneled(lobby_definitions_reply(), reliable=True), channel)
             if opcode == 6 and inner_op == 141 and inner[2:4] == b"\x01\x00":   # matchmaking queue list request
@@ -596,6 +726,39 @@ class GatewayProbe:
                     self.send_reliable(addr, packet, channel)
         else:
             LOG.info("gateway application opcode %d from %s (%d bytes)", opcode, addr, len(payload))
+
+    def on_sanctuary_packet(self, addr, channel, opcode, inner_op, inner):
+        """FR_SANCTUARY=1: answer the client as Sanctuary does (bootstrap/sanctuary_flow.py). Sanctuary answers the
+        mini-game list and the game time, never the matchmaking queue list (141/1), and sends no AddPc for a lone
+        player (FR_ADDPC, when set, still adds one after FinishedLoading). Inventory requests (42) and job switches (26/13)
+        go to the session's bootstrap/inventory.py, as Sanctuary's handlers."""
+        if inner_op in (42, 26):
+            inv = getattr(self, "inventories", {}).get(addr)
+            replies = inv.handle(inner) if inv else None
+            if replies is not None:
+                sub = struct.unpack_from("<H", inner, 2)[0] if len(inner) >= 4 else -1
+                LOG.info("sanctuary: inventory request %d/%d %s", inner_op, sub, inner.hex())
+                _trace("inventory", peer=addr[0], opcode=inner_op, sub=sub, hex=inner.hex())
+                self.send_named(addr, channel, "inventory %d/%d" % (inner_op, sub), replies)
+                return
+        if opcode == 6 and inner_op == 102 and inner[2:4] == b"\x01\x00":
+            self.send_named(addr, channel, "lobby request", [("LobbyGameDefinitions", sanctuary_flow.lobby_definitions_reply())])
+        if inner_op == 141:
+            LOG.info("sanctuary: no reply to opcode 141 (Sanctuary has no handler for it)")
+        if inner_op == 52:
+            self.send_named(addr, channel, "game time request", [("GameTimeSync", sanctuary_flow.game_time_sync())])
+        if inner_op == 13:
+            self.client_ready.add(addr)
+            head, hair, skin, face_paint, model_customization = appearance(CHARACTER)
+            self.send_named(addr, channel, "ClientIsReady", sanctuary_flow.client_is_ready_packets(
+                1, CHARACTER, head, hair, skin, face_paint, model_customization))
+        if inner_op == 10:
+            x, _y, z, _w = configured_spawn()
+            self.send_named(addr, channel, "ClientFinishedLoading", sanctuary_flow.finished_loading_packets(
+                1, x, z, PROFILE_ID))
+            # The clothes are not Sanctuary's: its PC client reads them from the items in the player data.
+            later = self.spawn_characters if os.environ.get("FR_ADDPC", "").strip() else self.send_equipment
+            threading.Timer(1.0, later, (addr, channel)).start()
 
     def record(self, addr, label, payload):
         shown = payload[:MAX_LOGGED_BYTES]

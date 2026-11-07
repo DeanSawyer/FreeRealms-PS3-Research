@@ -104,12 +104,17 @@ def main():
     ap.add_argument("--fault-at", metavar="ADDR", type=lambda v: int(v, 0),
                     help="diagnostic: the game thread that reaches this code address (for example 0xecd68) dies there and RPCS3 "
                          "logs its call stack; the patch is removed again afterwards (tools/rpcs3_diag_patch.py)")
+    ap.add_argument("--sanctuary", action="store_true",
+                    help="send exactly what the PC server Sanctuary sends at login, ClientIsReady and FinishedLoading "
+                         "(FR_SANCTUARY=1, bootstrap/sanctuary_flow.py); Python server only")
     ap.add_argument("--rpcs3", help="RPCS3 executable (default: RPCS3_TEST\\rpcs3.exe)")
     ap.add_argument("--elf", help="game.elf to start (default: inside RPCS3_TEST)")
     ap.add_argument("--bootstrap-args", default="", help="extra arguments for fr_ps3_bootstrap.py (or the C# server)")
     ap.add_argument("--server-exe", help="run this C# server (Sanctuary.Ps3.Server.exe, see src/ps3/README.md) instead of the Python script")
     ap.add_argument("--out", help="folder for the report (default: Desktop\\fr_test_<time>)")
     args = ap.parse_args()
+    if args.sanctuary and args.server_exe:
+        ap.error("--sanctuary is only in the Python server so far; leave out --server-exe")
 
     install = args.install
     client = os.path.join(install, "NPUA30048")
@@ -144,6 +149,10 @@ def main():
     if os.path.isfile(args.digest):
         cmd += ["--digest", args.digest]
     env = dict(os.environ)
+    if args.sanctuary:
+        env["FR_SANCTUARY"] = "1"
+        env.setdefault("FR_ADDPC", "")    # Sanctuary sends no AddPc for a lone player
+        env.setdefault("FR_EXTRA", "0")   # the Sanctuary flow replaces the FR_EXTRA packets
     env.setdefault("FR_EXTRA", "1")       # extra packets after FinishedLoading (as in the earlier test commands)
     env.setdefault("FR_ADDPC", "other")
     env.setdefault("FR_TRACE_DIR", os.path.join(REPO, "bootstrap"))   # where the report reads the gateway trace (the C# server would use the current folder)
@@ -170,6 +179,9 @@ def main():
         if args.stop_loading_thread:
             log(out_dir, "DIAGNOSTIC: the loading-screen thread ends at once for this run (patch added to %s)" % rpcs3_dir)
             rpcs3_diag_patch.apply(rpcs3_dir, which="loading-thread")
+        if args.sanctuary:
+            log(out_dir, "SANCTUARY FLOW: the server sends what Sanctuary sends (bootstrap/sanctuary_flow.py); "
+                         "FR_SKIP=Name,Name leaves single packets out")
         if args.fault_at is not None:
             log(out_dir, "DIAGNOSTIC: the game dies on purpose when it reaches 0x%08x (patch added to %s)" % (args.fault_at, rpcs3_dir))
             rpcs3_diag_patch.apply(rpcs3_dir, which="fault", address=args.fault_at)
@@ -209,8 +221,10 @@ def main():
     # RPCS3 lines that show what the client opened (packs, tiles) and every patch line, kept in full.
     keep = re.compile(r"PAT|patch|assets_ps3|\.gcnk|\.gzne|FabledRealms|\.cob|\.odd|FreeRealms\.log|GameRuntimeTerrain"
                       r"|fatal|terminated|Call stack|Registers|Access violation|main_thread|LoadingScreenThread", re.I)
+    kept = [ln for ln in tail_lines(rpcs3_log, 200000) if keep.search(ln)]
+    applied = [ln for ln in kept[:-1500] if "PAT: Applied" in ln]   # startup patch lines, so a run shows which patches were on
     with open(os.path.join(out_dir, "rpcs3_log_filtered.txt"), "w", encoding="utf-8") as f:
-        f.write("".join([ln for ln in tail_lines(rpcs3_log, 200000) if keep.search(ln)][-1500:]))
+        f.write("".join(applied + kept[-1500:]))
     # The patch files and RPCS3 settings (text only), so the diagnostic patch can use the exact same format.
     rp = os.path.join(install, "RPCS3_TEST")
     for rel in ("config\\patch_config.yml", "config\\log.yml", "config\\config.yml"):

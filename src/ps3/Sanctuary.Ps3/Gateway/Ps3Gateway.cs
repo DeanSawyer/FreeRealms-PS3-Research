@@ -445,12 +445,12 @@ public sealed class Ps3Gateway
         }
     }
 
-    /// <summary>Sends AddPc packets after the client finished loading (the server marks the player visible then).</summary>
+    /// <summary>Sends AddPc packets after the client finished loading (the server marks the player visible then), then the creator's clothes.</summary>
     private void SpawnCharacters(IPEndPoint peer, int channel)
     {
         var mode = _world.Options.AddPc;
 
-        if (!_sessions.ContainsKey(peer) || mode == AddPcMode.None)
+        if (!_sessions.ContainsKey(peer))
             return;
 
         var character = _characters.Snapshot();
@@ -470,6 +470,18 @@ public sealed class Ps3Gateway
         foreach (var (label, packet) in packets)
         {
             _logger?.LogInformation("gateway: AddPc for {Label} ({Bytes} bytes)", label, packet.Length);
+
+            SendReliable(peer, Ps3Packets.Tunneled(packet), channel);
+        }
+
+        var equipment = Ps3Packets.EquipmentPackets(character, _world.Options);
+
+        if (equipment.Count > 0)
+            _logger?.LogInformation("gateway: dressing your character (guid 1) with {Count} packet(s)", equipment.Count);
+
+        foreach (var packet in equipment)
+        {
+            _trace.Write("equipment", ("peer", peer.Address.ToString()), ("size", packet.Length));
 
             SendReliable(peer, Ps3Packets.Tunneled(packet), channel);
         }
