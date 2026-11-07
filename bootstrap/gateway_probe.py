@@ -202,7 +202,7 @@ def describe_inner(opcode, inner):
 
 
 PROFILE_ID = 1          # Clover's DefaultProfileId (the first job a new character has)
-PROFILE_SIZE = 179      # bytes the client reads per profile entry
+PROFILE_SIZE = 179      # bytes the client reads per profile entry with an empty item class list
 PROFILE_RANK_OFFSET = 0x33   # the job's rank inside an entry: the reader stores it at profile+20, which the job list's Rank column returns
 PROFILE_RANK = jobs.JOB_RANK   # Sanctuary's level 20; rank 0 makes the HUD's GetNextJob loop forever
 
@@ -215,7 +215,9 @@ def profile(profile_id, equipment=None):
     words, 8 ability lists (each a count; zero here) and an ability-experience list. The fields Sanctuary fills from
     Resources/Profiles.json come from bootstrap/jobs.py (an id it does not have gets only the id); the rank is
     Sanctuary's level 20; the lists are empty. `equipment` is {slot: item id} (bootstrap/items.py): slot n's item id
-    goes at 0x43 + 4 * (n - 1), as the client's RequestEquippedAttachments (0xeba4c) reads it.
+    goes at 0x43 + 4 * (n - 1), as the client's RequestEquippedAttachments (0xeba4c) reads it. The job's item classes
+    (what it can equip, bootstrap/jobs.py) are the list at 0x25, so with them the entry is longer than 179 bytes and
+    every later offset moves by its size. FR_ITEMS=0 leaves the list empty.
 
     The rank must be above 0: after the zone loads, the HUD script GroupHandler:GetNextJob (called from HUD:showMain
     through SetJobSwitchOnOrOff) loops until it finds a job with a rank, so with rank 0 the main thread never leaves
@@ -230,10 +232,13 @@ def profile(profile_id, equipment=None):
     struct.pack_into("<i", entry, PROFILE_RANK_OFFSET, PROFILE_RANK)
     for slot, item_id in (equipment or {}).items():
         struct.pack_into("<i", entry, PROFILE_EQUIPMENT_OFFSET + 4 * (slot - 1), item_id)
-    return bytes(entry)
+    classes = jobs.JOB_ITEM_CLASSES.get(profile_id, ()) if items.enabled() else ()
+    item_classes = struct.pack("<i", len(classes)) + b"".join(struct.pack("<iii", c, c, u) for c, u in classes)
+    return bytes(entry[:PROFILE_ITEM_CLASSES_OFFSET]) + item_classes + bytes(entry[PROFILE_ITEM_CLASSES_OFFSET + 4:])
 
 
-PROFILE_EQUIPMENT_OFFSET = 0x43   # 17 item ids, slot 1 first
+PROFILE_EQUIPMENT_OFFSET = 0x43   # 17 item ids, slot 1 first (offsets as if the item class list were empty)
+PROFILE_ITEM_CLASSES_OFFSET = 0x25   # the job's item class list (count, then 12 bytes each); everything after moves
 
 
 def character_items(character=None):

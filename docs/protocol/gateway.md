@@ -95,7 +95,7 @@ Layout: `i32` length, then the player blob. The blob's field widths come from ru
 | 0x7e | 5 x u32 | chat country, chat language, preferred language, chat language, login count |
 | 0x92 | u8 | grandfathered |
 | 0x93, 0x97 | u32 | the two vehicle loadouts (kart race, demo derby) |
-| 0x9b | u32 + n x 179 bytes | profile list: a count, then one entry per profile (below) |
+| 0x9b | u32 + n entries | profile list: a count, then one entry per profile (below; 179 bytes plus 12 per item class) |
 | after the profiles | u32 | active profile id |
 | the rest | | counts of the other lists (collections, items, pets, mounts, stats, ...) and a few scalars, all zero for now |
 
@@ -119,7 +119,7 @@ node, so the read goes through a null pointer. One profile is enough. The emulat
 (`tools/ppc_trace.py` records reads below `0x1000` as `null_reads`): the empty list reads address 0 at `0xebb30`; one
 profile with id 1 does not.
 
-A profile entry (a job) is 179 bytes in this build. Offsets inside the entry:
+A profile entry (a job) is 179 bytes in this build when its item class list is empty. Offsets inside the entry:
 
 | Offset | Width | Field |
 |---|---|---|
@@ -131,9 +131,9 @@ A profile entry (a job) is 179 bytes in this build. Offsets inside the entry:
 | 0x14, 0x18, 0x1c | i32 | ability background, badge and button image sets |
 | 0x20 | u8 | members only |
 | 0x21 | i32 | is combat |
-| 0x25 | u32 + list | item classes (sent empty) |
+| 0x25 | u32 + n x 12 | item classes the job can equip: `i32` class (the key), `i32` class, `i32` value; everything after moves by 12 n |
 | 0x29 .. 0x32 | u8, i32, i32, u8 | unknown |
-| 0x33 | i32 | rank (the reader stores it at profile+20) |
+| 0x33 | i32 | rank (the reader stores it at profile+20); offsets from here on are for an empty class list |
 | 0x37 | i32 | rank percent |
 | 0x3b, 0x3f | i32 | stars |
 | 0x43 | 17 x i32 | equipment |
@@ -166,10 +166,15 @@ the definition's slot; the starter job, and jobs without default items, wear the
   byte here), one `i32` and two empty lists (`0xac53b8`, `0xa90d10`, `0xac3c24`, `0xac3788`). The handler (`0x110ab0`) skips the
   packet until the player exists, so the definitions go right after the player data.
 
-With the user's character the client's readers consume the whole 6,587 byte player blob and every definition exactly, and each
+Each job also gets its `ItemClasses` from Sanctuary's `Profiles.json` (16 to 27 per job) in the list at entry offset 0x25.
+With the user's character the client's readers consume the whole 11,267 byte player blob and every definition exactly, and each
 job's equipment array holds the right ids (Adventurer slots 3, 4, 5 = items 1, 2, 3; Archer slots 1 to 7 = items 43 to 49).
 Not checked in the emulator: the item objects themselves, because the reader hands them to the inventory manager
-(`client +31748`), which does not exist there. `FR_ITEMS=0` sends no items and no definitions.
+(`client +31748`), which does not exist there. `FR_ITEMS=0` sends no items, no definitions and empty item class lists.
+
+`tools/ppc_trace.py` starts its reader with the byte at +16 set to 1. For this reader that byte is the read error flag, and
+readers that check it (the item class list's `0xa83104`, for one) then skip their entries, so with the default setup such a
+list looks empty. Clear the byte (`emu.mem.write(reader + 16, b"\0")`) when checking a whole player blob.
 
 ## Packets larger than 512 bytes must be fragmented
 

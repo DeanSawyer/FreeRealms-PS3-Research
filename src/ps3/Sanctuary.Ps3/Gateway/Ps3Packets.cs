@@ -20,7 +20,7 @@ public static class Ps3Packets
     /// <summary>Clover's DefaultProfileId: the first job a new character has.</summary>
     public const int ProfileId = 1;
 
-    /// <summary>Bytes the client reads per profile entry.</summary>
+    /// <summary>Bytes the client reads per profile entry with an empty item class list.</summary>
     public const int ProfileSize = 179;
 
     public static readonly (double X, double Y, double Z, double W) SpawnRotation = (0.5531712, 0.0, 0.8330676, 0.0);
@@ -65,7 +65,7 @@ public static class Ps3Packets
     /// <see cref="ProfileRankOffset"/>, the equipment ({slot: item id}; slot n at <see cref="ProfileEquipmentOffset"/> + 4 * (n - 1),
     /// as the client's RequestEquippedAttachments reads it), zeros for everything else.
     /// </summary>
-    public static byte[] Profile(int profileId, IReadOnlyDictionary<int, int>? equipment = null)
+    public static byte[] Profile(int profileId, IReadOnlyDictionary<int, int>? equipment = null, bool itemClasses = true)
     {
         var writer = new PacketWriter();
 
@@ -84,8 +84,22 @@ public static class Ps3Packets
         foreach (var (slot, itemId) in equipment ?? new Dictionary<int, int>())
             BinaryPrimitives.WriteInt32LittleEndian(entry.AsSpan(ProfileEquipmentOffset + 4 * (slot - 1)), itemId);
 
-        return entry;
+        // The job's item classes (what it can equip) are the list at ProfileItemClassesOffset; everything after it moves by its size.
+        var classes = itemClasses ? Jobs.ItemClasses.GetValueOrDefault(profileId, []) : Array.Empty<(int Class, int Unknown)>();
+        var list = new PacketWriter().I32(classes.Length);
+
+        foreach (var (itemClass, unknown) in classes)
+            list.I32(itemClass).I32(itemClass).I32(unknown);
+
+        return new PacketWriter()
+            .Raw(entry.AsSpan(0, ProfileItemClassesOffset))
+            .Raw(list.ToArray())
+            .Raw(entry.AsSpan(ProfileItemClassesOffset + 4))
+            .ToArray();
     }
+
+    /// <summary>Offset of a job's item class list inside a profile entry: a count, then 12 bytes each (the class as the key, the class, a value).</summary>
+    public const int ProfileItemClassesOffset = 0x25;
 
     /// <summary>Offset of a job's equipment inside a profile entry: 17 item ids, slot 1 first.</summary>
     public const int ProfileEquipmentOffset = 0x43;
@@ -110,7 +124,7 @@ public static class Ps3Packets
         var writer = new PacketWriter().I32(chosen.Count);
 
         foreach (var job in chosen)
-            writer.Raw(Profile(job.Id, equipment.GetValueOrDefault(job.Id)));
+            writer.Raw(Profile(job.Id, equipment.GetValueOrDefault(job.Id), options.Items));
 
         return writer.ToArray();
     }
