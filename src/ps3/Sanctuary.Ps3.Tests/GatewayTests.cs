@@ -337,7 +337,10 @@ public sealed class GatewayTests
             Assert.AreEqual("0", login.GetProperty("ticket").GetString());
             Assert.AreEqual(1, login.GetProperty("guid").GetInt32());
 
-            Assert.AreEqual(4, lines.Count(line => line.GetProperty("event").GetString() == "send"));
+            // One "send" line per reliable packet or fragment sent, and none is acknowledged yet, so they match the pending count
+            // (the login reply, ZoneDetails, the fragmented player data and one ItemAdd per starter item).
+            Assert.AreEqual(gateway.PendingCount, lines.Count(line => line.GetProperty("event").GetString() == "send"));
+            Assert.IsTrue(gateway.PendingCount > 4, "the login sends more than the old four packets");
             Assert.IsTrue(lines.Any(line => line.GetProperty("event").GetString() == "packet" && line.GetProperty("label").GetString() == "Reliable1 seq=0"));
         }
         finally
