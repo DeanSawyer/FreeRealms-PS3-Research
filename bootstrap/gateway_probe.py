@@ -34,6 +34,7 @@ from datetime import datetime, timezone
 
 import character_mappings
 import clothing
+import jobs
 import sanctuary_flow
 import tracing
 
@@ -202,23 +203,36 @@ def describe_inner(opcode, inner):
 PROFILE_ID = 1          # Clover's DefaultProfileId (the first job a new character has)
 PROFILE_SIZE = 179      # bytes the client reads per profile entry
 PROFILE_RANK_OFFSET = 0x33   # the job's rank inside an entry: the reader stores it at profile+20, which the job list's Rank column returns
-PROFILE_RANK = 1        # a new character's first job; rank 0 makes the HUD's GetNextJob loop forever
+PROFILE_RANK = jobs.JOB_RANK   # Sanctuary's level 20; rank 0 makes the HUD's GetNextJob loop forever
 
 
 def profile(profile_id):
-    """One entry of the profile list: the id, then zeros for everything else.
+    """One entry of the profile list (a job).
 
-    The client reads 179 bytes per entry: 9 integers (id, name id, description id, type, icon and three image
-    sets, is-combat), a few flags, rank and stars, 17 equipment words, 8 ability lists (each a count; zero here)
-    and an ability-experience list. Only the id and the rank are filled in; the rest is left empty.
+    The client reads 179 bytes per entry: id, name id, description id, type, icon, three image sets, a members-only
+    byte, is-combat, an item-class list, a few flags and integers (rank at 0x33, rank percent, stars), 17 equipment
+    words, 8 ability lists (each a count; zero here) and an ability-experience list. The fields Sanctuary fills from
+    Resources/Profiles.json come from bootstrap/jobs.py (an id it does not have gets only the id); the rank is
+    Sanctuary's level 20; the lists are empty.
 
     The rank must be above 0: after the zone loads, the HUD script GroupHandler:GetNextJob (called from HUD:showMain
     through SetJobSwitchOnOrOff) loops until it finds a job with a rank, so with rank 0 the main thread never leaves
     WaitForWorldReady and the loading screen stays up (docs/re/zone-loading.md).
     """
-    entry = bytearray(struct.pack("<i", profile_id) + bytes(PROFILE_SIZE - 4))
+    entry = bytearray(PROFILE_SIZE)
+    job = jobs.BY_ID.get(profile_id)
+    if job:
+        struct.pack_into("<8iB", entry, 0, *job[:8], 1 if job[8] else 0)
+    else:
+        struct.pack_into("<i", entry, 0, profile_id)
     struct.pack_into("<i", entry, PROFILE_RANK_OFFSET, PROFILE_RANK)
     return bytes(entry)
+
+
+def profile_list():
+    """The profile list of the player data: a count, then every job Sanctuary gives a new character (FR_JOBS)."""
+    chosen = jobs.selected()
+    return struct.pack("<i", len(chosen)) + b"".join(profile(job[0]) for job in chosen)
 
 
 def appearance(character):
@@ -232,10 +246,11 @@ def appearance(character):
 def player_blob(character=None, guid=1):
     """The player data for SendSelfToClient, laid out like the PS3 client reads it (build 1.77).
 
-    Names follow Clover's ClientPcData where the order matches. There is one profile (the starter job) because
-    the client looks the active profile up right after loading the player and dereferences null when the list
-    is empty (found with tools/ppc_trace.py: the lookup at 0xeba4c reads the node it did not find). Every other
-    list is sent empty, so there are no items, pets, quests or stats yet.
+    Names follow Clover's ClientPcData where the order matches. The profile list holds the jobs Sanctuary gives a new
+    character (all of them; bootstrap/jobs.py, FR_JOBS). It must not be empty: the client looks the active profile up
+    right after loading the player and dereferences null when the list is empty (found with tools/ppc_trace.py: the
+    lookup at 0xeba4c reads the node it did not find). Every other list is sent empty, so there are no items, pets,
+    quests or stats yet.
     """
     c = character or {}
     model = _int(c.get("Model"), 1)
@@ -255,7 +270,7 @@ def player_blob(character=None, guid=1):
     out += struct.pack("<iiiii", 0, 0, 0, 0, 1)              # chat country, chat language, preferred language, chat language, login count
     out += struct.pack("<B", 0)                              # grandfathered
     out += struct.pack("<ii", 0, 0)                          # two vehicle loadouts (kart race, demo derby)
-    out += struct.pack("<i", 1) + profile(PROFILE_ID)        # profile list: one entry
+    out += profile_list()                                    # profile list: the jobs (bootstrap/jobs.py)
     out += struct.pack("<i", PROFILE_ID)                     # active profile id
     out += bytes(0x111 - 0xa3)                               # remaining fields: empty lists and zeros
     return bytes(out)

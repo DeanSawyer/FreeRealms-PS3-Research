@@ -91,8 +91,8 @@ public sealed class GatewayVectorTests
         var empty = new Dictionary<string, string>();
 
         // Too big for one 512 byte datagram, which is why the reliable channel fragments (see Ps3Gateway.SendReliable).
-        Assert.AreEqual(534, Ps3Packets.PlayerBlob(empty, world, GatewayVectors.UnixTime).Length);
-        Assert.AreEqual(540, Ps3Packets.SendSelfToClient(empty, world, GatewayVectors.UnixTime).Length);
+        Assert.AreEqual(3577, Ps3Packets.PlayerBlob(empty, world, GatewayVectors.UnixTime).Length);
+        Assert.AreEqual(3583, Ps3Packets.SendSelfToClient(empty, world, GatewayVectors.UnixTime).Length);
         Assert.AreEqual(261, Ps3Packets.AddPc(empty, world).Length);
     }
 

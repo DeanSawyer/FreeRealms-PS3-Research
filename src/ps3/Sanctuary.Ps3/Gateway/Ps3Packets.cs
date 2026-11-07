@@ -54,19 +54,49 @@ public static class Ps3Packets
     public const int ProfileRankOffset = 0x33;
 
     /// <summary>
-    /// Rank of the starter job. It must be above 0: the HUD script <c>GroupHandler:GetNextJob</c>, run from <c>HUD:showMain</c> right
-    /// after the zone loads, loops until it finds a job with a rank, so rank 0 keeps the loading screen up forever.
+    /// Rank of every job: Sanctuary's level 20. It must be above 0: the HUD script <c>GroupHandler:GetNextJob</c>, run from
+    /// <c>HUD:showMain</c> right after the zone loads, loops until it finds a job with a rank, so rank 0 keeps the loading screen up forever.
     /// </summary>
-    public const int ProfileRank = 1;
-
-    /// <summary>One entry of the profile list: the id and the rank, zeros for everything else (the client reads 179 bytes per entry).</summary>
-    public static byte[] Profile(int profileId) =>
-        new PacketWriter().I32(profileId).Zeros(ProfileRankOffset - 4).I32(ProfileRank).Zeros(ProfileSize - ProfileRankOffset - 4).ToArray();
+    public const int ProfileRank = Jobs.Rank;
 
     /// <summary>
-    /// The player data of SendSelfToClient. There is one profile (the starter job) because the client looks the active profile up right
-    /// after loading the player and dereferences null when the list is empty. Every other list is empty, so there are no items, pets,
-    /// quests or stats yet. With these fields the blob is 273 bytes.
+    /// One entry of the profile list (a job; the client reads 179 bytes per entry): id, name id, description id, type, icon, the three
+    /// image sets and the members-only byte from <see cref="Jobs"/> (an id it does not have gets only the id), the rank at
+    /// <see cref="ProfileRankOffset"/>, zeros for everything else.
+    /// </summary>
+    public static byte[] Profile(int profileId)
+    {
+        var writer = new PacketWriter();
+
+        if (Jobs.TryGet(profileId, out var job))
+        {
+            writer.I32(job.Id).I32(job.NameId).I32(job.DescriptionId).I32(job.Type).I32(job.Icon)
+                .I32(job.AbilityBgImageSet).I32(job.BadgeImageSet).I32(job.ButtonImageSet).U8(job.MembersOnly ? 1 : 0);
+        }
+        else
+        {
+            writer.I32(profileId);
+        }
+
+        return writer.Zeros(ProfileRankOffset - writer.Length).I32(ProfileRank).Zeros(ProfileSize - ProfileRankOffset - 4).ToArray();
+    }
+
+    /// <summary>The profile list of the player data: a count, then every job Sanctuary gives a new character (<c>FR_JOBS</c>).</summary>
+    public static byte[] ProfileList(GatewayOptions options)
+    {
+        var chosen = Jobs.Selected(options.Jobs);
+        var writer = new PacketWriter().I32(chosen.Count);
+
+        foreach (var job in chosen)
+            writer.Raw(Profile(job.Id));
+
+        return writer.ToArray();
+    }
+
+    /// <summary>
+    /// The player data of SendSelfToClient. The profile list holds the jobs Sanctuary gives a new character (all of them; <see cref="Jobs"/>,
+    /// <c>FR_JOBS</c>); it must not be empty because the client looks the active profile up right after loading the player and dereferences
+    /// null when the list is empty. Every other list is empty, so there are no items, pets, quests or stats yet.
     /// </summary>
     public static byte[] PlayerBlob(IReadOnlyDictionary<string, string> character, GatewayWorld world, long unixTime, int guid = 1)
     {
@@ -88,7 +118,7 @@ public static class Ps3Packets
             .I32(0).I32(0).I32(0).I32(0).I32(1) // chat country, chat language, preferred language, chat language, login count
             .U8(0) // grandfathered
             .I32(0).I32(0) // two vehicle loadouts (kart race, demo derby)
-            .I32(1).Raw(Profile(ProfileId)) // profile list: one entry
+            .Raw(ProfileList(world.Options)) // profile list: the jobs (Jobs)
             .I32(ProfileId) // active profile id
             .Zeros(0x111 - 0xa3) // remaining fields: empty lists and zeros
             .ToArray();

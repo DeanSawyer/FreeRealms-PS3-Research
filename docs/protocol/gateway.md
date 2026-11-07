@@ -119,10 +119,31 @@ node, so the read goes through a null pointer. One profile is enough. The emulat
 (`tools/ppc_trace.py` records reads below `0x1000` as `null_reads`): the empty list reads address 0 at `0xebb30`; one
 profile with id 1 does not.
 
-A profile entry is 179 bytes in this build: nine integers (id, name id, description id, type, icon, three image
-sets, is-combat), a few flags and integers (rank, rank percent, stars), 17 equipment words, eight ability lists
-(each starts with a count) and an ability-experience list. Only the id and the rank (offset `0x33`, set to 1) are filled in; everything
-else is zero. A rank of 0 hangs the client after loading: see `docs/re/zone-loading.md`, *Cause of the stuck loading screen*.
+A profile entry (a job) is 179 bytes in this build. Offsets inside the entry:
+
+| Offset | Width | Field |
+|---|---|---|
+| 0x00 | i32 | id |
+| 0x04 | i32 | name id |
+| 0x08 | i32 | description id |
+| 0x0c | i32 | type |
+| 0x10 | i32 | icon |
+| 0x14, 0x18, 0x1c | i32 | ability background, badge and button image sets |
+| 0x20 | u8 | members only |
+| 0x21 | i32 | is combat |
+| 0x25 | u32 + list | item classes (sent empty) |
+| 0x29 .. 0x32 | u8, i32, i32, u8 | unknown |
+| 0x33 | i32 | rank (the reader stores it at profile+20) |
+| 0x37 | i32 | rank percent |
+| 0x3b, 0x3f | i32 | stars |
+| 0x43 | 17 x i32 | equipment |
+| then | | eight ability lists (each starts with a count) and an ability-experience list |
+
+The server sends every job Sanctuary gives a new character (`UnlockAllProfiles`: all 18 in its `Resources/Profiles.json`, at
+level 20, starter job first; `bootstrap/jobs.py`, `FR_JOBS` to pick some), with the fields Sanctuary fills: id to members only and
+the rank. Everything else is zero. With the 18 jobs the client's reader consumes the whole 3,577 byte player blob and builds each
+job with its id, name id, description id, type and rank 20 (`tools/ppc_trace.py`). A rank of 0 hangs the client after loading: see
+`docs/re/zone-loading.md`, *Cause of the stuck loading screen*.
 This differs from Clover's `ClientPcProfile` (no item-class or item maps), so the PS3 build is an older layout.
 
 ## Packets larger than 512 bytes must be fragmented

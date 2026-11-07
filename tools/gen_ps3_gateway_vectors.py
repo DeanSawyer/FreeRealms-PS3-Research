@@ -39,7 +39,7 @@ OUT = os.path.join(ROOT, "src", "ps3", "Sanctuary.Ps3.Tests", "GatewayVectors.g.
 UNIX_TIME = 1700000000
 ENCRYPT_CODE = 0x01020304
 FR_KEYS = ("FR_ZONE", "FR_ZONE_TYPE", "FR_SPAWN", "FR_SPAWN_Y", "FR_ADDPC", "FR_WELCOME", "FR_EXTRA", "FR_TIME",
-           "FR_SANCTUARY", "FR_SKIP", "FR_EQUIP")
+           "FR_SANCTUARY", "FR_SKIP", "FR_EQUIP", "FR_JOBS")
 
 
 def string(text):
@@ -119,6 +119,9 @@ PACKET_SCENARIOS = [
     Scenario("styled character", {}, "FabledRealms", (-128.0, -128.0), CHARACTER_STYLED),
     Scenario("dressed character", {}, "FabledRealms", (-128.0, -128.0), CHARACTER_DRESSED),
     Scenario("dressed character, FR_EQUIP=0", {"FR_EQUIP": "0"}, "FabledRealms", (-128.0, -128.0), CHARACTER_DRESSED),
+    Scenario("FR_JOBS list", {"FR_JOBS": " 35; 11,x, 999 "}),
+    Scenario("FR_JOBS all", {"FR_JOBS": "ALL"}),
+    Scenario("FR_JOBS without the starter", {"FR_JOBS": "20"}),
     Scenario("dressed character, FR_EQUIP=5", {"FR_EQUIP": " 5 "}, "FabledRealms", (-128.0, -128.0), CHARACTER_DRESSED),
 ]
 

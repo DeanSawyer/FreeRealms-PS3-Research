@@ -132,32 +132,32 @@ public sealed class GatewayTests
         gateway.Receive(Connect(), Client, TimeSpan.Zero);
         gateway.Receive(Reliable(0, 0, Login()), Client, TimeSpan.Zero);
 
-        // LoginReply (0), ZoneDetails (1) and the player data in two fragments (2 and 3).
-        Assert.AreEqual(4, gateway.PendingCount);
+        // LoginReply (0), ZoneDetails (1) and the player data (every job) in eight fragments (2 to 9).
+        Assert.AreEqual(10, gateway.PendingCount);
 
         // An Ack removes one sequence; an AckAll removes everything up to and including its sequence.
         gateway.Receive([0, 0x11, 0, 1], Client, TimeSpan.Zero);
 
-        Assert.AreEqual(3, gateway.PendingCount);
+        Assert.AreEqual(9, gateway.PendingCount);
 
-        gateway.Receive([0, 0x15, 0, 2], Client, TimeSpan.Zero);
+        gateway.Receive([0, 0x15, 0, 8], Client, TimeSpan.Zero);
 
         Assert.AreEqual(1, gateway.PendingCount);
 
         // An ack for another channel or another peer does nothing.
-        gateway.Receive([0, 0x12, 0, 3], Client, TimeSpan.Zero);
-        gateway.Receive([0, 0x11, 0, 3], new IPEndPoint(IPAddress.Loopback, 1), TimeSpan.Zero);
+        gateway.Receive([0, 0x12, 0, 9], Client, TimeSpan.Zero);
+        gateway.Receive([0, 0x11, 0, 9], new IPEndPoint(IPAddress.Loopback, 1), TimeSpan.Zero);
 
         Assert.AreEqual(1, gateway.PendingCount);
 
         capture.Sent.Clear();
         gateway.Maintain(TimeSpan.FromSeconds(1.5));
 
-        // Only the still pending packet (the second fragment, sequence 3) is repeated.
+        // Only the still pending packet (the last fragment, sequence 9) is repeated.
         var again = capture.Sent.Single(datagram => datagram[1] is 9 or 13);
 
         Assert.AreEqual(13, again[1]);
-        Assert.AreEqual(3, BinaryPrimitives.ReadUInt16BigEndian(again.AsSpan(2)));
+        Assert.AreEqual(9, BinaryPrimitives.ReadUInt16BigEndian(again.AsSpan(2)));
     }
 
     [TestMethod]
@@ -170,7 +170,7 @@ public sealed class GatewayTests
 
         var pending = gateway.PendingCount;
 
-        Assert.AreEqual(4, pending);
+        Assert.AreEqual(10, pending);
 
         capture.Sent.Clear();
         gateway.Maintain(TimeSpan.FromSeconds(0.5));

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 
 namespace Sanctuary.Ps3.Gateway;
@@ -58,6 +59,9 @@ public sealed record GatewayOptions
     /// </summary>
     public int EquipPacket { get; init; } = 7;
 
+    /// <summary><c>FR_JOBS</c>: ids of the jobs to send ("1,11,35"; the starter job is always sent); null (unset or <c>all</c>) sends every job.</summary>
+    public IReadOnlyCollection<int>? Jobs { get; init; }
+
     /// <summary>Reads the <c>FR_*</c> variables through <paramref name="get"/> (null means unset). Problems are reported to <paramref name="warn"/>.</summary>
     public static GatewayOptions FromEnvironment(Func<string, string?> get, Action<string>? warn = null)
     {
@@ -108,6 +112,7 @@ public sealed record GatewayOptions
             Welcome = Env(get, "FR_WELCOME", "1") != "0",
             Extra = Value("FR_EXTRA") == "1",
             TimeSync = Env(get, "FR_TIME", "1") != "0",
+            Jobs = ParseJobs(Value("FR_JOBS")),
             EquipPacket = Env(get, "FR_EQUIP", "1") switch
             {
                 "0" => 0,
@@ -115,6 +120,26 @@ public sealed record GatewayOptions
                 _ => 7,
             },
         };
+    }
+
+    /// <summary>
+    /// <c>FR_JOBS</c>: empty or <c>all</c> gives null (every job); otherwise the numbers in a comma or semicolon separated list (other parts
+    /// are skipped), like <c>bootstrap/jobs.py</c>.
+    /// </summary>
+    public static IReadOnlyCollection<int>? ParseJobs(string text)
+    {
+        if (text.Length == 0 || string.Equals(text, "all", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var ids = new HashSet<int>();
+
+        foreach (var part in text.Replace(';', ',').Split(','))
+        {
+            if (int.TryParse(part.Trim(), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var id))
+                ids.Add(id);
+        }
+
+        return ids;
     }
 
     /// <summary>Three numbers separated by commas or semicolons; null when it is anything else.</summary>
