@@ -17,6 +17,7 @@ The tests run the C# code on the same inputs and compare byte for byte.
 Standard library only.
 """
 import argparse
+import datetime
 import os
 import struct
 import sys
@@ -32,6 +33,9 @@ if not os.environ.get("FR_TRACE_DIR"):
     os.environ["FR_TRACE_DIR"] = tempfile.mkdtemp(prefix="fr-gateway-vectors-")
 
 import gateway_probe as gp  # noqa: E402
+import items as item_table  # noqa: E402
+import jobs  # noqa: E402
+import sanctuary_flow as sf  # noqa: E402
 from gen_ps3_vectors import array, cs_bool, cs_bytes, cs_double  # noqa: E402
 from gen_ps3_web_vectors import cs_str  # noqa: E402
 
@@ -39,7 +43,8 @@ OUT = os.path.join(ROOT, "src", "ps3", "Sanctuary.Ps3.Tests", "GatewayVectors.g.
 UNIX_TIME = 1700000000
 ENCRYPT_CODE = 0x01020304
 FR_KEYS = ("FR_ZONE", "FR_ZONE_TYPE", "FR_SPAWN", "FR_SPAWN_Y", "FR_WELCOME", "FR_EXTRA", "FR_TIME",
-           "FR_SANCTUARY", "FR_SKIP", "FR_EQUIP", "FR_JOBS", "FR_ITEMS")
+           "FR_SANCTUARY", "FR_SKIP", "FR_EQUIP", "FR_JOBS", "FR_ITEMS", "FR_SKY")
+TODAY = datetime.date(2026, 11, 6)   # the Sanctuary flow's date (client areas): Halloween is on
 
 
 def string(text):
@@ -344,6 +349,71 @@ def short_session():
     ]
 
 
+def sanctuary_session():
+    """What the client sends with FR_SANCTUARY=1, as in tools/check_sanctuary_flow.py, plus the mini-game list over outer type 5."""
+    a = 50020
+    return [
+        ("recv", a, connect()),
+        ("recv", a, reliable(0, 0, login_payload())),
+        ("recv", a, reliable(0, 1, tunnel(6, inner_op(102, b"\x01\x00")))),
+        ("recv", a, reliable(0, 2, tunnel(5, inner_op(102, b"\x01\x00")))),
+        ("recv", a, reliable(0, 3, tunnel(6, inner_op(141, b"\x01\x00")))),
+        ("recv", a, reliable(0, 4, tunnel(6, inner_op(52)))),
+        ("recv", a, reliable(0, 5, tunnel(6, inner_op(13)))),
+        ("recv", a, reliable(0, 6, tunnel(6, inner_op(10)))),
+        ("advance", 1.0),
+        ("advance", 60.0),
+        ("recv", a, reliable(0, 7, tunnel(6, inner_op(109, string("ClientZoneTime.log"), string("Zone time: 3.3"))))),
+        ("recv", a, reliable(0, 8, tunnel(6, inner_op(102)))),
+    ]
+
+
+def _archer_bow():
+    """The item id of the archer's weapon (slot 7) for CHARACTER_DRESSED with every job, as bootstrap/items.py numbers them."""
+    _owned, equipment = item_table.inventory(CHARACTER_DRESSED, list(jobs.JOBS))
+    return equipment[35][7]
+
+
+def inventory_session():
+    """Inventory requests (42) and job switches (26/13) after loading, each answered by the session's bootstrap/inventory.py."""
+    a = 50030
+    bow = _archer_bow()
+    requests = [
+        inner_op(42, struct.pack("<Hii", 2, 4, 1)),           # unequip the adventurer's legs
+        inner_op(42, struct.pack("<Hii", 3, 2, 1)),           # and put them back
+        inner_op(42, struct.pack("<Hii", 3, 999, 1)),         # an item not owned
+        inner_op(42, struct.pack("<Hii", 3, bow, 1)),         # the archer's bow on the adventurer (a weapon: flair refresh)
+        inner_op(42, struct.pack("<Hiiii", 8, 28216, 234, 1, 3)),   # by definition and tint, with a slot
+        inner_op(42, struct.pack("<Hii", 8, 1, 2)),           # by definition and tint, not owned
+        inner_op(26, struct.pack("<Hii", 13, 0, 35)),         # switch to the archer
+        inner_op(42, struct.pack("<Hi", 3, 2)),               # equip with the job missing: the active one
+        inner_op(42, struct.pack("<Hi", 2, 7)),               # unequip the archer's weapon slot
+        inner_op(42, struct.pack("<Hii", 2, 7, 35)),          # the same slot again: empty now
+        inner_op(26, struct.pack("<Hii", 13, 0, 4242)),       # a job the character lacks
+        inner_op(26, struct.pack("<Hi", 32, 5)),              # another command packet
+        inner_op(42, struct.pack("<H", 3) + b"\x01\x00"),     # too short for a field
+        inner_op(42),                                         # no sub-opcode
+        inner_op(26, struct.pack("<Hii", 13, 0, 1)),          # back to the adventurer
+    ]
+    steps = [("recv", a, connect()), ("recv", a, reliable(0, 0, login_payload())),
+             ("recv", a, reliable(0, 1, tunnel(6, inner_op(13)))), ("recv", a, reliable(0, 2, tunnel(6, inner_op(10)))),
+             ("advance", 1.0)]
+    steps += [("recv", a, reliable(0, 3 + n, tunnel(6, req))) for n, req in enumerate(requests)]
+    return steps
+
+
+def sanctuary_short_session():
+    a = 50040
+    return [
+        ("recv", a, connect()),
+        ("recv", a, reliable(0, 0, login_payload("t", 9))),
+        ("recv", a, reliable(0, 1, tunnel(6, inner_op(13)))),
+        ("recv", a, reliable(0, 2, tunnel(6, inner_op(10)))),
+        ("advance", 1.0),
+        ("advance", 30.0),
+    ]
+
+
 CONVERSATIONS = [
     (Scenario("full session, extras", {"FR_EXTRA": "1"}, "FabledRealms", (-128.0, -128.0), CHARACTER_FULL), full_session),
     (Scenario("no time, no welcome", {"FR_TIME": "0", "FR_WELCOME": "0", "FR_ZONE": "Elsewhere"}, None, None,
@@ -352,6 +422,19 @@ CONVERSATIONS = [
     (Scenario("no character data", {}, None, None, {}), short_session),
     (Scenario("dressed", {}, None, None, CHARACTER_DRESSED), short_session),
     (Scenario("dressed, FR_EQUIP=0", {"FR_EQUIP": "0"}, None, None, CHARACTER_DRESSED), short_session),
+    (Scenario("FR_SKY", {"FR_SKY": " sky_wilds24.xml "}, None, None, CHARACTER_FULL), short_session),
+    (Scenario("Sanctuary flow", {"FR_SANCTUARY": "1"}, "FabledRealms", (-128.0, -128.0), CHARACTER_FULL), sanctuary_session),
+    (Scenario("Sanctuary flow, inventory", {"FR_SANCTUARY": " 1 "}, None, None, CHARACTER_DRESSED), inventory_session),
+    (Scenario("Sanctuary flow, no items, archer only", {"FR_SANCTUARY": "1", "FR_ITEMS": "0", "FR_JOBS": "35"}, None, None,
+              CHARACTER_DRESSED), inventory_session),
+    (Scenario("Sanctuary flow, FR_SKIP, FR_SKY, FR_EQUIP=5",
+              {"FR_SANCTUARY": "1", "FR_SKIP": "AdventurersJournalInfo, setclientarea,,", "FR_SKY": "sky_wilds24.xml",
+               "FR_EQUIP": "5"}, None, None, CHARACTER_DRESSED), sanctuary_short_session),
+    (Scenario("Sanctuary flow in the Sanctuary area", {"FR_SANCTUARY": "1", "FR_SPAWN": "-1414.636,40,351.567"}, None, None,
+              CHARACTER_STYLED), sanctuary_short_session),
+    (Scenario("Sanctuary flow near Snowhill, odd character", {"FR_SANCTUARY": "1", "FR_SPAWN": "51,40,363"}, None, None,
+              CHARACTER_JUNK), sanctuary_short_session),
+    (Scenario("FR_SANCTUARY other than 1 is the old flow", {"FR_SANCTUARY": "yes"}, None, None, CHARACTER_FULL), short_session),
 ]
 
 
@@ -382,7 +465,9 @@ def run_conversation(scenario, make_steps):
 def conversation_vectors():
     items = []
     for scenario, make_steps in CONVERSATIONS:
-        steps, outputs = run_conversation(scenario, make_steps)
+        with mock.patch.object(sf.datetime, "date", wraps=datetime.date) as fake_date:
+            fake_date.today.return_value = TODAY
+            steps, outputs = run_conversation(scenario, make_steps)
         rendered = []
         for step, sent in zip(steps, outputs):
             sent_items = array("", ["(%d, %s)" % (port, cs_bytes(data)) for port, data in sent], "            ")
@@ -450,6 +535,8 @@ def generate():
     add("    public const long UnixTime = %d;" % UNIX_TIME)
     add("")
     add("    public const int EncryptCode = 0x%08x;" % ENCRYPT_CODE)
+    add("")
+    add("    public static readonly DateOnly Today = new(%d, %d, %d);" % (TODAY.year, TODAY.month, TODAY.day))
     add("")
     add("    public static readonly PacketScenario[] Packets = %s;" % array("", packet_vectors()))
     add("")

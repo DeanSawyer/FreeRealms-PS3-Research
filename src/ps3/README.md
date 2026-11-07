@@ -37,7 +37,9 @@ dotnet run --project src\ps3\Sanctuary.Ps3.Server -- --client "C:\Path\To\NPUA30
 The options are those of the Python script (`--client`, `--digest`, `--match-local`, `--extra-client`, `--codec`, `--serve-mismatch`,
 `--server-list-variant`, `--existing-character`, `--account-status`, `--xml-style`, `--gateway-port`, `--advertise`, `--upstream`,
 `--no-dns`, `--bind`, `--port`) and so are the gateway switches `FR_ZONE`, `FR_ZONE_TYPE`, `FR_SPAWN`, `FR_SPAWN_Y`,
-`FR_WELCOME`, `FR_EXTRA`, `FR_TIME`. [`bootstrap/README.md`](../../bootstrap/README.md) explains them; `--help` lists them.
+`FR_WELCOME`, `FR_EXTRA`, `FR_TIME`, `FR_EQUIP`, `FR_JOBS`, `FR_ITEMS`, `FR_SKY`, `FR_SANCTUARY` and `FR_SKIP`. With `FR_SANCTUARY=1`
+(`run_test.py --sanctuary`) the C# server sends Sanctuary's packets and answers the inventory and job switches, like the Python
+script. [`bootstrap/README.md`](../../bootstrap/README.md) explains them; `--help` lists them.
 
 To test it with RPCS3 the way the Python server is tested, download the artifact `Sanctuary.Ps3.Server-win-x64` of a successful run of the
 [Windows installer workflow](../../.github/workflows/windows-build.yml) (a single `.exe`, no .NET needed) and run
@@ -65,7 +67,7 @@ the same:
 | :--- | :--- | :--- |
 | [`tools/gen_ps3_vectors.py`](../../tools/gen_ps3_vectors.py) | `ReferenceVectors.g.cs` | name hash, manifests, packs, zone and spawn choice, digest rewriting, `.zs` container |
 | [`tools/gen_ps3_web_vectors.py`](../../tools/gen_ps3_web_vectors.py) | `WebVectors.g.cs` | `AppConfig`, every ps3ws reply, DNS questions and answers, form decoding, the digest and asset routes |
-| [`tools/gen_ps3_gateway_vectors.py`](../../tools/gen_ps3_gateway_vectors.py) | `GatewayVectors.g.cs` | every packet builder for several characters, zones and spawns, `Login` parsing, packet descriptions, and **whole UDP conversations** (connect, login, fragments, acks, resends, the ready fallback) replayed on a virtual clock |
+| [`tools/gen_ps3_gateway_vectors.py`](../../tools/gen_ps3_gateway_vectors.py) | `GatewayVectors.g.cs` | every packet builder for several characters, zones and spawns, `Login` parsing, packet descriptions, and **whole UDP conversations** (connect, login, fragments, acks, resends, the ready fallback, the Sanctuary flow with inventory requests and job switches) replayed on a virtual clock |
 
 The `*.g.cs` files are generated and committed; CI regenerates them and fails if they differ, so a change to the Python reference
 that is not mirrored in C# turns the build red. Compressed `.zs` output is produced with
