@@ -72,17 +72,22 @@ public sealed class ManagerSettings
 
     public bool GameTime { get; set; } = true;
 
-    /// <summary>Picks the paths the test setup uses (Desktop\FR_INSTALL_TEST) when they exist and nothing is set yet.</summary>
-    public void FillDefaults()
+    /// <summary>
+    /// The game as RPCS3 installs it next to <paramref name="rpcs3Executable"/>: its <c>dev_hdd0\game\NPUA30048</c> folder and the
+    /// executable to start (a decrypted <c>game.elf</c> if there is one, else <c>EBOOT.BIN</c>). Each is null when it does not exist.
+    /// </summary>
+    public static (string? Client, string? Executable) GameInRpcs3(string rpcs3Executable)
     {
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var install = Path.Combine(home, "Desktop", "FR_INSTALL_TEST");
+        var folder = Path.GetDirectoryName(rpcs3Executable);
 
-        ClientFolder = Pick(ClientFolder, Path.Combine(install, "NPUA30048"), Directory.Exists);
-        Rpcs3Executable = Pick(Rpcs3Executable, Path.Combine(install, "RPCS3_TEST", "rpcs3.exe"), File.Exists);
-        GameElf = Pick(GameElf, Path.Combine(install, "RPCS3_TEST", "dev_hdd0", "game", "NPUA30048", "USRDIR", "game.elf"), File.Exists);
-        ExtraClientFolder = Pick(ExtraClientFolder, Path.Combine(home, "Downloads", "Free-Realms-PS3-main", "Free-Realms-PS3-main", "NPUA30048"), Directory.Exists);
-        OriginalDigest = Pick(OriginalDigest, Path.Combine(home, "Downloads", "NPUA30048.original.soe"), File.Exists);
+        if (string.IsNullOrEmpty(folder))
+            return (null, null);
+
+        var client = Path.Combine(folder, "dev_hdd0", "game", "NPUA30048");
+        var usrDir = Path.Combine(client, "USRDIR");
+        var executable = new[] { Path.Combine(usrDir, "game.elf"), Path.Combine(usrDir, "EBOOT.BIN") }.FirstOrDefault(File.Exists);
+
+        return (Directory.Exists(client) ? client : null, executable);
     }
 
     /// <summary>The FR_* switches the server reads, from the gameplay settings.</summary>
@@ -114,8 +119,6 @@ public sealed class ManagerSettings
             settings = new();
         }
 
-        settings.FillDefaults();
-
         return settings;
     }
 
@@ -124,7 +127,4 @@ public sealed class ManagerSettings
         Directory.CreateDirectory(DataFolder);
         File.WriteAllText(SettingsPath, JsonSerializer.Serialize(this, Json));
     }
-
-    private static string Pick(string current, string candidate, Func<string, bool> exists) =>
-        string.IsNullOrWhiteSpace(current) && exists(candidate) ? candidate : current;
 }

@@ -66,7 +66,8 @@ Last updated: **7 November 2026.** Everything below was observed in RPCS3 with t
 1. Download `FreeRealmsPS3Bootstrap-Setup.exe` from the [latest release](https://github.com/DeanSawyer/FreeRealms-PS3-Research/releases),
    or the `FreeRealmsPS3Bootstrap-Windows-Setup` artifact of a successful
    [Windows build](https://github.com/DeanSawyer/FreeRealms-PS3-Research/actions/workflows/windows-build.yml), and install it.
-2. Open **Free Realms PS3 Server Manager**. In **Settings**, check the client folder, `rpcs3.exe` and `game.elf`.
+2. Open **Free Realms PS3 Server Manager**. In **Settings**, choose `rpcs3.exe` (the game it has installed is filled in), check
+   the client folder, and press **Save settings**.
 3. On the **Dashboard**, press **Test run in RPCS3**. The server starts, then RPCS3 starts on the game.
 4. Create a character and play. When you close RPCS3, a report zip is saved to your Desktop.
 
@@ -91,7 +92,7 @@ A Windows app (WPF, .NET 10) that runs the server in-process and shows what it i
 | **Dashboard** | Start and stop the server; the state of the DNS, web and game services with their ports; uptime, players, packets, your character; recent activity. **Test run in RPCS3** starts everything and saves a report when RPCS3 closes. |
 | **Players** | Every connected PS3: online id, address, current job, state (connecting, logged in, in world), packets and timings. |
 | **Gameplay** | The server's behaviour without environment variables: the Sanctuary flow, starter items, jobs, sky, spawn point and how the creator's clothes go on. |
-| **Settings** | Client folder, an optional second client folder and original digest, `rpcs3.exe` and `game.elf`, network addresses and ports. Paths are found automatically for the usual test layout (`Desktop\FR_INSTALL_TEST`). |
+| **Settings** | Client folder, an optional second client folder and original digest, `rpcs3.exe` and `game.elf`, network addresses and ports. Choosing `rpcs3.exe` fills in the game RPCS3 has installed. |
 | **Logs** | The live server log with search and filters by level and source; pause, copy, clear. |
 | **Diagnostics** | Export logs and traces to a zip at any time; open the trace and settings folders; check for updates. |
 
