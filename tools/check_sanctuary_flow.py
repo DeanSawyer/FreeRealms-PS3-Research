@@ -26,6 +26,7 @@ import gen_ps3_gateway_vectors as harness  # noqa: E402  (sets FR_TRACE_DIR and 
 
 gp = harness.gp
 import items  # noqa: E402
+import reference_data  # noqa: E402
 import sanctuary_flow as sf  # noqa: E402
 
 LOGIN = ["EncounterOverworldCombat", "InitializationParameters", "ZoneDetails", "ClientGameSettings", "ItemDefinitions",
@@ -141,6 +142,30 @@ def parse(name, inner):
                 r.take("B" if kind in "bu" else "i")
         assert r.take("iii") == (0, 0, 0)
         desc = "definition %d" % definition_id
+    elif name == "ItemClassDefinitions":
+        # PS3 layout (bootstrap/reference_data.py): key, then the six ItemClasses.txt columns.
+        assert r.take("H") == 1
+        n = r.take("i")
+        for _ in range(n):
+            key, item_class = r.take("ii")
+            assert key == item_class
+            r.take("5i")
+        assert n == len(reference_data.item_classes())
+        desc = "%d item classes" % n
+    elif name == "ItemCategoryDefinitions":
+        assert r.take("H") == 2
+        n = r.take("i")
+        for _ in range(n):
+            key, category = r.take("ii")
+            assert key == category
+            r.take("iiiB")
+        g = r.take("i")
+        for _ in range(g):
+            key, group = r.take("ii")
+            assert key == group
+            r.take("i")
+        assert (n, g) == (len(reference_data.item_categories()), len(reference_data.item_category_groups()))
+        desc = "%d item categories, %d group entries" % (n, g)
     elif name == "AbilitySetDefinition":
         assert r.take("H") == 5
         r.take("i")
@@ -163,8 +188,6 @@ FIXED = {
     "Hitpoints": "26000100c4090000c4090000",
     "Mana": "26000d006400000064000000" + "00",
     "GuildCanCreateGuild": "8100200000",
-    "ItemClassDefinitions": "2c00010000000000",
-    "ItemCategoryDefinitions": "2c0002000000000000000000",
     "ClientProfileData": "2c00030000000000",
     "MembershipSubscriptionInfo": "bd000100",
     "EffectTagCompositeEffectsEnable": "23002b0001",

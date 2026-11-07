@@ -4,6 +4,8 @@ This project stands on other people's work. Thank you.
 
 * **Character-creator mapping tables.** `bootstrap/character_mappings.py` (and its C# copy) holds Sanctuary's
   `Resources/CharacterCreate/*Mappings.txt` unchanged: which head, hair, skin tone, face paint and body option each creator choice means.
+* **Item classes and categories.** `bootstrap/data/ItemClasses.txt`, `ItemCategories.txt` and `ItemCategoryGroups.txt` are
+  Sanctuary's `Resources` files, unchanged.
 * **Item definitions and starter items.** `bootstrap/data/item_definitions.tsv.gz` is a subset of Sanctuary's
   `Resources/ClientItemDefinitions.json` (every class 1 clothing item and every job's default items), written by
   `tools/gen_item_definitions.py`; the jobs and their default items in `bootstrap/jobs.py` come from its `Resources/Profiles.json`.

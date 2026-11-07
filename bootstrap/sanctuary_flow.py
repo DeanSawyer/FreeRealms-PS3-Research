@@ -21,6 +21,8 @@ import datetime
 import os
 import struct
 
+import reference_data
+
 PS3_DISPATCH_RANGE = range(12, 181)
 
 GAME_TIME_EPOCH = 1221361670    # Sanctuary PacketGameTimeSyncHandler
@@ -256,8 +258,8 @@ def client_is_ready_packets(guid, character, head, hair, skin, face_paint="none"
         ("Mana", struct.pack("<HHiiB", 38, 13, 100, 100, 0)),
         ("UpdateActiveWieldType", struct.pack("<HHQi", 35, 61, guid, 0)),
         ("GuildCanCreateGuild", struct.pack("<HHB", 129, 32, 0)),
-        ("ItemClassDefinitions", struct.pack("<HHi", 44, 1, 0)),
-        ("ItemCategoryDefinitions", struct.pack("<HHii", 44, 2, 0, 0)),
+        ("ItemClassDefinitions", reference_data.item_class_definitions()),
+        ("ItemCategoryDefinitions", reference_data.item_category_definitions()),
         ("ClientProfileData", struct.pack("<HHi", 44, 3, 0)),
         ("CustomizationData", customizations(character, head, hair, skin, face_paint, model_customization)),
         ("MembershipSubscriptionInfo", struct.pack("<HBB", 189, 1 if is_member else 0, 0)),

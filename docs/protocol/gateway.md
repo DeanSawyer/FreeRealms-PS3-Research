@@ -176,6 +176,24 @@ Not checked in the emulator: the item objects themselves, because the reader han
 readers that check it (the item class list's `0xa83104`, for one) then skip their entries, so with the default setup such a
 list looks empty. Clear the byte (`emu.mem.write(reader + 16, b"\0")`) when checking a whole player blob.
 
+## Item classes and categories (ReferenceData, opcode 44)
+
+The client's handler for opcode 44 is `0xd4764` (vtable slot +340 of the object whose slot +320 handles PlayerUpdate). With
+`FR_SANCTUARY=1` the server sends what Sanctuary's `BaseZone.OnClientIsReady` sends, from its `Resources` files
+(`bootstrap/reference_data.py`, `bootstrap/data/`):
+
+* **Sub-opcode 1, item classes** (reader `0xb0688c`, into client `+2292`): `u32` count, then per class `i32` id (the key) and the
+  six columns of `ItemClasses.txt`: 28 bytes each, Sanctuary's layout. 184 classes, 5,160 bytes.
+* **Sub-opcode 2, item categories** (reader `0xb066fc`, into client `+2388`): `u32` count, then per category `i32` id (the key),
+  `i32` id, `i32` name id, `i32` icon id, `i32` unknown, `u8` unknown 2. That is 21 bytes: Sanctuary's last field, `Display`, is
+  not in this build. Then `u32` count and per group entry `i32` group id (the key), `i32` group id, `i32` category id.
+  71 categories and 74 group entries, 2,391 bytes.
+* **Sub-opcode 3, profile data** goes to `0x15b5e4` with the raw packet, then the handler refreshes the two managers at
+  player `+31752` and `+31756`. Still sent empty.
+
+The client's readers consume both lists exactly. Until now they were sent empty, so the inventory had no categories to sort
+items into.
+
 ## Packets larger than 512 bytes must be fragmented
 
 The client reads each datagram into a buffer of exactly the negotiated max raw size (512). A bigger datagram makes
