@@ -26,9 +26,9 @@ No game files are packaged; you need your own `NPUA30048` client folder.
 | **Logs** | The live log of every service. Search, filter by level (all, warnings, errors) and by source (game server, web and DNS); pause, copy, clear. |
 | **Diagnostics** | Start a test run; **Export now** saves the logs and traces to a zip on the Desktop without RPCS3; open the trace and settings folders; check GitHub for a newer release. |
 
-On first start, the paths of the usual test layout are filled in when they exist: `Desktop\FR_INSTALL_TEST\NPUA30048`,
-`Desktop\FR_INSTALL_TEST\RPCS3_TEST\rpcs3.exe` and its `dev_hdd0\game\NPUA30048\USRDIR\game.elf`, and
-`Downloads\NPUA30048.original.soe`.
+Nothing is assumed about where your files are. When you choose `rpcs3.exe`, the manager fills in the game RPCS3 has
+installed, if those fields are still empty: `dev_hdd0\game\NPUA30048` as the client folder, and its `USRDIR\game.elf` (or
+`EBOOT.BIN`) as the game. Change either if your client folder is elsewhere. Your choices are saved for next time.
 
 ## Test reports
 

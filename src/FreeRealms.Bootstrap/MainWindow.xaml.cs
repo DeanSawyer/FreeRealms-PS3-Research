@@ -511,11 +511,24 @@ public partial class MainWindow : Window
 
     private void BrowseExtra_Click(object sender, RoutedEventArgs e) => PickFolder(ExtraClientBox, "Choose a second NPUA30048 folder");
 
-    private void BrowseDigest_Click(object sender, RoutedEventArgs e) => PickFile(DigestBox, "Patch digest (*.soe)|*.soe|All files|*.*");
+    private void BrowseDigest_Click(object sender, RoutedEventArgs e) => _ = PickFile(DigestBox, "Patch digest (*.soe)|*.soe|All files|*.*");
 
-    private void BrowseRpcs3_Click(object sender, RoutedEventArgs e) => PickFile(Rpcs3Box, "RPCS3 (rpcs3.exe)|rpcs3.exe|Programs (*.exe)|*.exe");
+    private void BrowseRpcs3_Click(object sender, RoutedEventArgs e)
+    {
+        if (!PickFile(Rpcs3Box, "RPCS3 (rpcs3.exe)|rpcs3.exe|Programs (*.exe)|*.exe"))
+            return;
 
-    private void BrowseElf_Click(object sender, RoutedEventArgs e) => PickFile(ElfBox, "Game (game.elf, EBOOT.BIN)|*.elf;*.BIN|All files|*.*");
+        // Fill in the game RPCS3 has installed, where nothing is chosen yet.
+        var (client, executable) = ManagerSettings.GameInRpcs3(Rpcs3Box.Text);
+
+        if (ElfBox.Text.Trim().Length == 0 && executable is not null)
+            ElfBox.Text = executable;
+
+        if (ClientBox.Text.Trim().Length == 0 && client is not null)
+            ClientBox.Text = client;
+    }
+
+    private void BrowseElf_Click(object sender, RoutedEventArgs e) => _ = PickFile(ElfBox, "Game (game.elf, EBOOT.BIN)|*.elf;*.BIN|All files|*.*");
 
     private void PickFolder(TextBox box, string title)
     {
@@ -528,15 +541,19 @@ public partial class MainWindow : Window
             box.Text = dialog.FolderName;
     }
 
-    private void PickFile(TextBox box, string filter)
+    private bool PickFile(TextBox box, string filter)
     {
         var dialog = new OpenFileDialog { Filter = filter };
 
         if (File.Exists(box.Text))
             dialog.InitialDirectory = Path.GetDirectoryName(box.Text);
 
-        if (dialog.ShowDialog(this) == true)
-            box.Text = dialog.FileName;
+        if (dialog.ShowDialog(this) != true)
+            return false;
+
+        box.Text = dialog.FileName;
+
+        return true;
     }
 
     // --- Closing ------------------------------------------------------------------------------------------------------
