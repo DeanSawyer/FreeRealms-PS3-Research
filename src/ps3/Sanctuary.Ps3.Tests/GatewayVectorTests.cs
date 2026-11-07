@@ -153,7 +153,8 @@ public sealed class GatewayVectorTests
                 TraceLog.None(),
                 null,
                 () => GatewayVectors.UnixTime,
-                () => GatewayVectors.EncryptCode);
+                () => GatewayVectors.EncryptCode,
+                () => GatewayVectors.Today);
 
             var now = TimeSpan.Zero;
 
@@ -225,6 +226,17 @@ public sealed class GatewayVectorTests
 
         var warnings = new List<string>();
         var bad = GatewayOptions.FromEnvironment(name => Get(new() { ["FR_SPAWN"] = "a,b,c", ["FR_ZONE_TYPE"] = "x" }, name), warnings.Add);
+
+        Assert.IsFalse(defaults.Sanctuary);
+        Assert.AreEqual(0, defaults.Skip.Count);
+        Assert.AreEqual(string.Empty, defaults.Sky);
+
+        var sanctuary = GatewayOptions.FromEnvironment(name => Get(new() { ["FR_SANCTUARY"] = " 1 ", ["FR_SKIP"] = " Mana,, SetClientArea ", ["FR_SKY"] = " sky.xml " }, name));
+
+        Assert.IsTrue(sanctuary.Sanctuary);
+        CollectionAssert.AreEquivalent(new[] { "mana", "setclientarea" }, sanctuary.Skip.ToArray());
+        Assert.AreEqual("sky.xml", sanctuary.Sky);
+        Assert.IsFalse(GatewayOptions.FromEnvironment(name => Get(new() { ["FR_SANCTUARY"] = "yes" }, name)).Sanctuary);
 
         Assert.IsNull(bad.Spawn);
         Assert.AreEqual(2, bad.ZoneType);

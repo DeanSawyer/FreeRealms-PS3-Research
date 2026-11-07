@@ -742,7 +742,7 @@ class GatewayProbe:
         if inner_op == 141:
             LOG.info("sanctuary: no reply to opcode 141 (Sanctuary has no handler for it)")
         if inner_op == 52:
-            self.send_named(addr, channel, "game time request", [("GameTimeSync", sanctuary_flow.game_time_sync())])
+            self.send_named(addr, channel, "game time request", [("GameTimeSync", sanctuary_flow.game_time_sync(time.time()))])
         if inner_op == 13:
             self.client_ready.add(addr)
             head, hair, skin, face_paint, model_customization = appearance(CHARACTER)

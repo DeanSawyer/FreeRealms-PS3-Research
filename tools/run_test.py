@@ -106,15 +106,13 @@ def main():
                          "logs its call stack; the patch is removed again afterwards (tools/rpcs3_diag_patch.py)")
     ap.add_argument("--sanctuary", action="store_true",
                     help="send exactly what the PC server Sanctuary sends at login, ClientIsReady and FinishedLoading "
-                         "(FR_SANCTUARY=1, bootstrap/sanctuary_flow.py); Python server only")
+                         "(FR_SANCTUARY=1, bootstrap/sanctuary_flow.py; the C# server has it too), including the inventory and job switching")
     ap.add_argument("--rpcs3", help="RPCS3 executable (default: RPCS3_TEST\\rpcs3.exe)")
     ap.add_argument("--elf", help="game.elf to start (default: inside RPCS3_TEST)")
     ap.add_argument("--bootstrap-args", default="", help="extra arguments for fr_ps3_bootstrap.py (or the C# server)")
     ap.add_argument("--server-exe", help="run this C# server (Sanctuary.Ps3.Server.exe, see src/ps3/README.md) instead of the Python script")
     ap.add_argument("--out", help="folder for the report (default: Desktop\\fr_test_<time>)")
     args = ap.parse_args()
-    if args.sanctuary and args.server_exe:
-        ap.error("--sanctuary is only in the Python server so far; leave out --server-exe")
 
     install = args.install
     client = os.path.join(install, "NPUA30048")

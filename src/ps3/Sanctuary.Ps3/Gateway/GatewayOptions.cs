@@ -46,6 +46,18 @@ public sealed record GatewayOptions
     /// <summary><c>FR_ITEMS</c> (not 0): give the character Sanctuary's starter items, their definitions and each job's equipment.</summary>
     public bool Items { get; init; } = true;
 
+    /// <summary>
+    /// <c>FR_SANCTUARY=1</c>: send what the PC server Sanctuary sends at login, <c>ClientIsReady</c> and <c>ClientFinishedLoading</c>,
+    /// and answer the client's requests (the inventory and job switches among them) as it does (<see cref="SanctuaryFlow"/>).
+    /// </summary>
+    public bool Sanctuary { get; init; }
+
+    /// <summary><c>FR_SKIP</c>: names of Sanctuary flow packets to leave out (lower case; "Name,Name").</summary>
+    public IReadOnlySet<string> Skip { get; init; } = new HashSet<string>();
+
+    /// <summary><c>FR_SKY</c>: the sky named in ZoneDetails (empty by default, as Sanctuary sends for FabledRealms).</summary>
+    public string Sky { get; init; } = string.Empty;
+
     /// <summary>Reads the <c>FR_*</c> variables through <paramref name="get"/> (null means unset). Problems are reported to <paramref name="warn"/>.</summary>
     public static GatewayOptions FromEnvironment(Func<string, string?> get, Action<string>? warn = null)
     {
@@ -88,6 +100,9 @@ public sealed record GatewayOptions
             TimeSync = Env(get, "FR_TIME", "1") != "0",
             Jobs = ParseJobs(Value("FR_JOBS")),
             Items = Env(get, "FR_ITEMS", "1") != "0",
+            Sanctuary = Value("FR_SANCTUARY") == "1",
+            Skip = ParseSkip(get("FR_SKIP")),
+            Sky = Value("FR_SKY"),
             EquipPacket = Env(get, "FR_EQUIP", "1") switch
             {
                 "0" => 0,
@@ -115,6 +130,22 @@ public sealed record GatewayOptions
         }
 
         return ids;
+    }
+
+    /// <summary><c>FR_SKIP</c> as <c>sanctuary_flow.skipped()</c> reads it: the comma-separated names, trimmed and lower case, empty ones dropped.</summary>
+    public static IReadOnlySet<string> ParseSkip(string? raw)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var part in (raw ?? string.Empty).Split(','))
+        {
+            var name = part.Trim().ToLowerInvariant();
+
+            if (name.Length > 0)
+                names.Add(name);
+        }
+
+        return names;
     }
 
     /// <summary>Three numbers separated by commas or semicolons; null when it is anything else.</summary>

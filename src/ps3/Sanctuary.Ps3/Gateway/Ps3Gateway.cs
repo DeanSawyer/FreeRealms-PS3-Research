@@ -75,10 +75,12 @@ public sealed class Ps3Gateway
     private readonly ILogger? _logger;
     private readonly Func<long> _unixTime;
     private readonly Func<int> _encryptCode;
+    private readonly Func<DateOnly> _today;
 
     private readonly Dictionary<IPEndPoint, int> _sessions = [];
     private readonly Dictionary<IPEndPoint, int> _maxRaw = [];
     private readonly HashSet<IPEndPoint> _clientReady = [];
+    private readonly Dictionary<IPEndPoint, Inventory> _inventories = [];
     private readonly Dictionary<(IPEndPoint Peer, int Channel), int> _sendSequence = [];
     private readonly Dictionary<(IPEndPoint Peer, int Channel, int Sequence), Pending> _pending = [];
     private readonly List<Scheduled> _scheduled = [];
@@ -93,7 +95,8 @@ public sealed class Ps3Gateway
         TraceLog trace,
         ILogger? logger = null,
         Func<long>? unixTime = null,
-        Func<int>? encryptCode = null)
+        Func<int>? encryptCode = null,
+        Func<DateOnly>? today = null)
     {
         _transport = transport;
         _world = world;
@@ -102,6 +105,7 @@ public sealed class Ps3Gateway
         _logger = logger;
         _unixTime = unixTime ?? (() => DateTimeOffset.UtcNow.ToUnixTimeSeconds());
         _encryptCode = encryptCode ?? (() => RandomNumberGenerator.GetInt32(int.MaxValue));
+        _today = today ?? (() => DateOnly.FromDateTime(DateTime.Now));
     }
 
     /// <summary>Datagrams received so far.</summary>
@@ -392,8 +396,25 @@ public sealed class Ps3Gateway
 
             _logger?.LogInformation("ZoneDetails: zone='{Zone}' type={Type} (set FR_ZONE / FR_ZONE_TYPE to change)", _world.Zone, _world.ZoneType);
 
-            foreach (var packet in Ps3Packets.WorldPackets(_characters.Snapshot(), _world, _unixTime()))
-                SendReliable(peer, packet, channel);
+            if (_world.Options.Sanctuary)
+            {
+                // Sanctuary's login packets around the PS3 ZoneDetails and player data, then a session inventory for its handlers.
+                var character = _characters.Snapshot();
+                var options = _world.Options;
+                var unixTime = _unixTime();
+
+                SendNamed(peer, channel, "login", SanctuaryFlow.LoginPackets(
+                    Ps3Packets.ZoneDetails(_world.Zone, _world.ZoneType, sky: options.Sky),
+                    Ps3Packets.SendSelfToClient(character, _world, unixTime),
+                    Ps3Packets.ItemDefinitionPackets(character, options)));
+
+                _inventories[peer] = new Inventory(character, options);
+            }
+            else
+            {
+                foreach (var packet in Ps3Packets.WorldPackets(_characters.Snapshot(), _world, _unixTime()))
+                    SendReliable(peer, packet, channel);
+            }
 
             _clientReady.Remove(peer);
             Schedule(ReadyFallback, () => SendReadyFallback(peer, channel));
@@ -415,6 +436,13 @@ public sealed class Ps3Gateway
                 Hex(inner, MaxLoggedBytes));
 
             _trace.Write("tunneled", ("peer", peer.Address.ToString()), ("outer", opcode), ("inner_opcode", innerOpcode), ("hex", Hex(inner, 512)));
+
+            if (_world.Options.Sanctuary)
+            {
+                OnSanctuaryPacket(peer, channel, opcode, innerOpcode, inner);
+
+                return;
+            }
 
             var request = inner.Length >= 4 && inner[2] == 0x01 && inner[3] == 0x00;
 
@@ -445,6 +473,81 @@ public sealed class Ps3Gateway
         }
     }
 
+    /// <summary>
+    /// <c>FR_SANCTUARY=1</c>: answers the client as Sanctuary does (<see cref="SanctuaryFlow"/>), like <c>on_sanctuary_packet</c>. Inventory
+    /// requests (42) and job switches (26/13) go to the session's <see cref="Inventory"/>; Sanctuary answers the mini-game list and the game
+    /// time, never the matchmaking queue list (141/1), and sends no AddPc for a lone player.
+    /// </summary>
+    private void OnSanctuaryPacket(IPEndPoint peer, int channel, int opcode, int innerOpcode, byte[] inner)
+    {
+        if (innerOpcode is 42 or 26 && _inventories.TryGetValue(peer, out var inventory) && inventory.Handle(inner) is { } replies)
+        {
+            var sub = inner.Length >= 4 ? BinaryPrimitives.ReadUInt16LittleEndian(inner.AsSpan(2)) : -1;
+
+            _logger?.LogInformation("sanctuary: inventory request {Opcode}/{Sub} {Hex}", innerOpcode, sub, Convert.ToHexString(inner).ToLowerInvariant());
+            _trace.Write("inventory", ("peer", peer.Address.ToString()), ("opcode", innerOpcode), ("sub", sub), ("hex", Convert.ToHexString(inner).ToLowerInvariant()));
+
+            SendNamed(peer, channel, $"inventory {innerOpcode}/{sub}", replies);
+
+            return;
+        }
+
+        if (opcode == 6 && innerOpcode == 102 && inner.Length >= 4 && inner[2] == 0x01 && inner[3] == 0x00)
+            SendNamed(peer, channel, "lobby request", [new NamedPacket("LobbyGameDefinitions", SanctuaryFlow.LobbyDefinitionsReply())]);
+
+        if (innerOpcode == 141)
+            _logger?.LogInformation("sanctuary: no reply to opcode 141 (Sanctuary has no handler for it)");
+
+        if (innerOpcode == 52)
+            SendNamed(peer, channel, "game time request", [new NamedPacket("GameTimeSync", SanctuaryFlow.GameTimeSync(_unixTime()))]);
+
+        if (innerOpcode == 13)
+        {
+            _clientReady.Add(peer);
+
+            var character = _characters.Snapshot();
+
+            SendNamed(peer, channel, "ClientIsReady", SanctuaryFlow.ClientIsReadyPackets(
+                1,
+                character,
+                CharacterMappings.Head(character),
+                CharacterMappings.Hair(character),
+                CharacterMappings.SkinTone(character),
+                CharacterMappings.FacePaint(character),
+                CharacterMappings.ModelCustomization(character)));
+        }
+
+        if (innerOpcode == 10)
+        {
+            var spawn = _world.Spawn;
+
+            SendNamed(peer, channel, "ClientFinishedLoading", SanctuaryFlow.FinishedLoadingPackets(1, spawn.X, spawn.Z, Ps3Packets.ProfileId, _today()));
+
+            // The clothes are not Sanctuary's: its PC client reads them from the items in the player data.
+            Schedule(SpawnDelay, () => SendEquipment(peer, channel));
+        }
+    }
+
+    /// <summary>Sends named inner packets tunneled, leaving out those <c>FR_SKIP</c> names and logging each by name.</summary>
+    private void SendNamed(IPEndPoint peer, int channel, string stage, IEnumerable<NamedPacket> packets)
+    {
+        var selected = SanctuaryFlow.Select(packets, _world.Options.Skip);
+
+        _logger?.LogInformation("sanctuary: {Stage} -> {Count} packets: {Names}", stage, selected.Count, string.Join(", ", selected.Select(packet => packet.Name)));
+
+        foreach (var (name, inner) in selected)
+        {
+            var note = SanctuaryFlow.OpcodeNote(inner);
+
+            if (note.Length > 0)
+                _logger?.LogInformation("sanctuary: {Name}{Note}", name, note);
+
+            _trace.Write("sanctuary", ("peer", peer.Address.ToString()), ("stage", stage), ("name", name), ("size", inner.Length));
+
+            SendReliable(peer, Ps3Packets.Tunneled(inner), channel);
+        }
+    }
+
     /// <summary>Sends your character's AddPc after the client finished loading (the server marks the player visible then), then the creator's clothes.</summary>
     private void SpawnCharacters(IPEndPoint peer, int channel)
     {
@@ -458,7 +561,16 @@ public sealed class Ps3Gateway
 
         SendReliable(peer, Ps3Packets.Tunneled(addPc), channel);
 
-        var equipment = Ps3Packets.EquipmentPackets(character, _world.Options);
+        SendEquipment(peer, channel);
+    }
+
+    /// <summary>Dresses your character (guid 1) in the clothes picked in the character creator (<see cref="Ps3Packets.EquipmentPackets"/>).</summary>
+    private void SendEquipment(IPEndPoint peer, int channel)
+    {
+        if (!_sessions.ContainsKey(peer))
+            return;
+
+        var equipment = Ps3Packets.EquipmentPackets(_characters.Snapshot(), _world.Options);
 
         if (equipment.Count > 0)
             _logger?.LogInformation("gateway: dressing your character (guid 1) with {Count} packet(s)", equipment.Count);
@@ -477,7 +589,7 @@ public sealed class Ps3Gateway
     /// </summary>
     private void SendReadyFallback(IPEndPoint peer, int channel)
     {
-        if (_clientReady.Contains(peer))
+        if (_clientReady.Contains(peer) || _world.Options.Sanctuary) // Sanctuary has no such fallback
             return;
 
         _logger?.LogInformation("gateway: no ClientIsReady from {Peer} after {Seconds} s; sending ZoneDoneSendingInitialData and DoneSendingPreloadCharacters anyway", peer, (int)ReadyFallback.TotalSeconds);

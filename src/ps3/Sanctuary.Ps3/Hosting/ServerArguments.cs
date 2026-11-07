@@ -39,8 +39,8 @@ public static class ServerArguments
           -h, --help                show this help
 
         The game-server stand-in is tuned with the same FR_* environment variables as the Python script
-        (FR_ZONE, FR_ZONE_TYPE, FR_SPAWN, FR_SPAWN_Y, FR_WELCOME, FR_EXTRA, FR_TIME); FR_TRACE_DIR sets
-        where the JSON trace files are written.
+        (FR_ZONE, FR_ZONE_TYPE, FR_SPAWN, FR_SPAWN_Y, FR_WELCOME, FR_EXTRA, FR_TIME, FR_EQUIP, FR_JOBS, FR_ITEMS,
+        FR_SKY, FR_SANCTUARY, FR_SKIP); FR_TRACE_DIR sets where the JSON trace files are written.
         """;
 
     /// <summary>Parses <paramref name="args"/>. Returns options, or a message to show when the command line is wrong (<see cref="ParseResult.Help"/> for -h).</summary>

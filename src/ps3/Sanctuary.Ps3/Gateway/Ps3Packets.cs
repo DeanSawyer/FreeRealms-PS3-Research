@@ -296,7 +296,7 @@ public static class Ps3Packets
             packets.Add(Tunneled(new PacketWriter().U16(144).I32(4).I32(7).I32(268).U8(1).F32(1.0).ToArray()));
         }
 
-        packets.Add(Tunneled(ZoneDetails(world.Zone, world.ZoneType)));
+        packets.Add(Tunneled(ZoneDetails(world.Zone, world.ZoneType, sky: options.Sky)));
 
         // Untested: PlayerUpdate sub 37 ItemDefinitions, empty list (u32 payload length 4, u32 count 0).
         if (options.Extra)
