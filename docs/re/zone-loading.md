@@ -355,6 +355,33 @@ them to the plain AltiVec `lvx` in the Ghidra copy (same registers; each gets an
 disk is unchanged) before the functions are created. All 59 rows of `addresses.csv` were verified again on the rebuilt project, and the call
 graph of the loading screen (callers of `0x7ea164`, `0x182834`, `0x1441b0`, `0xc5ca8`, `0xc72f8`, `0x14420c`) is the same as before.
 
+## Experiment: the Sanctuary flow one for one
+
+EdenFPS (Clover community, 3 October 2026) showed the PS3 client in the world on RPCS3 with a modified Sanctuary server. Eden named
+only one change, an exact `SendSelfToClient` for the build, and the character was drawn without clothes, so empty item data does not
+hold the world back. The difference that remains between that setup and this server is everything else Sanctuary sends around the zone
+change. `FR_SANCTUARY=1` (or `tools/run_test.py --sanctuary`) sends exactly that, built in [`bootstrap/sanctuary_flow.py`](../../bootstrap/sanctuary_flow.py)
+from Sanctuary's own serializers:
+
+| When | Sanctuary sends (and now so does this server) | What this server sent before |
+|---|---|---|
+| After `LoginReply` | EncounterOverworldCombat (41/132), InitializationParameters (`live`), ZoneDetails, ClientGameSettings, ItemDefinitions (empty), SendSelfToClient | ZoneDetails, SendSelfToClient (the rest only with `FR_EXTRA=1`) |
+| `ClientIsReady` | quick chat, 20 stats, hit points, mana, wield type, can-create-guild, item classes / categories / profile reference data, customizations, membership (189), composite effects on, **then** 14 and 38/26, friend and ignore lists, points of interest, adventurer's journal (209), coin store and marketplace (165, 66), announcement (193), welcome screen (93, first login: seconds since last login `-1`), objective target off | GameTimeSync, 93 (empty), 14, 38/26 |
+| `ClientFinishedLoading` | client areas (4173, plus the 13 Halloween areas between 20 September and 11 November), POI change and chat area, weapon flair override, empty toolbar for profile 1 | `AddPc` of a second test character one second later |
+| 102/1, 141/1, 52 | one test lobby game; **no reply** to 141/1; game clock `8 x (now - 1221361670)` | empty lobby list; a guessed 141/2 reply; Unix time |
+
+Kept from this server: the PS3 layouts of ZoneDetails and SendSelfToClient, and DoneSendingPreloadCharacters with its bool set (the
+PS3 client counts it only then; Sanctuary sends 0). Lists that Sanctuary fills from its resource files (quick chats, item classes,
+profiles, points of interest, coin store) are sent empty: their record layouts are not checked against build 1.77 yet. Three of
+Sanctuary's opcodes (189, 193, 209) lie outside the 12-180 range the 1.77 dispatcher handles, so the client most likely ignores them;
+the server logs them. `tools/check_sanctuary_flow.py` checks the order and every layout without a PS3.
+
+| After the run | Meaning |
+|---|---|
+| the world appears | one of Sanctuary's packets is what the client waits for; `FR_SKIP` narrows down which |
+| still stuck, same place | the packet flow is not the cause; the fault probes above locate the main thread |
+| the client crashes or disconnects earlier | one packet has a different layout in 1.77; leave packets out with `FR_SKIP=Name,Name` (names in `bootstrap.log`, `sanctuary:` lines) until it stops |
+
 ## Not yet verified
 
 * The height of the ground at the chosen spawn (the server uses a fixed `y` of 400 and lets the player fall).

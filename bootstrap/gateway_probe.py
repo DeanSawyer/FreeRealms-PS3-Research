@@ -32,6 +32,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
+import sanctuary_flow
 import tracing
 
 LOG = logging.getLogger("gateway")
@@ -206,6 +207,15 @@ def profile(profile_id):
     return struct.pack("<i", profile_id) + bytes(PROFILE_SIZE - 4)
 
 
+def appearance(character):
+    """Head, hair and skin-tone strings of the player data (and of Sanctuary's customization packet)."""
+    c = character or {}
+    head = f"<race>_<gender>_head_{HEAD_NAMES.get(_int(c.get('Head'), 1), 'caucasian')}.adr"
+    hair = "<race>_m_hair_eyebrows_bald.adr"
+    skin = f"skintone{_int(c.get('SkinTone'), 1) or 1}"
+    return head, hair, skin
+
+
 def player_blob(character=None, guid=1):
     """The player data for SendSelfToClient, laid out like the PS3 client reads it (build 1.77).
 
@@ -216,9 +226,7 @@ def player_blob(character=None, guid=1):
     """
     c = character or {}
     model = _int(c.get("Model"), 1)
-    head = f"<race>_<gender>_head_{HEAD_NAMES.get(_int(c.get('Head'), 1), 'caucasian')}.adr"
-    hair = "<race>_m_hair_eyebrows_bald.adr"
-    skin = f"skintone{_int(c.get('SkinTone'), 1) or 1}"
+    head, hair, skin = appearance(c)
     out = bytearray()
     out += struct.pack("<QQ", 0, guid)                       # launch ticket, guid
     out += struct.pack("<i", model)
@@ -487,6 +495,17 @@ class GatewayProbe:
                  body[:MAX_LOGGED_BYTES].hex())
         _trace("send", peer=addr[0], channel=channel, seq=seq, kind=kind, size=len(body), hex=body[:512].hex())
 
+    def send_named(self, addr, channel, stage, packets):
+        """Send (name, inner) packets tunneled, logging each by name (FR_SANCTUARY=1, bootstrap/sanctuary_flow.py)."""
+        packets = sanctuary_flow.select(packets)
+        LOG.info("sanctuary: %s -> %d packets: %s", stage, len(packets), ", ".join(name for name, _ in packets))
+        for name, inner in packets:
+            note = sanctuary_flow.opcode_note(inner)
+            if note:
+                LOG.info("sanctuary: %s%s", name, note)
+            _trace("sanctuary", peer=addr[0], stage=stage, name=name, size=len(inner))
+            self.send_reliable(addr, tunneled(inner), channel)
+
     def spawn_characters(self, addr, channel):
         """Send AddPc packets after the client finished loading (the server marks the player visible then)."""
         if addr not in self.sessions or ADDPC_MODE == "none":
@@ -505,7 +524,7 @@ class GatewayProbe:
     def ready_fallback(self, addr, channel):
         """If the client never says ClientIsReady, send the world-ready packets anyway so the log shows what it
         does next (it may be waiting for them before it says anything)."""
-        if addr in self.client_ready:
+        if addr in self.client_ready or sanctuary_flow.enabled():   # Sanctuary has no such fallback
             return
         LOG.info("gateway: no ClientIsReady from %s after %d s; sending ZoneDoneSendingInitialData and "
                  "DoneSendingPreloadCharacters anyway", addr, READY_FALLBACK_SECONDS)
@@ -569,8 +588,12 @@ class GatewayProbe:
             if self.login_reply:
                 self.send_reliable(addr, struct.pack("<HB", 2, 1), channel)   # LoginReply(success)
                 LOG.info("ZoneDetails: zone=%r type=%d (set FR_ZONE / FR_ZONE_TYPE to change)", configured_zone(), configured_zone_type())
-                for packet in world_packets():
-                    self.send_reliable(addr, packet, channel)
+                if sanctuary_flow.enabled():
+                    self.send_named(addr, channel, "login", sanctuary_flow.login_packets(
+                        zone_details(), send_self_to_client(CHARACTER)))
+                else:
+                    for packet in world_packets():
+                        self.send_reliable(addr, packet, channel)
                 self.client_ready.discard(addr)
                 timer = threading.Timer(READY_FALLBACK_SECONDS, self.ready_fallback, (addr, channel))
                 timer.daemon = True
@@ -582,6 +605,9 @@ class GatewayProbe:
             LOG.info("gateway tunneled (%d) inner opcode %d%s from %s (%d bytes): %s", opcode, inner_op,
                      describe_inner(inner_op, inner), addr, len(inner), inner[:MAX_LOGGED_BYTES].hex())
             _trace("tunneled", peer=addr[0], outer=opcode, inner_opcode=inner_op, hex=inner[:512].hex())
+            if sanctuary_flow.enabled():
+                self.on_sanctuary_packet(addr, channel, opcode, inner_op, inner)
+                return
             if opcode == 6 and inner_op == 102 and inner[2:4] == b"\x01\x00":   # mini-game list request
                 self.send_reliable(addr, tunneled(lobby_definitions_reply(), reliable=True), channel)
             if opcode == 6 and inner_op == 141 and inner[2:4] == b"\x01\x00":   # matchmaking queue list request
@@ -596,6 +622,28 @@ class GatewayProbe:
                     self.send_reliable(addr, packet, channel)
         else:
             LOG.info("gateway application opcode %d from %s (%d bytes)", opcode, addr, len(payload))
+
+    def on_sanctuary_packet(self, addr, channel, opcode, inner_op, inner):
+        """FR_SANCTUARY=1: answer the client as Sanctuary does (bootstrap/sanctuary_flow.py). Sanctuary answers the
+        mini-game list and the game time, never the matchmaking queue list (141/1), and sends no AddPc for a lone
+        player (FR_ADDPC, when set, still adds one after FinishedLoading)."""
+        if opcode == 6 and inner_op == 102 and inner[2:4] == b"\x01\x00":
+            self.send_named(addr, channel, "lobby request", [("LobbyGameDefinitions", sanctuary_flow.lobby_definitions_reply())])
+        if inner_op == 141:
+            LOG.info("sanctuary: no reply to opcode 141 (Sanctuary has no handler for it)")
+        if inner_op == 52:
+            self.send_named(addr, channel, "game time request", [("GameTimeSync", sanctuary_flow.game_time_sync())])
+        if inner_op == 13:
+            self.client_ready.add(addr)
+            head, hair, skin = appearance(CHARACTER)
+            self.send_named(addr, channel, "ClientIsReady", sanctuary_flow.client_is_ready_packets(
+                1, CHARACTER, head, hair, skin))
+        if inner_op == 10:
+            x, _y, z, _w = configured_spawn()
+            self.send_named(addr, channel, "ClientFinishedLoading", sanctuary_flow.finished_loading_packets(
+                1, x, z, PROFILE_ID))
+            if os.environ.get("FR_ADDPC", "").strip():
+                threading.Timer(1.0, self.spawn_characters, (addr, channel)).start()
 
     def record(self, addr, label, payload):
         shown = payload[:MAX_LOGGED_BYTES]
