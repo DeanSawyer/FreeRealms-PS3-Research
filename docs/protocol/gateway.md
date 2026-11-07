@@ -165,6 +165,14 @@ the definition's slot; the starter job, and jobs without default items, wear the
   `bootstrap/data/item_definitions.tsv.gz` (Sanctuary's `BaseItemDefinition` up to `VipRankRequired`; `MemberDiscount` is one
   byte here), one `i32` and two empty lists (`0xac53b8`, `0xa90d10`, `0xac3c24`, `0xac3788`). The handler (`0x110ab0`) skips the
   packet until the player exists, so the definitions go right after the player data.
+* **ItemAdd** (ClientUpdate 38/2, what the server now sends after the player data, one per item): `i32` length, then the item
+  (`i32` definition, `i32` tint, `i32` id, `i32` count, `i32` consumed count, `i32` last cast time, `u8` rental), `u8`
+  ActivateEnabled and the definition as above. The handler (`0xfacf0`) builds the client's `Item` object (`0x8fdca0`, vtable
+  `0xee8330`: definition +4, tint +8, id +12, count +16, consumed +20), adds it to the player (`0x730a4`, player `+32024`),
+  then caches the definition. The equipment and inventory screens show these objects (the equipment lookup `0x5911c` reads the
+  player's item table at `+32448`). The player data's item list only feeds another manager (`0x59a34`), which is why the
+  screens stayed empty with it alone (seen in RPCS3 on 2026-11-06: job switching dressed the character, the equipment pane
+  showed nothing). Sanctuary sends ItemAdd the same way when it gives an item (`RewardManager`).
 
 Each job also gets its `ItemClasses` from Sanctuary's `Profiles.json` (16 to 27 per job) in the list at entry offset 0x25.
 With the user's character the client's readers consume the whole 11,267 byte player blob and every definition exactly, and each

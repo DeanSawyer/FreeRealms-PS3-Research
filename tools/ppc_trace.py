@@ -550,6 +550,10 @@ class Emu:
             g[rd] = ((sext(g[ra], 32) * sext(g[rb], 32)) >> 32) & M32
         elif x9 == 11:   # mulhwu
             g[rd] = (((g[ra] & M32) * (g[rb] & M32)) >> 32) & M32
+        elif x9 == 73:   # mulhd
+            g[rd] = ((sext(g[ra], 64) * sext(g[rb], 64)) >> 64) & M64
+        elif x9 == 9:    # mulhdu
+            g[rd] = (((g[ra] & M64) * (g[rb] & M64)) >> 64) & M64
         elif x9 == 491:  # divw
             a, b = sext(g[ra], 32), sext(g[rb], 32)
             g[rd] = (int(a / b) & M32) if b else 0

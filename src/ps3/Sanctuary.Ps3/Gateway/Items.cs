@@ -85,6 +85,28 @@ public static class Items
         return new PacketWriter().U16(35).U16(33).I32(payload.Length).Raw(payload).ToArray();
     }
 
+    /// <summary>Sanctuary's <c>ItemInstance.LastCastTime</c> default, <c>int.MaxValue</c>.</summary>
+    public const int LastCastTime = int.MaxValue;
+
+    /// <summary>
+    /// ClientUpdate (38) sub-opcode 2, ItemAdd: one item and its definition in an i32-length payload, as Sanctuary's RewardManager
+    /// sends them. The PS3 handler (0xfacf0) builds the client's item object from it (definition, tint, id, count, consumed count, last
+    /// cast time, a rental byte), reads the ActivateEnabled byte, adds the item to the player, then reads and caches the definition.
+    /// These, not the player data's item list, put the items in the inventory and equipment screens.
+    /// </summary>
+    public static byte[] ItemAdd(OwnedItem item, int count = 1, bool activateEnabled = false)
+    {
+        var payload = new PacketWriter()
+            .I32(item.Definition).I32(item.Tint).I32(item.Id).I32(count).I32(0).I32(LastCastTime).U8(0).U8(activateEnabled ? 1 : 0)
+            .Raw(DefinitionPayload(Definitions[item.Definition]))
+            .ToArray();
+
+        return new PacketWriter().U16(38).U16(2).I32(payload.Length).Raw(payload).ToArray();
+    }
+
+    /// <summary>One <see cref="ItemAdd"/> per item the character owns, in item order.</summary>
+    public static List<byte[]> ItemAddPackets(IReadOnlyList<OwnedItem> items) => items.Select(item => ItemAdd(item)).ToList();
+
     /// <summary>One entry of the player data's item list (reader 0xb0f10c): id, an int, definition, tint, id, count, a byte, an int, an empty list, an int.</summary>
     public static byte[] ItemRecord(OwnedItem item, int count = 1) =>
         new PacketWriter().I32(item.Id).I32(0).I32(item.Definition).I32(item.Tint).I32(item.Id).I32(count).U8(0).I32(0).I32(0).I32(0).ToArray();

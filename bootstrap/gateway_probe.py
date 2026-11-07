@@ -261,10 +261,11 @@ ITEM_LIST_OFFSET = 0x31   # the item list's count, counted from the end of the a
 
 
 def item_definition_packets(character=None):
-    """One PlayerUpdate sub-opcode 33 per item definition the character owns. Sent right after the player data:
-    the client only takes a definition once the player exists."""
+    """One ClientUpdate ItemAdd (38/2) per item the character owns, each with its definition (bootstrap/items.py).
+    Sent right after the player data: the client only takes them once the player exists. These, not the player
+    data's item list, are what put the items in the inventory and equipment screens."""
     owned, _equipment = character_items(character)
-    return items.definition_packets(owned)
+    return items.item_add_packets(owned)
 
 
 def appearance(character):

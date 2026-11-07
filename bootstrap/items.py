@@ -86,6 +86,27 @@ def item_definition(definition_id):
     return struct.pack("<HHi", 35, 33, len(payload)) + payload
 
 
+LAST_CAST_TIME = 0x7FFFFFFF   # Sanctuary ItemInstance.LastCastTime default (int.MaxValue)
+
+
+def item_add(item_id, definition_id, tint, count=1, activate_enabled=False):
+    """ClientUpdate (38) sub-opcode 2, ItemAdd: one item and its definition, Sanctuary's ClientUpdatePacketItemAdd
+    (RewardManager: ClientItem then ClientItemDefinition in an i32-length payload). The PS3 handler (0xfacf0) builds
+    the client's Item object (0x8fdca0, the class the inventory and equipment screens show), reads it with 0xa91ac0
+    (definition, tint, id, count, consumed count, last cast time, then a rental byte; no ability count), reads the
+    ActivateEnabled byte, adds the item to the player (0x730a4, player +32024), then reads the definition as
+    sub-opcode 33 does and caches it (0x148420). The player data's item list does not do this: it feeds another
+    manager (0x59a34), so without ItemAdd the screens stay empty."""
+    payload = (struct.pack("<6i", definition_id, tint, item_id, count, 0, LAST_CAST_TIME) + b"\x00"
+               + (b"\x01" if activate_enabled else b"\x00") + definition_payload(definitions()[definition_id]))
+    return struct.pack("<HHi", 38, 2, len(payload)) + payload
+
+
+def item_add_packets(items):
+    """One item_add() per item the character owns, in item order."""
+    return [item_add(item_id, definition_id, tint) for item_id, definition_id, tint in items]
+
+
 def item_record(item_id, definition_id, tint, count=1):
     """One entry of the player data's item list."""
     return struct.pack("<iiiiii", item_id, 0, definition_id, tint, item_id, count) + b"\x00" + struct.pack("<iii", 0, 0, 0)

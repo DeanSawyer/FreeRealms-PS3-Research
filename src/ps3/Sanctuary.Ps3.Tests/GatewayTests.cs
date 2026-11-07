@@ -132,8 +132,8 @@ public sealed class GatewayTests
         gateway.Receive(Connect(), Client, TimeSpan.Zero);
         gateway.Receive(Reliable(0, 0, Login()), Client, TimeSpan.Zero);
 
-        // LoginReply (0), ZoneDetails (1), the player data (every job and item) in 23 fragments (2 to 24) and the 77 item
-        // definitions of an empty character (25 to 101).
+        // LoginReply (0), ZoneDetails (1), the player data (every job and item) in 23 fragments (2 to 24) and the 77 ItemAdd
+        // packets of an empty character (25 to 101).
         Assert.AreEqual(102, gateway.PendingCount);
 
         // An Ack removes one sequence; an AckAll removes everything up to and including its sequence.
@@ -154,7 +154,7 @@ public sealed class GatewayTests
         capture.Sent.Clear();
         gateway.Maintain(TimeSpan.FromSeconds(1.5));
 
-        // Only the still pending packet (the last item definition, sequence 101) is repeated.
+        // Only the still pending packet (the last ItemAdd, sequence 101) is repeated.
         var again = capture.Sent.Single(datagram => datagram[1] is 9 or 13);
 
         Assert.AreEqual(9, again[1]);

@@ -130,11 +130,11 @@ public static class Ps3Packets
     }
 
     /// <summary>
-    /// One PlayerUpdate sub-opcode 33 per item definition the character owns. Sent right after the player data: the client only takes a
-    /// definition once the player exists.
+    /// One ClientUpdate ItemAdd (38/2) per item the character owns, each with its definition (<see cref="Items.ItemAdd"/>). Sent right
+    /// after the player data: the client only takes them once the player exists.
     /// </summary>
     public static List<byte[]> ItemDefinitionPackets(IReadOnlyDictionary<string, string> character, GatewayOptions options) =>
-        Items.DefinitionPackets(CharacterItems(character, options).Items);
+        Items.ItemAddPackets(CharacterItems(character, options).Items);
 
     /// <summary>
     /// The player data of SendSelfToClient. The profile list holds the jobs Sanctuary gives a new character (all of them; <see cref="Jobs"/>,

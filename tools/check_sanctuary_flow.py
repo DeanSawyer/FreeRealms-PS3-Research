@@ -129,13 +129,17 @@ def parse(name, inner):
             r.take("3i")
         r.take("4i")
         desc = "%d lobby games" % n
-    elif name.startswith("ItemDefinition "):
-        # Read with the PS3 client's widths (bootstrap/items.py): 34 fields, then an int and two empty lists.
-        assert r.take("H") == 33
+    elif name.startswith("ItemAdd "):
+        # Read with the PS3 client's widths (bootstrap/items.py): the item (6 ints and a rental byte), the
+        # ActivateEnabled byte, then the definition: 34 fields, an int and two empty lists.
+        assert r.take("H") == 2
         size = r.take("i")
         assert size == len(inner) - 8, "payload length"
+        item_definition_id, _tint, item_id, count, consumed, last_cast = r.take("6i")
+        assert (count, consumed, last_cast) == (1, 0, 0x7FFFFFFF) and r.take("BB") == (0, 0)
+        assert name == "ItemAdd %d" % item_id
         definition_id = r.take("i")
-        assert name == "ItemDefinition %d" % definition_id
+        assert definition_id == item_definition_id
         for kind in items.FIELD_KINDS[1:]:
             if kind == "s":
                 r.string()
@@ -273,10 +277,10 @@ def main():
         want_finished = sf.finished_loading_packets(1, x, z, gp.PROFILE_ID, datetime.date(2026, 11, 6))
 
     check([n for n, _ in want_login][:len(LOGIN)] == LOGIN
-          and all(n.startswith("ItemDefinition ") for n, _ in want_login[len(LOGIN):]), "login packet names")
+          and all(n.startswith("ItemAdd ") for n, _ in want_login[len(LOGIN):]), "login packet names")
     check(len(want_login) > len(LOGIN), "item definitions follow the player data")
     no_items = run({"FR_SANCTUARY": "1", "FR_ITEMS": "0"})
-    check(len(no_items[1]) == len(LOGIN), "FR_ITEMS=0: no item definitions")
+    check(len(no_items[1]) == len(LOGIN), "FR_ITEMS=0: no items added")
     check([n for n, _ in want_ready] == READY, "ClientIsReady packet names")
     check(login == [p for _, p in want_login], "login: the gateway sent %d packets, expected %d in Sanctuary's order"
           % (len(login), len(want_login)))
