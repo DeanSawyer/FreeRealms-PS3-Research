@@ -62,6 +62,9 @@ public sealed record GatewayOptions
     /// <summary><c>FR_JOBS</c>: ids of the jobs to send ("1,11,35"; the starter job is always sent); null (unset or <c>all</c>) sends every job.</summary>
     public IReadOnlyCollection<int>? Jobs { get; init; }
 
+    /// <summary><c>FR_ITEMS</c> (not 0): give the character Sanctuary's starter items, their definitions and each job's equipment.</summary>
+    public bool Items { get; init; } = true;
+
     /// <summary>Reads the <c>FR_*</c> variables through <paramref name="get"/> (null means unset). Problems are reported to <paramref name="warn"/>.</summary>
     public static GatewayOptions FromEnvironment(Func<string, string?> get, Action<string>? warn = null)
     {
@@ -113,6 +116,7 @@ public sealed record GatewayOptions
             Extra = Value("FR_EXTRA") == "1",
             TimeSync = Env(get, "FR_TIME", "1") != "0",
             Jobs = ParseJobs(Value("FR_JOBS")),
+            Items = Env(get, "FR_ITEMS", "1") != "0",
             EquipPacket = Env(get, "FR_EQUIP", "1") switch
             {
                 "0" => 0,

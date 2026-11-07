@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import gen_ps3_gateway_vectors as harness  # noqa: E402  (sets FR_TRACE_DIR and imports gateway_probe)
 
 gp = harness.gp
+import items  # noqa: E402
 import sanctuary_flow as sf  # noqa: E402
 
 LOGIN = ["EncounterOverworldCombat", "InitializationParameters", "ZoneDetails", "ClientGameSettings", "ItemDefinitions",
@@ -126,6 +127,20 @@ def parse(name, inner):
             r.take("3i")
         r.take("4i")
         desc = "%d lobby games" % n
+    elif name.startswith("ItemDefinition "):
+        # Read with the PS3 client's widths (bootstrap/items.py): 34 fields, then an int and two empty lists.
+        assert r.take("H") == 33
+        size = r.take("i")
+        assert size == len(inner) - 8, "payload length"
+        definition_id = r.take("i")
+        assert name == "ItemDefinition %d" % definition_id
+        for kind in items.FIELD_KINDS[1:]:
+            if kind == "s":
+                r.string()
+            else:
+                r.take("B" if kind in "bu" else "i")
+        assert r.take("iii") == (0, 0, 0)
+        desc = "definition %d" % definition_id
     elif name == "AbilitySetDefinition":
         assert r.take("H") == 5
         r.take("i")
@@ -227,12 +242,17 @@ def main():
     # Build the expected packets with the same inputs the gateway used.
     with harness.Scenario("expected", {"FR_SANCTUARY": "1"}, "FabledRealms", (-128.0, -128.0), harness.CHARACTER_FULL):
         look = gp.appearance(gp.CHARACTER)
-        want_login = sf.login_packets(gp.zone_details(), gp.send_self_to_client(gp.CHARACTER))
+        want_login = sf.login_packets(gp.zone_details(), gp.send_self_to_client(gp.CHARACTER),
+                                      gp.item_definition_packets(gp.CHARACTER))
         want_ready = sf.client_is_ready_packets(1, gp.CHARACTER, *look)
         x, _y, z, _w = gp.configured_spawn()
         want_finished = sf.finished_loading_packets(1, x, z, gp.PROFILE_ID, datetime.date(2026, 11, 6))
 
-    check([n for n, _ in want_login] == LOGIN, "login packet names")
+    check([n for n, _ in want_login][:len(LOGIN)] == LOGIN
+          and all(n.startswith("ItemDefinition ") for n, _ in want_login[len(LOGIN):]), "login packet names")
+    check(len(want_login) > len(LOGIN), "item definitions follow the player data")
+    no_items = run({"FR_SANCTUARY": "1", "FR_ITEMS": "0"})
+    check(len(no_items[1]) == len(LOGIN), "FR_ITEMS=0: no item definitions")
     check([n for n, _ in want_ready] == READY, "ClientIsReady packet names")
     check(login == [p for _, p in want_login], "login: the gateway sent %d packets, expected %d in Sanctuary's order"
           % (len(login), len(want_login)))

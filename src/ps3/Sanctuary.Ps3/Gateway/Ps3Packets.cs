@@ -62,9 +62,10 @@ public static class Ps3Packets
     /// <summary>
     /// One entry of the profile list (a job; the client reads 179 bytes per entry): id, name id, description id, type, icon, the three
     /// image sets and the members-only byte from <see cref="Jobs"/> (an id it does not have gets only the id), the rank at
-    /// <see cref="ProfileRankOffset"/>, zeros for everything else.
+    /// <see cref="ProfileRankOffset"/>, the equipment ({slot: item id}; slot n at <see cref="ProfileEquipmentOffset"/> + 4 * (n - 1),
+    /// as the client's RequestEquippedAttachments reads it), zeros for everything else.
     /// </summary>
-    public static byte[] Profile(int profileId)
+    public static byte[] Profile(int profileId, IReadOnlyDictionary<int, int>? equipment = null)
     {
         var writer = new PacketWriter();
 
@@ -78,25 +79,54 @@ public static class Ps3Packets
             writer.I32(profileId);
         }
 
-        return writer.Zeros(ProfileRankOffset - writer.Length).I32(ProfileRank).Zeros(ProfileSize - ProfileRankOffset - 4).ToArray();
+        var entry = writer.Zeros(ProfileRankOffset - writer.Length).I32(ProfileRank).Zeros(ProfileSize - ProfileRankOffset - 4).ToArray();
+
+        foreach (var (slot, itemId) in equipment ?? new Dictionary<int, int>())
+            BinaryPrimitives.WriteInt32LittleEndian(entry.AsSpan(ProfileEquipmentOffset + 4 * (slot - 1)), itemId);
+
+        return entry;
     }
 
-    /// <summary>The profile list of the player data: a count, then every job Sanctuary gives a new character (<c>FR_JOBS</c>).</summary>
-    public static byte[] ProfileList(GatewayOptions options)
+    /// <summary>Offset of a job's equipment inside a profile entry: 17 item ids, slot 1 first.</summary>
+    public const int ProfileEquipmentOffset = 0x43;
+
+    /// <summary>Offset of the item list's count in the player data, counted from the end of the active profile id.</summary>
+    public const int ItemListOffset = 0x31;
+
+    /// <summary>The items the character owns and each job's equipment (<see cref="Items"/>), or nothing with <c>FR_ITEMS=0</c>.</summary>
+    public static (List<OwnedItem> Items, Dictionary<int, Dictionary<int, int>> Equipment) CharacterItems(
+        IReadOnlyDictionary<string, string> character,
+        GatewayOptions options) =>
+        options.Items ? Items.Inventory(character, Jobs.Selected(options.Jobs)) : (new List<OwnedItem>(), new Dictionary<int, Dictionary<int, int>>());
+
+    /// <summary>
+    /// The profile list of the player data: a count, then every job Sanctuary gives a new character (<c>FR_JOBS</c>), each wearing its
+    /// starter outfit.
+    /// </summary>
+    public static byte[] ProfileList(IReadOnlyDictionary<string, string> character, GatewayOptions options)
     {
         var chosen = Jobs.Selected(options.Jobs);
+        var (_, equipment) = CharacterItems(character, options);
         var writer = new PacketWriter().I32(chosen.Count);
 
         foreach (var job in chosen)
-            writer.Raw(Profile(job.Id));
+            writer.Raw(Profile(job.Id, equipment.GetValueOrDefault(job.Id)));
 
         return writer.ToArray();
     }
 
     /// <summary>
+    /// One PlayerUpdate sub-opcode 33 per item definition the character owns. Sent right after the player data: the client only takes a
+    /// definition once the player exists.
+    /// </summary>
+    public static List<byte[]> ItemDefinitionPackets(IReadOnlyDictionary<string, string> character, GatewayOptions options) =>
+        Items.DefinitionPackets(CharacterItems(character, options).Items);
+
+    /// <summary>
     /// The player data of SendSelfToClient. The profile list holds the jobs Sanctuary gives a new character (all of them; <see cref="Jobs"/>,
     /// <c>FR_JOBS</c>); it must not be empty because the client looks the active profile up right after loading the player and dereferences
-    /// null when the list is empty. Every other list is empty, so there are no items, pets, quests or stats yet.
+    /// null when the list is empty. The item list holds the character's starter items (<see cref="Items"/>, <c>FR_ITEMS</c>);
+    /// every other list is empty, so there are no pets, quests or stats yet.
     /// </summary>
     public static byte[] PlayerBlob(IReadOnlyDictionary<string, string> character, GatewayWorld world, long unixTime, int guid = 1)
     {
@@ -118,9 +148,11 @@ public static class Ps3Packets
             .I32(0).I32(0).I32(0).I32(0).I32(1) // chat country, chat language, preferred language, chat language, login count
             .U8(0) // grandfathered
             .I32(0).I32(0) // two vehicle loadouts (kart race, demo derby)
-            .Raw(ProfileList(world.Options)) // profile list: the jobs (Jobs)
+            .Raw(ProfileList(character, world.Options)) // profile list: the jobs (Jobs)
             .I32(ProfileId) // active profile id
-            .Zeros(0x111 - 0xa3) // remaining fields: empty lists and zeros
+            .Zeros(ItemListOffset) // remaining fields: empty lists and zeros, except...
+            .Raw(Items.ItemList(CharacterItems(character, world.Options).Items)) // ...the item list
+            .Zeros(0x111 - 0xa3 - ItemListOffset - 4)
             .ToArray();
     }
 
@@ -261,6 +293,9 @@ public static class Ps3Packets
             packets.Add(Tunneled(new PacketWriter().U16(35).U16(37).I32(4).I32(0).ToArray()));
 
         packets.Add(Tunneled(SendSelfToClient(character, world, unixTime)));
+
+        foreach (var definition in ItemDefinitionPackets(character, world.Options))
+            packets.Add(Tunneled(definition));
 
         return packets;
     }

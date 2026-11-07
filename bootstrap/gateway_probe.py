@@ -34,6 +34,7 @@ from datetime import datetime, timezone
 
 import character_mappings
 import clothing
+import items
 import jobs
 import sanctuary_flow
 import tracing
@@ -206,14 +207,15 @@ PROFILE_RANK_OFFSET = 0x33   # the job's rank inside an entry: the reader stores
 PROFILE_RANK = jobs.JOB_RANK   # Sanctuary's level 20; rank 0 makes the HUD's GetNextJob loop forever
 
 
-def profile(profile_id):
+def profile(profile_id, equipment=None):
     """One entry of the profile list (a job).
 
     The client reads 179 bytes per entry: id, name id, description id, type, icon, three image sets, a members-only
     byte, is-combat, an item-class list, a few flags and integers (rank at 0x33, rank percent, stars), 17 equipment
     words, 8 ability lists (each a count; zero here) and an ability-experience list. The fields Sanctuary fills from
     Resources/Profiles.json come from bootstrap/jobs.py (an id it does not have gets only the id); the rank is
-    Sanctuary's level 20; the lists are empty.
+    Sanctuary's level 20; the lists are empty. `equipment` is {slot: item id} (bootstrap/items.py): slot n's item id
+    goes at 0x43 + 4 * (n - 1), as the client's RequestEquippedAttachments (0xeba4c) reads it.
 
     The rank must be above 0: after the zone loads, the HUD script GroupHandler:GetNextJob (called from HUD:showMain
     through SetJobSwitchOnOrOff) loops until it finds a job with a rank, so with rank 0 the main thread never leaves
@@ -226,13 +228,37 @@ def profile(profile_id):
     else:
         struct.pack_into("<i", entry, 0, profile_id)
     struct.pack_into("<i", entry, PROFILE_RANK_OFFSET, PROFILE_RANK)
+    for slot, item_id in (equipment or {}).items():
+        struct.pack_into("<i", entry, PROFILE_EQUIPMENT_OFFSET + 4 * (slot - 1), item_id)
     return bytes(entry)
 
 
-def profile_list():
-    """The profile list of the player data: a count, then every job Sanctuary gives a new character (FR_JOBS)."""
+PROFILE_EQUIPMENT_OFFSET = 0x43   # 17 item ids, slot 1 first
+
+
+def character_items(character=None):
+    """(items, equipment) the character owns and wears (bootstrap/items.py), or nothing with FR_ITEMS=0."""
+    if not items.enabled():
+        return [], {}
+    return items.inventory(character or {}, jobs.selected())
+
+
+def profile_list(character=None):
+    """The profile list of the player data: a count, then every job Sanctuary gives a new character (FR_JOBS), each
+    wearing its starter outfit."""
     chosen = jobs.selected()
-    return struct.pack("<i", len(chosen)) + b"".join(profile(job[0]) for job in chosen)
+    _owned, equipment = character_items(character)
+    return struct.pack("<i", len(chosen)) + b"".join(profile(job[0], equipment.get(job[0])) for job in chosen)
+
+
+ITEM_LIST_OFFSET = 0x31   # the item list's count, counted from the end of the active profile id
+
+
+def item_definition_packets(character=None):
+    """One PlayerUpdate sub-opcode 33 per item definition the character owns. Sent right after the player data:
+    the client only takes a definition once the player exists."""
+    owned, _equipment = character_items(character)
+    return items.definition_packets(owned)
 
 
 def appearance(character):
@@ -249,8 +275,8 @@ def player_blob(character=None, guid=1):
     Names follow Clover's ClientPcData where the order matches. The profile list holds the jobs Sanctuary gives a new
     character (all of them; bootstrap/jobs.py, FR_JOBS). It must not be empty: the client looks the active profile up
     right after loading the player and dereferences null when the list is empty (found with tools/ppc_trace.py: the
-    lookup at 0xeba4c reads the node it did not find). Every other list is sent empty, so there are no items, pets,
-    quests or stats yet.
+    lookup at 0xeba4c reads the node it did not find). The item list holds the character's starter items
+    (bootstrap/items.py, FR_ITEMS); every other list is sent empty, so there are no pets, quests or stats yet.
     """
     c = character or {}
     model = _int(c.get("Model"), 1)
@@ -270,9 +296,11 @@ def player_blob(character=None, guid=1):
     out += struct.pack("<iiiii", 0, 0, 0, 0, 1)              # chat country, chat language, preferred language, chat language, login count
     out += struct.pack("<B", 0)                              # grandfathered
     out += struct.pack("<ii", 0, 0)                          # two vehicle loadouts (kart race, demo derby)
-    out += profile_list()                                    # profile list: the jobs (bootstrap/jobs.py)
+    out += profile_list(c)                                   # profile list: the jobs (bootstrap/jobs.py)
     out += struct.pack("<i", PROFILE_ID)                     # active profile id
-    out += bytes(0x111 - 0xa3)                               # remaining fields: empty lists and zeros
+    tail = bytes(0x111 - 0xa3)                               # remaining fields: empty lists and zeros...
+    owned, _equipment = character_items(c)                   # ...except the item list
+    out += tail[:ITEM_LIST_OFFSET] + items.item_list(owned) + tail[ITEM_LIST_OFFSET + 4:]
     return bytes(out)
 
 
@@ -413,8 +441,7 @@ def world_packets():
     else:
         item_defs = None
     return extra + [tunneled(zone_details())] + ([item_defs] if item_defs else [])\
-        + [tunneled(send_self_to_client(CHARACTER))]
-    return extra + [tunneled(zone_details()), tunneled(send_self_to_client(CHARACTER))]
+        + [tunneled(send_self_to_client(CHARACTER))] + [tunneled(p) for p in item_definition_packets(CHARACTER)]
 
 
 class GatewayProbe:
@@ -653,7 +680,7 @@ class GatewayProbe:
                 LOG.info("ZoneDetails: zone=%r type=%d (set FR_ZONE / FR_ZONE_TYPE to change)", configured_zone(), configured_zone_type())
                 if sanctuary_flow.enabled():
                     self.send_named(addr, channel, "login", sanctuary_flow.login_packets(
-                        zone_details(), send_self_to_client(CHARACTER)))
+                        zone_details(), send_self_to_client(CHARACTER), item_definition_packets(CHARACTER)))
                 else:
                     for packet in world_packets():
                         self.send_reliable(addr, packet, channel)

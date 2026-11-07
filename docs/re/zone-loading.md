@@ -508,6 +508,6 @@ In RPCS3 nothing went on with it either. Not yet known why: `0xfec54` skips the 
 lookup misses, and `0x5aab0` may only record the piece on the profile. So the default is back to EquippedItemsChange, the one that
 dresses the character (with the job change effect); `FR_EQUIP=5` sends EquipItem for testing.
 
-The pieces come from `bootstrap/data/clothing_items.tsv.gz` (the tint is the creator's, or the definition's icon tint when that is
+The pieces come from `bootstrap/data/item_definitions.tsv.gz` (the tint is the creator's, or the definition's icon tint when that is
 0, as in Sanctuary's `Player.GetAttachment`), sent for guid 1 a second after `ClientFinishedLoading` in both flows. `FR_EQUIP=0`
 sends nothing.

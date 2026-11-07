@@ -1,8 +1,8 @@
 """The clothes the character creator picked, as the attachments the client draws.
 
 The creator sends item definition ids and tints (ItemChest=28216, ItemChestTint=234 and so on). The table in
-data/clothing_items.tsv.gz (tools/gen_clothing_items.py, from Sanctuary's Resources/ClientItemDefinitions.json) gives
-each id's model, texture alias, tint alias and slot. Sanctuary builds the same attachment in Player.GetAttachment: the
+data/item_definitions.tsv.gz (tools/gen_item_definitions.py, from Sanctuary's Resources/ClientItemDefinitions.json)
+gives each id's model, texture alias, tint alias and slot. Sanctuary builds the same attachment in Player.GetAttachment: the
 item's tint, or the definition's icon tint when the item's tint is 0, and no composite effect.
 
 equip_item() is ClientUpdate (38) sub-opcode 5, EquipItem: one piece of your own character's outfit, what Sanctuary sends
@@ -17,32 +17,22 @@ equipped_items_change() is sub-opcode 7, EquippedItemsChange: the whole outfit a
 list reader 0xb03e90). It is what Sanctuary sends when you change jobs, and the client plays the job change effect
 (4005, at 0x11cc74) before it puts the clothes on. It is the only one seen to dress the character, so it is the default.
 """
-import gzip
-import os
-
 import character_mappings
-
-TABLE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "clothing_items.tsv.gz")
+import items as item_definitions
 
 # Creator field and equipment slot (Sanctuary's EquipmentSlotDefinitions.txt), in slot order.
 CREATOR_SLOTS = (("ItemHead", 1), ("ItemHands", 2), ("ItemChest", 3), ("ItemLegs", 4), ("ItemFeet", 5),
                  ("ItemShoulders", 6))
 
+
 _items = None
 
 
 def items():
-    """{id: (slot, model, texture alias, tint alias, default tint)}, read once."""
+    """{id: (slot, model, texture alias, tint alias, default tint)} from bootstrap/data/item_definitions.tsv.gz."""
     global _items
     if _items is None:
-        table = {}
-        with gzip.open(TABLE, "rt", encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("#") or not line.strip():
-                    continue
-                item_id, slot, model, texture, tint_alias, tint = line.rstrip("\n").split("\t")
-                table[int(item_id)] = (int(slot), model, texture, tint_alias, int(tint))
-        _items = table
+        _items = {d: (row[10], row[13], row[14], row[30], row[4]) for d, row in item_definitions.definitions().items()}
     return _items
 
 

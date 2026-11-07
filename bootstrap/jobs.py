@@ -40,6 +40,27 @@ JOBS = (
 )
 BY_ID = {job[0]: job for job in JOBS}
 
+# Each job's DefaultItems in Resources/Profiles.json (item definition ids). Jobs not listed (Adventurer, Card Duelist)
+# have none and wear the character creator's clothes.
+JOB_ITEMS = {
+    2: (19522, 19431, 19197, 19787, 19253, 75091),            # Ninja
+    4: (13137, 12827, 13197, 13317, 12957),                   # Postman
+    11: (18783, 18695, 510, 18882, 18482, 4622),              # Medic
+    12: (12178, 12060, 12709, 12416, 12574, 12252, 4914),     # Wizard
+    14: (21665, 21060, 21784, 21219, 6561),                   # Miner
+    16: (21496, 21324, 21012, 21683, 21149, 6459),            # Blacksmith
+    32: (46644, 46389, 46137, 46732, 46224, 47019, 29963),    # Warrior
+    35: (1238, 11530, 353, 11709, 354, 11828, 4266),          # Archer
+    43: (7676, 7536, 7495, 7939, 7571, 7781, 75030),          # Brawler
+    45: (14794, 13597, 14826, 13821),                         # Chef
+    48: (14599, 13419, 15017, 14105),                         # Kart Driver
+    49: (14481, 616, 623, 13998),                             # Demo Derby Driver
+    52: (61907, 61353, 62169, 61609, 62473),                  # Soccer Star
+    137: (68430, 68360, 68465, 68395),                        # Fisherman
+    58: (13682, 421, 429),                                    # Referee
+    20: (13682, 421, 429),                                    # Enforcer
+}
+
 
 def selected():
     """The jobs to put in the player data, starter first (see FR_JOBS above)."""

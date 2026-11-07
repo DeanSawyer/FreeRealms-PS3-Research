@@ -1,34 +1,28 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.IO.Compression;
-using System.Text;
+using System.Linq;
 
 namespace Sanctuary.Ps3.Gateway;
 
 /// <summary>One piece of clothing as the client draws it (Sanctuary's <c>CharacterAttachmentData</c>).</summary>
 public readonly record struct Attachment(string Model, string TextureAlias, string TintAlias, int Tint, int CompositeEffect, int Slot);
 
-/// <summary>One row of <c>bootstrap/data/clothing_items.tsv.gz</c>: where an item is worn and what the client draws for it.</summary>
+/// <summary>What the client draws for an item: where it is worn, its model, texture and tint alias, and its icon's tint.</summary>
 public readonly record struct ClothingItem(int Slot, string Model, string TextureAlias, string TintAlias, int DefaultTint);
 
 /// <summary>
 /// The clothes the character creator picked, like <c>bootstrap/clothing.py</c>. The creator sends item definition ids and tints
-/// (<c>ItemChest=28216</c>, <c>ItemChestTint=234</c> and so on); <c>bootstrap/data/clothing_items.tsv.gz</c> (embedded in this
-/// assembly, written by <c>tools/gen_clothing_items.py</c> from Sanctuary's <c>Resources/ClientItemDefinitions.json</c>) gives each
-/// id's model, texture alias, tint alias and slot.
+/// (<c>ItemChest=28216</c>, <c>ItemChestTint=234</c> and so on); the item definitions (<see cref="Items"/>) give each id's model,
+/// texture alias, tint alias and slot.
 /// </summary>
 public static class Clothing
 {
-    private const string ResourceName = "Sanctuary.Ps3.clothing_items.tsv.gz";
-
     /// <summary>Creator field, in slot order (head, hands, chest, legs, feet, shoulders).</summary>
     private static readonly string[] CreatorFields = ["ItemHead", "ItemHands", "ItemChest", "ItemLegs", "ItemFeet", "ItemShoulders"];
 
     private static readonly Lazy<IReadOnlyDictionary<int, ClothingItem>> Table = new(Load);
 
-    /// <summary>The table, by item definition id; read from the embedded file on first use.</summary>
+    /// <summary>The definitions' drawing fields, by item definition id.</summary>
     public static IReadOnlyDictionary<int, ClothingItem> Items => Table.Value;
 
     /// <summary>
@@ -81,30 +75,13 @@ public static class Clothing
         return writer.I32(wieldType).ToArray();
     }
 
-    private static IReadOnlyDictionary<int, ClothingItem> Load()
-    {
-        using var stream = typeof(Clothing).Assembly.GetManifestResourceStream(ResourceName)
-            ?? throw new InvalidOperationException($"embedded resource {ResourceName} is missing");
-        using var gzip = new GZipStream(stream, CompressionMode.Decompress);
-        using var reader = new StreamReader(gzip, Encoding.UTF8);
-
-        var table = new Dictionary<int, ClothingItem>();
-
-        while (reader.ReadLine() is { } line)
-        {
-            if (line.Length == 0 || line[0] == '#')
-                continue;
-
-            var parts = line.Split('\t');
-
-            table[int.Parse(parts[0], CultureInfo.InvariantCulture)] = new ClothingItem(
-                int.Parse(parts[1], CultureInfo.InvariantCulture),
-                parts[2],
-                parts[3],
-                parts[4],
-                int.Parse(parts[5], CultureInfo.InvariantCulture));
-        }
-
-        return table;
-    }
+    private static IReadOnlyDictionary<int, ClothingItem> Load() =>
+        Gateway.Items.Definitions.ToDictionary(
+            entry => entry.Key,
+            entry => new ClothingItem(
+                Gateway.Items.Int(entry.Value, Gateway.Items.SlotField),
+                entry.Value[Gateway.Items.ModelField],
+                entry.Value[Gateway.Items.TextureAliasField],
+                entry.Value[Gateway.Items.TintAliasField],
+                Gateway.Items.Int(entry.Value, Gateway.Items.IconTintField)));
 }

@@ -13,8 +13,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- What the client draws for each piece of clothing (tools/gen_clothing_items.py); read by Gateway/Clothing.cs. -->
-    <EmbeddedResource Include="..\..\..\bootstrap\data\clothing_items.tsv.gz" LogicalName="Sanctuary.Ps3.clothing_items.tsv.gz" Link="Gateway\clothing_items.tsv.gz" />
+    <!-- The item definitions the server sends (tools/gen_item_definitions.py); read by Gateway/Items.cs. -->
+    <EmbeddedResource Include="..\..\..\bootstrap\data\item_definitions.tsv.gz" LogicalName="Sanctuary.Ps3.item_definitions.tsv.gz" Link="Gateway\item_definitions.tsv.gz" />
   </ItemGroup>
 
 </Project>

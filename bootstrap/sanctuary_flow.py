@@ -179,9 +179,11 @@ def _hub_quests(records):
 
 # --- the flows -----------------------------------------------------------------------------------------------
 
-def login_packets(zone_details, self_to_client):
+def login_packets(zone_details, self_to_client, item_definitions=()):
     """After LoginReply (Sanctuary PacketLoginHandler): combat flag, initialization parameters, zone, game
-    settings, item definitions, player data. zone_details and self_to_client are the PS3 server's own packets."""
+    settings, item definitions, player data. zone_details and self_to_client are the PS3 server's own packets.
+    item_definitions (PlayerUpdate sub-opcode 33, one per definition) come after the player data: Sanctuary sends its
+    definitions in one sub-opcode 37 list before it, but the PS3 client only takes one once the player exists."""
     return [
         ("EncounterOverworldCombat", struct.pack("<HHB", 41, 132, 1)),
         ("InitializationParameters", struct.pack("<H", 166) + _s(ENVIRONMENT)),
@@ -189,7 +191,7 @@ def login_packets(zone_details, self_to_client):
         ("ClientGameSettings", struct.pack("<HiiiBf", 144, 4, 7, 268, 1, 1.0)),
         ("ItemDefinitions", struct.pack("<HH", 35, 37) + _payload(struct.pack("<i", 0))),
         ("SendSelfToClient", self_to_client),
-    ]
+    ] + [("ItemDefinition %d" % struct.unpack_from("<i", p, 8)[0], p) for p in item_definitions]
 
 
 def customizations(character, head, hair, skin, face_paint="none", model_customization=""):

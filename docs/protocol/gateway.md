@@ -146,6 +146,31 @@ job with its id, name id, description id, type and rank 20 (`tools/ppc_trace.py`
 `docs/re/zone-loading.md`, *Cause of the stuck loading screen*.
 This differs from Clover's `ClientPcProfile` (no item-class or item maps), so the PS3 build is an older layout.
 
+## Items
+
+The character owns what Sanctuary gives a new one (`bootstrap/items.py`): the creator's chest, legs and feet (item ids 1, 2, 3,
+with the creator's tints; head, hands and shoulders too when picked), then every job's `DefaultItems` from Sanctuary's
+`Profiles.json` that it does not own yet (the definition's icon tint; the other gender's skipped). Each job wears its items by
+the definition's slot; the starter job, and jobs without default items, wear the creator's. Read from the client with
+`tools/ppc_trace.py`:
+
+* **Item list.** In the player blob, the count `ITEM_LIST_OFFSET` (0x31) bytes after the active profile id. Each entry is 37
+  bytes (reader `0xb0f10c`): `i32` id, `i32` (0), `i32` definition, `i32` tint, `i32` id, `i32` count, `u8`, `i32`, `u32` count
+  of a list (0), `i32`. The client keys the item by the first field (`0x59a34` -> `0x26bc18`).
+* **Equipment.** 17 `i32` item ids at profile entry offset 0x43, slot 1 first; 0 is an empty slot. The reader keeps them in an
+  array the profile points to (`+152`); `RequestEquippedAttachments` (`0xeba4c`) goes through the active profile's 17 slots
+  after the player loads, looks each item up (`0x5911c`) and its definition (`0x146ad0`, the cache at client `+3076`), and logs
+  "Client item definition %d not yet available" when one is missing.
+* **Definitions.** PlayerUpdate (35) sub-opcode 33, one definition per packet: `i32` payload length, then the 34 fields of
+  `bootstrap/data/item_definitions.tsv.gz` (Sanctuary's `BaseItemDefinition` up to `VipRankRequired`; `MemberDiscount` is one
+  byte here), one `i32` and two empty lists (`0xac53b8`, `0xa90d10`, `0xac3c24`, `0xac3788`). The handler (`0x110ab0`) skips the
+  packet until the player exists, so the definitions go right after the player data.
+
+With the user's character the client's readers consume the whole 6,587 byte player blob and every definition exactly, and each
+job's equipment array holds the right ids (Adventurer slots 3, 4, 5 = items 1, 2, 3; Archer slots 1 to 7 = items 43 to 49).
+Not checked in the emulator: the item objects themselves, because the reader hands them to the inventory manager
+(`client +31748`), which does not exist there. `FR_ITEMS=0` sends no items and no definitions.
+
 ## Packets larger than 512 bytes must be fragmented
 
 The client reads each datagram into a buffer of exactly the negotiated max raw size (512). A bigger datagram makes
