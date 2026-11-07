@@ -74,6 +74,7 @@ answers the game's hostnames, pass `--no-dns`.
 | `FR_ADDPC` | Which character `AddPc` adds: `other` (default), `self`, `both`, `none`. |
 | `FR_EXTRA=1` | Also send hit points, mana, game settings and an empty item list (layouts from the PC server, untested on the PS3 client). |
 | `FR_WELCOME=0`, `FR_TIME=0` | Leave out the welcome-screen packet or the game-time reply. |
+| `FR_EQUIP=0` | Do not dress the character. By default the clothes picked in the character creator go on a second after `ClientFinishedLoading` (PlayerUpdate sub-opcode 7, EquippedItemsChange; see [`clothing.py`](clothing.py)). |
 | `FR_SKY=name.xml` | Name a sky in `ZoneDetails` (default: none, as Sanctuary sends for FabledRealms). Experiment for the crash when the camera looks at the sky. |
 | `FR_SANCTUARY=1` | Send exactly what the PC server Sanctuary sends at login, `ClientIsReady` and `ClientFinishedLoading`, and answer the client's requests as it does (no reply to 141/1, no `AddPc`). See [`sanctuary_flow.py`](sanctuary_flow.py) and [`docs/re/zone-loading.md`](../docs/re/zone-loading.md#experiment-the-sanctuary-flow-one-for-one). Python server only. |
 | `FR_SKIP="Name,Name"` | With `FR_SANCTUARY=1`: leave out single packets by the names in `sanctuary_flow.py` (case does not matter; `SetClientArea` drops every area). |

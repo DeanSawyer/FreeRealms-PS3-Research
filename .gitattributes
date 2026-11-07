@@ -20,3 +20,4 @@
 *.sdat  binary
 *.gcnk  binary
 *.gzne  binary
+*.gz    binary

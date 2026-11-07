@@ -141,6 +141,21 @@ public static class Ps3Packets
             .ToArray();
     }
 
+    /// <summary>
+    /// EquippedItemsChange (PlayerUpdate sub-opcode 7) with the clothes the character creator picked (<see cref="Clothing"/>), or null
+    /// when there is nothing to put on or <c>FR_EQUIP=0</c>. The player data carries no items yet, so this is what dresses the
+    /// character; the gateway sends it after ClientFinishedLoading, once the character exists.
+    /// </summary>
+    public static byte[]? EquipmentPacket(IReadOnlyDictionary<string, string> character, GatewayOptions options, ulong guid = 1)
+    {
+        if (!options.Equip)
+            return null;
+
+        var pieces = Clothing.Attachments(character);
+
+        return pieces.Count > 0 ? Clothing.EquippedItemsChange(guid, pieces) : null;
+    }
+
     /// <summary>LobbyGameDefinition (102) sub-opcode 2: the mini-game list, empty. The client reads exactly five zero counts.</summary>
     public static byte[] LobbyDefinitionsReply()
     {

@@ -36,7 +36,7 @@ public static partial class CharacterMappings
     }
 
     /// <summary>Python's <c>int(str(value).strip() or default)</c>: missing, empty or not a number gives the default.</summary>
-    private static int Number(IReadOnlyDictionary<string, string> character, string key, int fallback)
+    internal static int Number(IReadOnlyDictionary<string, string> character, string key, int fallback)
     {
         if (!character.TryGetValue(key, out var text))
             return fallback;

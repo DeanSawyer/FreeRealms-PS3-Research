@@ -475,3 +475,24 @@ at offset `0xc0` in an object that does not exist, reached through both a shader
 (as Sanctuary does for FabledRealms, but that is the 2014 PC client); `FR_SKY` sets one to test whether the 2011 PS3 build needs it.
 The render chain is thread entry `0x7ea570` -> `0xa60fe4` -> `0x35840` -> `0x7519c0` -> scene walk `0xcc73b0` (recursive) -> `0xcc6e50`
 -> `0x784518`, whose command list is at renderer `+3324` (count at `+3320`) and parameter table at `+0x2b8`.
+
+## Dressing the character: the creator's clothes
+
+The creator sends item definition ids and tints (`ItemChest=28216`, `ItemChestTint=234`, `ItemLegs=392`, `ItemFeet=17397`, ...).
+Sanctuary turns them into items in the player data and equips them in the profile; the PC client then looks each item's definition
+up and draws it. On the PS3 that needs two things this server does not have yet: item definitions (PlayerUpdate sub-opcode 33 on
+1.77: an i32-length payload whose first part, read by `0xac53b8`, is Sanctuary's `BaseItemDefinition` up to `VipRankRequired`; then
+`0xa90d10`, `0xac3c24`, `0xac3788`, `0x147108` and the cache insert `0x148420`) and the player data's item list and equipment slots.
+
+The shorter way is the packet Sanctuary sends when a profile changes, EquippedItemsChange (PlayerUpdate sub-opcode 7 on the PC and
+on 1.77). Its handler (`0x112afc`) reads u16 35, u16 7, u64 guid, an attachment list (`0xb03e90`), one more int, and acts only when
+that is the whole packet: `0x11cc34` finds the character by guid (`0x1bd598`) and puts the attachments on it (`0x1b0264`). Each
+attachment is three strings (model, texture alias, tint alias, at node offsets 0, 84 and 168) and three ints (tint, composite effect,
+slot, at 252, 256 and 260), Sanctuary's `CharacterAttachmentData`. Run through `tools/ppc_trace.py` with the list object the handler
+builds (vtable `0xebeeb8`; the reader's byte at +16 is an error flag, 0 = fine), the client's reader consumed all 289 bytes of the
+three-piece list for the character above and built three nodes with the right strings and ints.
+
+So the server sends EquippedItemsChange for guid 1 a second after `ClientFinishedLoading`, in both flows, with the pieces from
+`bootstrap/data/clothing_items.tsv.gz` (the tint is the creator's, or the definition's icon tint when that is 0, as in Sanctuary's
+`Player.GetAttachment`). `FR_EQUIP=0` turns it off. Not yet seen in RPCS3: whether the client also redraws the character from the
+(empty) profile equipment later and takes the clothes off again.

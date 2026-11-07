@@ -279,6 +279,21 @@ def main():
     old = run({})
     check(len(old[3]) == 1 and old[3][0][:2] == b"\x8d\x00", "without FR_SANCTUARY the 141/1 reply is still sent")
 
+    # The creator's clothes go on a second after FinishedLoading (PlayerUpdate sub-opcode 7, EquippedItemsChange).
+    def piece(model, texture, tint, slot):
+        return (harness.string(model) + harness.string(texture) + harness.string("dyetint")
+                + struct.pack("<iii", tint, 0, slot))
+    want_equipment = (struct.pack("<HHQi", 35, 7, 1, 3)
+                      + piece("freestyle_<race>_m_chest_rolledslvshirt.adr", "freestyle-stitchup-L1", 234, 3)
+                      + piece("freestyle_<race>_<gender>_legs_bootcutpants.adr", "freestyle-smallstitch-L1", 262, 4)
+                      + piece("freestyle_<race>_m_feet_shoeswsocks.adr", "freestyle-suede-L1", 234, 5)
+                      + struct.pack("<i", 0))
+    dressed = run({"FR_SANCTUARY": "1"}, harness.CHARACTER_DRESSED)
+    check(dressed[7] == [want_equipment], "dressed character: one EquippedItemsChange after FinishedLoading")
+    check(dressed[6] == finished, "dressed character: FinishedLoading packets unchanged")
+    undressed = run({"FR_SANCTUARY": "1", "FR_EQUIP": "0"}, harness.CHARACTER_DRESSED)
+    check(undressed[7] == [], "FR_EQUIP=0 sends no clothes")
+
     print()
     if FAILURES:
         print("%d check(s) failed" % len(FAILURES))

@@ -55,6 +55,7 @@ Run any tool with `-h` or read the docstring at the top of the file for its opti
 
 | Tool | Purpose |
 | :--- | :--- |
+| [`gen_clothing_items.py`](gen_clothing_items.py) | Writes `bootstrap/data/clothing_items.tsv.gz` (model, texture, tint alias, slot and default tint of the 9,239 class 1 clothing items) from Sanctuary's `Resources/ClientItemDefinitions.json`, which you pass on the command line. Used to dress the character in the creator's clothes. |
 | [`gen_character_mappings.py`](gen_character_mappings.py) | Writes the character-creator mapping tables of [`bootstrap/character_mappings.py`](../bootstrap/character_mappings.py) as C# for the port. `--check` fails when it is out of date; CI runs it. |
 | [`check_sanctuary_flow.py`](check_sanctuary_flow.py) | Runs a client session through the gateway with `FR_SANCTUARY=1` and checks Sanctuary's packet order, each packet's layout and the switches. Runs in CI. |
 | [`check_docs.py`](check_docs.py) | Fail on broken Markdown links or documentation that names a file that no longer exists. Runs in CI. |

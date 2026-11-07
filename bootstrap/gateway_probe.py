@@ -33,6 +33,7 @@ import time
 from datetime import datetime, timezone
 
 import character_mappings
+import clothing
 import sanctuary_flow
 import tracing
 
@@ -258,6 +259,16 @@ def player_blob(character=None, guid=1):
     out += struct.pack("<i", PROFILE_ID)                     # active profile id
     out += bytes(0x111 - 0xa3)                               # remaining fields: empty lists and zeros
     return bytes(out)
+
+
+def equipment_packet(character=None, guid=1):
+    """PlayerUpdate sub-opcode 7 (EquippedItemsChange) with the clothes the character creator picked
+    (bootstrap/clothing.py), or None when there is nothing to put on or FR_EQUIP=0. The player data carries no items
+    yet, so this is what dresses the character; it is sent after ClientFinishedLoading, once the character exists."""
+    if os.environ.get("FR_EQUIP", "1").strip() == "0":
+        return None
+    pieces = clothing.attachments(character or {})
+    return clothing.equipped_items_change(guid, pieces) if pieces else None
 
 
 def send_self_to_client(character=None):
@@ -523,8 +534,9 @@ class GatewayProbe:
             self.send_reliable(addr, tunneled(inner), channel)
 
     def spawn_characters(self, addr, channel):
-        """Send AddPc packets after the client finished loading (the server marks the player visible then)."""
-        if addr not in self.sessions or ADDPC_MODE == "none":
+        """Send AddPc packets after the client finished loading (the server marks the player visible then), then the
+        creator's clothes."""
+        if addr not in self.sessions:
             return
         packets = []
         if ADDPC_MODE in ("self", "both"):
@@ -536,6 +548,19 @@ class GatewayProbe:
         for label, packet in packets:
             LOG.info("gateway: AddPc for %s (%d bytes)", label, len(packet))
             self.send_reliable(addr, tunneled(packet), channel)
+        self.send_equipment(addr, channel)
+
+    def send_equipment(self, addr, channel):
+        """Dress your character (guid 1) in the clothes picked in the character creator (equipment_packet)."""
+        if addr not in self.sessions:
+            return
+        packet = equipment_packet(CHARACTER)
+        if packet is None:
+            return
+        LOG.info("gateway: EquippedItemsChange for your character (guid 1): %s (%d bytes)", ", ".join(
+            "slot %d %s" % (slot, model) for model, _t, _a, _tint, _c, slot in clothing.attachments(CHARACTER)), len(packet))
+        _trace("equipment", peer=addr[0], size=len(packet))
+        self.send_reliable(addr, tunneled(packet), channel)
 
     def ready_fallback(self, addr, channel):
         """If the client never says ClientIsReady, send the world-ready packets anyway so the log shows what it
@@ -658,8 +683,9 @@ class GatewayProbe:
             x, _y, z, _w = configured_spawn()
             self.send_named(addr, channel, "ClientFinishedLoading", sanctuary_flow.finished_loading_packets(
                 1, x, z, PROFILE_ID))
-            if os.environ.get("FR_ADDPC", "").strip():
-                threading.Timer(1.0, self.spawn_characters, (addr, channel)).start()
+            # The clothes are not Sanctuary's: its PC client reads them from the items in the player data.
+            later = self.spawn_characters if os.environ.get("FR_ADDPC", "").strip() else self.send_equipment
+            threading.Timer(1.0, later, (addr, channel)).start()
 
     def record(self, addr, label, payload):
         shown = payload[:MAX_LOGGED_BYTES]

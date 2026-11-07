@@ -52,6 +52,9 @@ public sealed record GatewayOptions
     /// <summary><c>FR_TIME</c> (not 0): send GameTimeSync, and answer the client's request for it.</summary>
     public bool TimeSync { get; init; } = true;
 
+    /// <summary><c>FR_EQUIP</c> (not 0): dress the character in the creator's clothes after loading (EquippedItemsChange).</summary>
+    public bool Equip { get; init; } = true;
+
     /// <summary>Reads the <c>FR_*</c> variables through <paramref name="get"/> (null means unset). Problems are reported to <paramref name="warn"/>.</summary>
     public static GatewayOptions FromEnvironment(Func<string, string?> get, Action<string>? warn = null)
     {
@@ -102,6 +105,7 @@ public sealed record GatewayOptions
             Welcome = Env(get, "FR_WELCOME", "1") != "0",
             Extra = Value("FR_EXTRA") == "1",
             TimeSync = Env(get, "FR_TIME", "1") != "0",
+            Equip = Env(get, "FR_EQUIP", "1") != "0",
         };
     }
 

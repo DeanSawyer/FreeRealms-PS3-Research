@@ -12,4 +12,9 @@
     <PackageReference Include="ZLibDotNet" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- What the client draws for each piece of clothing (tools/gen_clothing_items.py); read by Gateway/Clothing.cs. -->
+    <EmbeddedResource Include="..\..\..\bootstrap\data\clothing_items.tsv.gz" LogicalName="Sanctuary.Ps3.clothing_items.tsv.gz" Link="Gateway\clothing_items.tsv.gz" />
+  </ItemGroup>
+
 </Project>
