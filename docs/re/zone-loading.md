@@ -492,7 +492,16 @@ slot, at 252, 256 and 260), Sanctuary's `CharacterAttachmentData`. Run through `
 builds (vtable `0xebeeb8`; the reader's byte at +16 is an error flag, 0 = fine), the client's reader consumed all 289 bytes of the
 three-piece list for the character above and built three nodes with the right strings and ints.
 
-So the server sends EquippedItemsChange for guid 1 a second after `ClientFinishedLoading`, in both flows, with the pieces from
-`bootstrap/data/clothing_items.tsv.gz` (the tint is the creator's, or the definition's icon tint when that is 0, as in Sanctuary's
-`Player.GetAttachment`). `FR_EQUIP=0` turns it off. Not yet seen in RPCS3: whether the client also redraws the character from the
-(empty) profile equipment later and takes the clothes off again.
+First test in RPCS3 (2026-11-06): the clothes went on, but the character first played the job change. That is in the handler:
+before attaching, `0x11cc58`..`0x11cc8c` plays effect 4005 on the character, because on the PC this packet is what a job change
+sends (Sanctuary's `CommandPacketSetProfileHandler`).
+
+So the server now sends EquipItemChange (PlayerUpdate sub-opcode 6) instead, one per piece. Its handler (`0x112c24`) reads u16 35,
+u16 6, u64 guid, i32 item id, one attachment (the same three strings and three ints), then profile id, item class and wield type,
+and acts only on the whole packet. `0x11daec` finds the character by guid, attaches the piece when the model name is not empty,
+stores the profile id at character `+344` and sets the wield type (`0x19f410`); no 4005. Item ids are 1, 2, 3... as Sanctuary
+numbers a new character's items, the profile id is the starter job's, item class 1, wield type 0.
+
+The pieces come from `bootstrap/data/clothing_items.tsv.gz` (the tint is the creator's, or the definition's icon tint when that is
+0, as in Sanctuary's `Player.GetAttachment`), sent for guid 1 a second after `ClientFinishedLoading` in both flows. `FR_EQUIP=7`
+goes back to the one EquippedItemsChange; `FR_EQUIP=0` sends nothing.

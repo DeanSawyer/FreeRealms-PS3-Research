@@ -52,8 +52,11 @@ public sealed record GatewayOptions
     /// <summary><c>FR_TIME</c> (not 0): send GameTimeSync, and answer the client's request for it.</summary>
     public bool TimeSync { get; init; } = true;
 
-    /// <summary><c>FR_EQUIP</c> (not 0): dress the character in the creator's clothes after loading (EquippedItemsChange).</summary>
-    public bool Equip { get; init; } = true;
+    /// <summary>
+    /// <c>FR_EQUIP</c>: how to dress the character in the creator's clothes after loading. 6 (default): one EquipItemChange per piece;
+    /// 7 (<c>FR_EQUIP=7</c>): one EquippedItemsChange, which also plays the job change effect; 0 (<c>FR_EQUIP=0</c>): not at all.
+    /// </summary>
+    public int EquipPacket { get; init; } = 6;
 
     /// <summary>Reads the <c>FR_*</c> variables through <paramref name="get"/> (null means unset). Problems are reported to <paramref name="warn"/>.</summary>
     public static GatewayOptions FromEnvironment(Func<string, string?> get, Action<string>? warn = null)
@@ -105,7 +108,12 @@ public sealed record GatewayOptions
             Welcome = Env(get, "FR_WELCOME", "1") != "0",
             Extra = Value("FR_EXTRA") == "1",
             TimeSync = Env(get, "FR_TIME", "1") != "0",
-            Equip = Env(get, "FR_EQUIP", "1") != "0",
+            EquipPacket = Env(get, "FR_EQUIP", "1") switch
+            {
+                "0" => 0,
+                "7" => 7,
+                _ => 6,
+            },
         };
     }
 

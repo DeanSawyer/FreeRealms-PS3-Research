@@ -474,14 +474,16 @@ public sealed class Ps3Gateway
             SendReliable(peer, Ps3Packets.Tunneled(packet), channel);
         }
 
-        var equipment = Ps3Packets.EquipmentPacket(character, _world.Options);
+        var equipment = Ps3Packets.EquipmentPackets(character, _world.Options);
 
-        if (equipment is not null)
+        if (equipment.Count > 0)
+            _logger?.LogInformation("gateway: dressing your character (guid 1) with {Count} packet(s)", equipment.Count);
+
+        foreach (var packet in equipment)
         {
-            _logger?.LogInformation("gateway: EquippedItemsChange for your character (guid 1) ({Bytes} bytes)", equipment.Length);
-            _trace.Write("equipment", ("peer", peer.Address.ToString()), ("size", equipment.Length));
+            _trace.Write("equipment", ("peer", peer.Address.ToString()), ("size", packet.Length));
 
-            SendReliable(peer, Ps3Packets.Tunneled(equipment), channel);
+            SendReliable(peer, Ps3Packets.Tunneled(packet), channel);
         }
     }
 

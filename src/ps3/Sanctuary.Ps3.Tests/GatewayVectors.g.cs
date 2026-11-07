@@ -26,7 +26,7 @@ internal sealed record PacketScenario(
     byte[][] WorldPackets,
     byte[][] ZoneDone,
     byte[] TimeSync,
-    byte[] Equipment);
+    byte[][] Equipment);
 
 internal sealed record FixedPackets(byte[] Tunneled, byte[] TunneledUnreliable, byte[] TunneledEmpty, byte[] Lobby, byte[] Queues, byte[] Profile, byte[] ZoneDetailsArgs);
 
@@ -93,7 +93,7 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABEwAAAF0AAQAAAAAAAAAAAAAAAAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
         new PacketScenario("install zone and spawn", [], "FabledRealms", true, -128.0, -128.0, [], "FabledRealms", 2, [-1904.883, -39.7098, 412.6024, 1.0], Convert.FromBase64String("KwAMAAAARmFibGVkUmVhbG1zAgAAAAAAAAAAAAABAAAA"), Convert.FromBase64String(
             "AAAAAAAAAAABAAAAAAAAAAEAAAAiAAAAPHJhY2U+XzxnZW5kZXI+X2hlYWRfY2F1Y2FzaWFuLmFkch8AAAA8cmFjZT5fbV9oYWly" +
             "X2V5ZWJyb3dzX2JhbGQuYWRyAAAAAAAAAAAJAAAAc2tpbnRvbmUxBAAAAG5vbmUAAAAAQhzuxNbWHsIbTc5DAACAP6GcDT8AAAAA" +
@@ -134,7 +134,7 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABEwAAAF0AAQAAAAAAAAAAAAAAAAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
         new PacketScenario("FR_SPAWN=local", [
             ("FR_SPAWN", "local"),
         ], "FabledRealms", true, -128.0, -128.0, [], "FabledRealms", 2, [-128.0, 400.0, -128.0, 1.0], Convert.FromBase64String("KwAMAAAARmFibGVkUmVhbG1zAgAAAAAAAAAAAAABAAAA"), Convert.FromBase64String(
@@ -177,7 +177,7 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABEwAAAF0AAQAAAAAAAAAAAAAAAAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
         new PacketScenario("FR_SPAWN=local without a picked spawn", [
             ("FR_SPAWN", "Local"),
         ], null, false, 0.0, 0.0, [], "FabledRealms", 2, [-1904.883, -39.7098, 412.6024, 1.0], Convert.FromBase64String("KwAMAAAARmFibGVkUmVhbG1zAgAAAAAAAAAAAAABAAAA"), Convert.FromBase64String(
@@ -220,7 +220,7 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABEwAAAF0AAQAAAAAAAAAAAAAAAAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
         new PacketScenario("install spawn with FR_SPAWN_Y", [
             ("FR_SPAWN", "local"),
             ("FR_SPAWN_Y", "123.5"),
@@ -264,7 +264,7 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABEwAAAF0AAQAAAAAAAAAAAAAAAAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
         new PacketScenario("bad FR_SPAWN_Y", [
             ("FR_SPAWN", "local"),
             ("FR_SPAWN_Y", "high"),
@@ -308,7 +308,7 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABEwAAAF0AAQAAAAAAAAAAAAAAAAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
         new PacketScenario("FR_SPAWN wins", [
             ("FR_SPAWN", "10.5; 20 ,30.25"),
         ], "FabledRealms", true, 1.0, 2.0, [], "FabledRealms", 2, [10.5, 20.0, 30.25, 1.0], Convert.FromBase64String("KwAMAAAARmFibGVkUmVhbG1zAgAAAAAAAAAAAAABAAAA"), Convert.FromBase64String(
@@ -351,7 +351,7 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABEwAAAF0AAQAAAAAAAAAAAAAAAAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
         new PacketScenario("bad FR_SPAWN", [
             ("FR_SPAWN", "1,2"),
         ], "FabledRealms", true, 1.0, 2.0, [], "FabledRealms", 2, [-1904.883, -39.7098, 412.6024, 1.0], Convert.FromBase64String("KwAMAAAARmFibGVkUmVhbG1zAgAAAAAAAAAAAAABAAAA"), Convert.FromBase64String(
@@ -394,7 +394,7 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABEwAAAF0AAQAAAAAAAAAAAAAAAAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
         new PacketScenario("FR_ZONE and type", [
             ("FR_ZONE", " Other_Zone "),
             ("FR_ZONE_TYPE", "1"),
@@ -438,7 +438,7 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABEwAAAF0AAQAAAAAAAAAAAAAAAAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
         new PacketScenario("bad zone type", [
             ("FR_ZONE_TYPE", "x"),
         ], null, false, 0.0, 0.0, [], "FabledRealms", 2, [-1904.883, -39.7098, 412.6024, 1.0], Convert.FromBase64String("KwAMAAAARmFibGVkUmVhbG1zAgAAAAAAAAAAAAABAAAA"), Convert.FromBase64String(
@@ -481,7 +481,7 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABEwAAAF0AAQAAAAAAAAAAAAAAAAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
         new PacketScenario("extra packets", [
             ("FR_EXTRA", "1"),
         ], "FabledRealms", true, -128.0, -128.0, [], "FabledRealms", 2, [-1904.883, -39.7098, 412.6024, 1.0], Convert.FromBase64String("KwAMAAAARmFibGVkUmVhbG1zAgAAAAAAAAAAAAABAAAA"), Convert.FromBase64String(
@@ -529,7 +529,7 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABDQAAACYADQBkAAAAZAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
         new PacketScenario("no welcome, no time", [
             ("FR_TIME", "0"),
             ("FR_WELCOME", "0"),
@@ -571,7 +571,7 @@ internal static class GatewayVectors
         ], [
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
         new PacketScenario("extra without time", [
             ("FR_EXTRA", "1"),
             ("FR_TIME", "0"),
@@ -619,7 +619,7 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABDQAAACYADQBkAAAAZAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
         new PacketScenario("full character", [], "FabledRealms", true, -128.0, -128.0, [
             ("EyeColor", "9"),
             ("FirstName", "Zo\u00eb"),
@@ -668,7 +668,7 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABEwAAAF0AAQAAAAAAAAAAAAAAAAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
         new PacketScenario("odd character values", [], "FabledRealms", true, -128.0, -128.0, [
             ("EyeColor", "x9"),
             ("FirstName", ""),
@@ -717,7 +717,7 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABEwAAAF0AAQAAAAAAAAAAAAAAAAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
         new PacketScenario("styled character", [], "FabledRealms", true, -128.0, -128.0, [
             ("EyeColor", "63"),
             ("FacePaint", "3"),
@@ -769,7 +769,7 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABEwAAAF0AAQAAAAAAAAAAAAAAAAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
         new PacketScenario("dressed character", [], "FabledRealms", true, -128.0, -128.0, [
             ("EyeColor", "63"),
             ("FacePaint", "3"),
@@ -833,12 +833,17 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABEwAAAF0AAQAAAAAAAAAAAAAAAAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String(
-            "IwAHAAEAAAAAAAAAAwAAACsAAABmcmVlc3R5bGVfPHJhY2U+X21fY2hlc3Rfcm9sbGVkc2x2c2hpcnQuYWRyFQAAAGZyZWVzdHls" +
-            "ZS1zdGl0Y2h1cC1MMQcAAABkeWV0aW506gAAAAAAAAADAAAALwAAAGZyZWVzdHlsZV88cmFjZT5fPGdlbmRlcj5fbGVnc19ib290" +
-            "Y3V0cGFudHMuYWRyGAAAAGZyZWVzdHlsZS1zbWFsbHN0aXRjaC1MMQcAAABkeWV0aW50BgEAAAAAAAAEAAAAJwAAAGZyZWVzdHls" +
-            "ZV88cmFjZT5fbV9mZWV0X3Nob2Vzd3NvY2tzLmFkchIAAABmcmVlc3R5bGUtc3VlZGUtTDEHAAAAZHlldGludOoAAAAAAAAABQAA" +
-            "AAAAAAA=")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), [
+            Convert.FromBase64String(
+            "IwAGAAEAAAAAAAAAAQAAACsAAABmcmVlc3R5bGVfPHJhY2U+X21fY2hlc3Rfcm9sbGVkc2x2c2hpcnQuYWRyFQAAAGZyZWVzdHls" +
+            "ZS1zdGl0Y2h1cC1MMQcAAABkeWV0aW506gAAAAAAAAADAAAAAQAAAAEAAAAAAAAA"),
+            Convert.FromBase64String(
+            "IwAGAAEAAAAAAAAAAgAAAC8AAABmcmVlc3R5bGVfPHJhY2U+XzxnZW5kZXI+X2xlZ3NfYm9vdGN1dHBhbnRzLmFkchgAAABmcmVl" +
+            "c3R5bGUtc21hbGxzdGl0Y2gtTDEHAAAAZHlldGludAYBAAAAAAAABAAAAAEAAAABAAAAAAAAAA=="),
+            Convert.FromBase64String(
+            "IwAGAAEAAAAAAAAAAwAAACcAAABmcmVlc3R5bGVfPHJhY2U+X21fZmVldF9zaG9lc3dzb2Nrcy5hZHISAAAAZnJlZXN0eWxlLXN1" +
+            "ZWRlLUwxBwAAAGR5ZXRpbnTqAAAAAAAAAAUAAAABAAAAAQAAAAAAAAA="),
+        ]),
         new PacketScenario("dressed character, FR_EQUIP=0", [
             ("FR_EQUIP", "0"),
         ], "FabledRealms", true, -128.0, -128.0, [
@@ -904,7 +909,80 @@ internal static class GatewayVectors
             Convert.FromBase64String("BQABEwAAAF0AAQAAAAAAAAAAAAAAAAAAAAA="),
             Convert.FromBase64String("BQABAgAAAA4A"),
             Convert.FromBase64String("BQABBQAAACYAGgAB"),
-        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), Convert.FromBase64String("")),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), []),
+        new PacketScenario("dressed character, FR_EQUIP=7", [
+            ("FR_EQUIP", " 7 "),
+        ], "FabledRealms", true, -128.0, -128.0, [
+            ("EyeColor", "63"),
+            ("FacePaint", "3"),
+            ("FirstName", "Aedon"),
+            ("Hair", "4"),
+            ("HairColor", "10"),
+            ("Head", "2"),
+            ("ItemChest", "28216"),
+            ("ItemChestTint", "234"),
+            ("ItemFeet", "17397"),
+            ("ItemFeetTint", "0"),
+            ("ItemHands", "0"),
+            ("ItemHandsTint", "1"),
+            ("ItemHead", "999999999"),
+            ("ItemHeadTint", "1"),
+            ("ItemLegs", "392"),
+            ("ItemLegsTint", "262"),
+            ("ItemShoulders", " x"),
+            ("ItemShouldersTint", "1"),
+            ("LastName", "Amberarm"),
+            ("Model", "1"),
+            ("ModelCustomization", "2"),
+            ("SkinTone", "2"),
+        ], "FabledRealms", 2, [-1904.883, -39.7098, 412.6024, 1.0], Convert.FromBase64String("KwAMAAAARmFibGVkUmVhbG1zAgAAAAAAAAAAAAABAAAA"), Convert.FromBase64String(
+            "AAAAAAAAAAABAAAAAAAAAAEAAAAgAAAAPHJhY2U+XzxnZW5kZXI+X2hlYWRfYWZyaWNhbi5hZHIlAAAAPHJhY2U+X21faGFpcl9m" +
+            "YXV4aGF3a188aGFpcnR5cGU+LmFkcgoAAAA/AAAACQAAAHNraW50b25lMgUAAABtb29ucyMAAABodW1hbl9tX2ZhY2lhbGhhaXJf" +
+            "Y2hpbndoaXNrZXJzLmFkckIc7sTW1h7CG03OQwAAgD+hnA0/AAAAAOtDVT8AAAAAAAAAAAAAAAAAAAAABQAAAEFlZG9uCAAAAEFt" +
+            "YmVyYXJtAAAAAADxU2UAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAEAAAABAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="), Convert.FromBase64String(
+            "DABHAgAAAAAAAAAAAAABAAAAAAAAAAEAAAAgAAAAPHJhY2U+XzxnZW5kZXI+X2hlYWRfYWZyaWNhbi5hZHIlAAAAPHJhY2U+X21f" +
+            "aGFpcl9mYXV4aGF3a188aGFpcnR5cGU+LmFkcgoAAAA/AAAACQAAAHNraW50b25lMgUAAABtb29ucyMAAABodW1hbl9tX2ZhY2lh" +
+            "bGhhaXJfY2hpbndoaXNrZXJzLmFkckIc7sTW1h7CG03OQwAAgD+hnA0/AAAAAOtDVT8AAAAAAAAAAAAAAAAAAAAABQAAAEFlZG9u" +
+            "CAAAAEFtYmVyYXJtAAAAAADxU2UAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAEAAAABAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="), Convert.FromBase64String(
+            "IwABAAIAAAAAAAAAAAAAAAAAAAAAAAAABgAAAEhlbHBlcgAAAAABAAAAAAAAAAAAAAAAAAAAQtztxNbWHsIbTc9DAACAP6GcDT8A" +
+            "AAAA60NVPwAAAAAAAAAAIAAAADxyYWNlPl88Z2VuZGVyPl9oZWFkX2FmcmljYW4uYWRyJgAAADxyYWNlPl88Z2VuZGVyPl9oYWly" +
+            "X2V5ZWJyb3dzX2JhbGQuYWRyCgAAAD8AAAAAAAAACQAAAHNraW50b25lMgQAAABub25lAAAAAAAAAEEAAAAAAAAAAAAAAQAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////////AAAAAA=="), Convert.FromBase64String(
+            "IwABAAEAAAAAAAAAAAAAAAAAAAAAAAAABQAAAEFlZG9uCAAAAEFtYmVyYXJtAQAAAAAAAAAAAAAAAAAAAEIc7sTW1h7CG03OQwAA" +
+            "gD+hnA0/AAAAAOtDVT8AAAAAAAAAACAAAAA8cmFjZT5fPGdlbmRlcj5faGVhZF9hZnJpY2FuLmFkciYAAAA8cmFjZT5fPGdlbmRl" +
+            "cj5faGFpcl9leWVicm93c19iYWxkLmFkcgoAAAA/AAAAAAAAAAkAAABza2ludG9uZTIEAAAAbm9uZQAAAAAAAABBAAAAAAAAAAAA" +
+            "AAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//////////wAAAAA="), [
+            Convert.FromBase64String("BQABIQAAACsADAAAAEZhYmxlZFJlYWxtcwIAAAAAAAAAAAAAAQAAAA=="),
+            Convert.FromBase64String(
+            "BQABTQIAAAwARwIAAAAAAAAAAAAAAQAAAAAAAAABAAAAIAAAADxyYWNlPl88Z2VuZGVyPl9oZWFkX2FmcmljYW4uYWRyJQAAADxy" +
+            "YWNlPl9tX2hhaXJfZmF1eGhhd2tfPGhhaXJ0eXBlPi5hZHIKAAAAPwAAAAkAAABza2ludG9uZTIFAAAAbW9vbnMjAAAAaHVtYW5f" +
+            "bV9mYWNpYWxoYWlyX2NoaW53aGlza2Vycy5hZHJCHO7E1tYewhtNzkMAAIA/oZwNPwAAAADrQ1U/AAAAAAAAAAAAAAAAAAAAAAUA" +
+            "AABBZWRvbggAAABBbWJlcmFybQAAAAAA8VNlAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAB" +
+            "AAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="),
+        ], [
+            Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="),
+            Convert.FromBase64String("BQABEwAAAF0AAQAAAAAAAAAAAAAAAAAAAAA="),
+            Convert.FromBase64String("BQABAgAAAA4A"),
+            Convert.FromBase64String("BQABBQAAACYAGgAB"),
+        ], Convert.FromBase64String("BQABDwAAADQAAPFTZQAAAAAIAAAAAA=="), [
+            Convert.FromBase64String(
+            "IwAHAAEAAAAAAAAAAwAAACsAAABmcmVlc3R5bGVfPHJhY2U+X21fY2hlc3Rfcm9sbGVkc2x2c2hpcnQuYWRyFQAAAGZyZWVzdHls" +
+            "ZS1zdGl0Y2h1cC1MMQcAAABkeWV0aW506gAAAAAAAAADAAAALwAAAGZyZWVzdHlsZV88cmFjZT5fPGdlbmRlcj5fbGVnc19ib290" +
+            "Y3V0cGFudHMuYWRyGAAAAGZyZWVzdHlsZS1zbWFsbHN0aXRjaC1MMQcAAABkeWV0aW50BgEAAAAAAAAEAAAAJwAAAGZyZWVzdHls" +
+            "ZV88cmFjZT5fbV9mZWV0X3Nob2Vzd3NvY2tzLmFkchIAAABmcmVlc3R5bGUtc3VlZGUtTDEHAAAAZHlldGludOoAAAAAAAAABQAA" +
+            "AAAAAAA="),
+        ]),
     ];
 
     public static readonly FixedPackets Fixed = new FixedPackets(Convert.FromBase64String("BQABAwAAAAECAw=="), Convert.FromBase64String("BQAAAwAAAAECAw=="), Convert.FromBase64String("BQABAAAAAA=="), Convert.FromBase64String("ZgACABQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="), Convert.FromBase64String("jQACAAAAAAAAAAAAAAAAAA=="), Convert.FromBase64String(
@@ -1470,11 +1548,14 @@ internal static class GatewayVectors
             "ZW5kZXI+X2hhaXJfZXllYnJvd3NfYmFsZC5hZHIKAAAAPwAAAAAAAAAJAAAAc2tpbnRvbmUyBAAAAG5vbmUAAAAAAAAAQQAAAAAA" +
             "AAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//////////8AAAAA")),
                 (50010, Convert.FromBase64String(
-            "AAkACgUAATEBAAAjAAcAAQAAAAAAAAADAAAAKwAAAGZyZWVzdHlsZV88cmFjZT5fbV9jaGVzdF9yb2xsZWRzbHZzaGlydC5hZHIV" +
-            "AAAAZnJlZXN0eWxlLXN0aXRjaHVwLUwxBwAAAGR5ZXRpbnTqAAAAAAAAAAMAAAAvAAAAZnJlZXN0eWxlXzxyYWNlPl88Z2VuZGVy" +
-            "Pl9sZWdzX2Jvb3RjdXRwYW50cy5hZHIYAAAAZnJlZXN0eWxlLXNtYWxsc3RpdGNoLUwxBwAAAGR5ZXRpbnQGAQAAAAAAAAQAAAAn" +
-            "AAAAZnJlZXN0eWxlXzxyYWNlPl9tX2ZlZXRfc2hvZXN3c29ja3MuYWRyEgAAAGZyZWVzdHlsZS1zdWVkZS1MMQcAAABkeWV0aW50" +
-            "6gAAAAAAAAAFAAAAAAAAAA==")),
+            "AAkACgUAAXsAAAAjAAYAAQAAAAAAAAABAAAAKwAAAGZyZWVzdHlsZV88cmFjZT5fbV9jaGVzdF9yb2xsZWRzbHZzaGlydC5hZHIV" +
+            "AAAAZnJlZXN0eWxlLXN0aXRjaHVwLUwxBwAAAGR5ZXRpbnTqAAAAAAAAAAMAAAABAAAAAQAAAAAAAAA=")),
+                (50010, Convert.FromBase64String(
+            "AAkACwUAAYIAAAAjAAYAAQAAAAAAAAACAAAALwAAAGZyZWVzdHlsZV88cmFjZT5fPGdlbmRlcj5fbGVnc19ib290Y3V0cGFudHMu" +
+            "YWRyGAAAAGZyZWVzdHlsZS1zbWFsbHN0aXRjaC1MMQcAAABkeWV0aW50BgEAAAAAAAAEAAAAAQAAAAEAAAAAAAAA")),
+                (50010, Convert.FromBase64String(
+            "AAkADAUAAXQAAAAjAAYAAQAAAAAAAAADAAAAJwAAAGZyZWVzdHlsZV88cmFjZT5fbV9mZWV0X3Nob2Vzd3NvY2tzLmFkchIAAABm" +
+            "cmVlc3R5bGUtc3VlZGUtTDEHAAAAZHlldGludOoAAAAAAAAABQAAAAEAAAABAAAAAAAAAA==")),
             ]),
             new ConversationStep(false, 0, [], 30.0, []),
         ]),
@@ -1535,11 +1616,14 @@ internal static class GatewayVectors
             ]),
             new ConversationStep(false, 0, [], 1.0, [
                 (50010, Convert.FromBase64String(
-            "AAkACAUAATEBAAAjAAcAAQAAAAAAAAADAAAAKwAAAGZyZWVzdHlsZV88cmFjZT5fbV9jaGVzdF9yb2xsZWRzbHZzaGlydC5hZHIV" +
-            "AAAAZnJlZXN0eWxlLXN0aXRjaHVwLUwxBwAAAGR5ZXRpbnTqAAAAAAAAAAMAAAAvAAAAZnJlZXN0eWxlXzxyYWNlPl88Z2VuZGVy" +
-            "Pl9sZWdzX2Jvb3RjdXRwYW50cy5hZHIYAAAAZnJlZXN0eWxlLXNtYWxsc3RpdGNoLUwxBwAAAGR5ZXRpbnQGAQAAAAAAAAQAAAAn" +
-            "AAAAZnJlZXN0eWxlXzxyYWNlPl9tX2ZlZXRfc2hvZXN3c29ja3MuYWRyEgAAAGZyZWVzdHlsZS1zdWVkZS1MMQcAAABkeWV0aW50" +
-            "6gAAAAAAAAAFAAAAAAAAAA==")),
+            "AAkACAUAAXsAAAAjAAYAAQAAAAAAAAABAAAAKwAAAGZyZWVzdHlsZV88cmFjZT5fbV9jaGVzdF9yb2xsZWRzbHZzaGlydC5hZHIV" +
+            "AAAAZnJlZXN0eWxlLXN0aXRjaHVwLUwxBwAAAGR5ZXRpbnTqAAAAAAAAAAMAAAABAAAAAQAAAAAAAAA=")),
+                (50010, Convert.FromBase64String(
+            "AAkACQUAAYIAAAAjAAYAAQAAAAAAAAACAAAALwAAAGZyZWVzdHlsZV88cmFjZT5fPGdlbmRlcj5fbGVnc19ib290Y3V0cGFudHMu" +
+            "YWRyGAAAAGZyZWVzdHlsZS1zbWFsbHN0aXRjaC1MMQcAAABkeWV0aW50BgEAAAAAAAAEAAAAAQAAAAEAAAAAAAAA")),
+                (50010, Convert.FromBase64String(
+            "AAkACgUAAXQAAAAjAAYAAQAAAAAAAAADAAAAJwAAAGZyZWVzdHlsZV88cmFjZT5fbV9mZWV0X3Nob2Vzd3NvY2tzLmFkchIAAABm" +
+            "cmVlc3R5bGUtc3VlZGUtTDEHAAAAZHlldGludOoAAAAAAAAABQAAAAEAAAABAAAAAAAAAA==")),
             ]),
             new ConversationStep(false, 0, [], 30.0, []),
         ]),

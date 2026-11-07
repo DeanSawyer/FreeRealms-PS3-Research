@@ -80,7 +80,7 @@ public sealed class GatewayVectorTests
             AssertAllSame(scenario.WorldPackets, Ps3Packets.WorldPackets(character, world, GatewayVectors.UnixTime), label + ": world packets");
             AssertAllSame(scenario.ZoneDone, Ps3Packets.ZoneDonePackets(world.Options, GatewayVectors.UnixTime), label + ": zone done");
             AssertSame(scenario.TimeSync, Ps3Packets.GameTimeSync(GatewayVectors.UnixTime), label + ": game time");
-            AssertSame(scenario.Equipment, Ps3Packets.EquipmentPacket(character, world.Options) ?? [], label + ": EquippedItemsChange");
+            AssertAllSame(scenario.Equipment, Ps3Packets.EquipmentPackets(character, world.Options), label + ": clothes");
         }
     }
 

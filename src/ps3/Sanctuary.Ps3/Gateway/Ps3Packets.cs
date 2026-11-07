@@ -142,18 +142,27 @@ public static class Ps3Packets
     }
 
     /// <summary>
-    /// EquippedItemsChange (PlayerUpdate sub-opcode 7) with the clothes the character creator picked (<see cref="Clothing"/>), or null
-    /// when there is nothing to put on or <c>FR_EQUIP=0</c>. The player data carries no items yet, so this is what dresses the
-    /// character; the gateway sends it after ClientFinishedLoading, once the character exists.
+    /// The packets that dress the character in the clothes the character creator picked (<see cref="Clothing"/>): one EquipItemChange
+    /// (PlayerUpdate sub-opcode 6) per piece, item ids 1, 2, 3... as Sanctuary numbers a new character's items. With
+    /// <c>FR_EQUIP=7</c> one EquippedItemsChange (sub-opcode 7) instead; with <c>FR_EQUIP=0</c> none. The player data carries no items
+    /// yet, so this is what dresses the character; the gateway sends it after ClientFinishedLoading, once the character exists.
     /// </summary>
-    public static byte[]? EquipmentPacket(IReadOnlyDictionary<string, string> character, GatewayOptions options, ulong guid = 1)
+    public static List<byte[]> EquipmentPackets(IReadOnlyDictionary<string, string> character, GatewayOptions options, ulong guid = 1)
     {
-        if (!options.Equip)
-            return null;
-
         var pieces = Clothing.Attachments(character);
 
-        return pieces.Count > 0 ? Clothing.EquippedItemsChange(guid, pieces) : null;
+        if (options.EquipPacket == 0 || pieces.Count == 0)
+            return [];
+
+        if (options.EquipPacket == 7)
+            return [Clothing.EquippedItemsChange(guid, pieces)];
+
+        var packets = new List<byte[]>();
+
+        for (var index = 0; index < pieces.Count; index++)
+            packets.Add(Clothing.EquipItemChange(guid, index + 1, pieces[index], ProfileId));
+
+        return packets;
     }
 
     /// <summary>LobbyGameDefinition (102) sub-opcode 2: the mini-game list, empty. The client reads exactly five zero counts.</summary>

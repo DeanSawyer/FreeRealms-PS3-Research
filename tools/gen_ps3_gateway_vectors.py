@@ -119,6 +119,7 @@ PACKET_SCENARIOS = [
     Scenario("styled character", {}, "FabledRealms", (-128.0, -128.0), CHARACTER_STYLED),
     Scenario("dressed character", {}, "FabledRealms", (-128.0, -128.0), CHARACTER_DRESSED),
     Scenario("dressed character, FR_EQUIP=0", {"FR_EQUIP": "0"}, "FabledRealms", (-128.0, -128.0), CHARACTER_DRESSED),
+    Scenario("dressed character, FR_EQUIP=7", {"FR_EQUIP": " 7 "}, "FabledRealms", (-128.0, -128.0), CHARACTER_DRESSED),
 ]
 
 LOGIN_PAYLOADS = [
@@ -171,7 +172,7 @@ def packet_vectors():
                 array("", [cs_bytes(p) for p in gp.world_packets()], "        "),
                 array("", [cs_bytes(p) for p in gp.zone_done_packets()], "        "),
                 cs_bytes(gp.game_time_sync()),
-                cs_bytes(gp.equipment_packet(character) or b""))
+                array("", [cs_bytes(p) for p in gp.equipment_packets(character)], "        "))
         items.append("new PacketScenario(%s, %s, %s, %d, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)" % (
             fields[0], fields[1], fields[2], fields[3], fields[4], fields[5], fields[6], fields[7], fields[8], fields[9],
             fields[10], fields[11], fields[12], fields[13]))
@@ -430,7 +431,7 @@ def generate():
     add("    byte[][] WorldPackets,")
     add("    byte[][] ZoneDone,")
     add("    byte[] TimeSync,")
-    add("    byte[] Equipment);")
+    add("    byte[][] Equipment);")
     add("")
     add("internal sealed record FixedPackets(byte[] Tunneled, byte[] TunneledUnreliable, byte[] TunneledEmpty, byte[] Lobby, byte[] Queues, byte[] Profile, byte[] ZoneDetailsArgs);")
     add("")

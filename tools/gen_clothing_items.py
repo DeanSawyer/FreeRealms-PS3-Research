@@ -2,8 +2,8 @@
 """Write bootstrap/data/clothing_items.tsv.gz: what the client draws for each piece of clothing.
 
 The character creator sends item definition ids (ItemChest=28216 and so on). To dress the character the server
-sends the client each piece's model, texture alias, tint alias, tint and slot (PlayerUpdate sub-opcode 7,
-EquippedItemsChange; see docs/re/zone-loading.md). Those come from Sanctuary's Resources/ClientItemDefinitions.json,
+sends the client each piece's model, texture alias, tint alias, tint and slot (PlayerUpdate sub-opcode 6,
+EquipItemChange; see docs/re/zone-loading.md). Those come from Sanctuary's Resources/ClientItemDefinitions.json,
 which is 33 MB, so this keeps only what is needed: items of class 1 (the adventurer clothes the creator offers) worn in
 slots 1 to 6 (head, hands, chest, legs, feet, shoulders).
 

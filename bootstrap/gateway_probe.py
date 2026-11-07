@@ -261,14 +261,19 @@ def player_blob(character=None, guid=1):
     return bytes(out)
 
 
-def equipment_packet(character=None, guid=1):
-    """PlayerUpdate sub-opcode 7 (EquippedItemsChange) with the clothes the character creator picked
-    (bootstrap/clothing.py), or None when there is nothing to put on or FR_EQUIP=0. The player data carries no items
-    yet, so this is what dresses the character; it is sent after ClientFinishedLoading, once the character exists."""
-    if os.environ.get("FR_EQUIP", "1").strip() == "0":
-        return None
+def equipment_packets(character=None, guid=1):
+    """The packets that dress the character in the clothes the character creator picked (bootstrap/clothing.py): one
+    EquipItemChange (PlayerUpdate sub-opcode 6) per piece, item ids 1, 2, 3... as Sanctuary numbers a new character's
+    items. FR_EQUIP=7 sends one EquippedItemsChange (sub-opcode 7) instead, which also plays the job change effect;
+    FR_EQUIP=0 sends nothing. The player data carries no items yet, so this is what dresses the character; it is sent
+    after ClientFinishedLoading, once the character exists."""
+    mode = os.environ.get("FR_EQUIP", "1").strip()
     pieces = clothing.attachments(character or {})
-    return clothing.equipped_items_change(guid, pieces) if pieces else None
+    if mode == "0" or not pieces:
+        return []
+    if mode == "7":
+        return [clothing.equipped_items_change(guid, pieces)]
+    return [clothing.equip_item_change(guid, n + 1, piece, PROFILE_ID) for n, piece in enumerate(pieces)]
 
 
 def send_self_to_client(character=None):
@@ -551,16 +556,18 @@ class GatewayProbe:
         self.send_equipment(addr, channel)
 
     def send_equipment(self, addr, channel):
-        """Dress your character (guid 1) in the clothes picked in the character creator (equipment_packet)."""
+        """Dress your character (guid 1) in the clothes picked in the character creator (equipment_packets)."""
         if addr not in self.sessions:
             return
-        packet = equipment_packet(CHARACTER)
-        if packet is None:
+        packets = equipment_packets(CHARACTER)
+        if not packets:
             return
-        LOG.info("gateway: EquippedItemsChange for your character (guid 1): %s (%d bytes)", ", ".join(
-            "slot %d %s" % (slot, model) for model, _t, _a, _tint, _c, slot in clothing.attachments(CHARACTER)), len(packet))
-        _trace("equipment", peer=addr[0], size=len(packet))
-        self.send_reliable(addr, tunneled(packet), channel)
+        LOG.info("gateway: dressing your character (guid 1) with %d packet(s) of sub-opcode %d: %s", len(packets),
+                 struct.unpack_from("<H", packets[0], 2)[0], ", ".join(
+                     "slot %d %s" % (slot, model) for model, _t, _a, _tint, _c, slot in clothing.attachments(CHARACTER)))
+        for packet in packets:
+            _trace("equipment", peer=addr[0], size=len(packet))
+            self.send_reliable(addr, tunneled(packet), channel)
 
     def ready_fallback(self, addr, channel):
         """If the client never says ClientIsReady, send the world-ready packets anyway so the log shows what it
