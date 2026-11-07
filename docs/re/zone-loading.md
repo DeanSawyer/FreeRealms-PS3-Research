@@ -449,3 +449,29 @@ the server logs them. `tools/check_sanctuary_flow.py` checks the order and every
   the 141 reply parser). Which of them fires here is not known; either would show that script or event code ran after the logs.
 * The player data (`SendSelfToClient`) is not a suspect for the stall: the reader (`0xb1e460`) and its finisher (`0x59de8`) contain no wait and
   no loop that depends on the zero counts we send (see `docs/protocol/gateway.md`).
+
+## After the loading screen: the world, and a render crash on the area sky
+
+With the rank fixed (run `fr_test_20261106_173318`) the loading screen drops and the client plays: the player falls from the spawn
+height (y 400) and lands at about y 36 on tile (-4, -4), the client sends movement (opcode 125, about 10 a second) and camera updates
+(126), asks to join the chat channels `WorldArea`, `WorldTrade`, `WorldLfg` and `WorldMembersOnly` (opcode 26), requests store data (66)
+and logs `ClientStartTime.log` and `ClientSystemInfo.log`.
+
+Looking at the sky (or moving until the area sky loads) then breaks the game's render thread. The client opens
+`resources/sky/sky_wilds24.xml` and, within seconds, one of these happens:
+
+| Run | RPCS3 settings | Server | Result |
+|---|---|---|---|
+| `173318` | defaults (FIFO `Atomic`) | AddPc helper sent | `Deep Engine Renderer`: read of `0xc0` in `0x784518` (render command type 6: copy a 16-byte shader constant from the renderer's parameter table, slot 57 holds `0xc0`) |
+| 17:44 (`crash_logs`) | defaults | no AddPc | RSX `Dead FIFO commands queue state` |
+| `175319` | FIFO `Ordered & Atomic` | | hang: the renderer waits on a semaphore for the GPU, the main thread waits on the renderer |
+| `180138` | FIFO `Ordered & Atomic` | no GameTimeSync (`FR_TIME=0`) | read of `0xc0` in `0x784518`, command type 2 (bind the material's 16 texture slots; a slot holds `0xc0`) |
+| `180505` | plus `Accurate RSX reservation access` | | same as `180138` |
+
+Ruled out: the helper character, the game clock, missing or outdated sky assets (all 13 files the sky names are in the packs with the
+manifest's crc; only 1 of 54,146 local assets differs from the manifest), `Ordered & Atomic` and accurate RSX reservations. A driver
+wake-up delay of 200 froze the game at character creation. The bad pointer is `0xc0` every time, which looks like the address of a field
+at offset `0xc0` in an object that does not exist, reached through both a shader constant and a texture slot. `ZoneDetails` names no sky
+(as Sanctuary does for FabledRealms, but that is the 2014 PC client); `FR_SKY` sets one to test whether the 2011 PS3 build needs it.
+The render chain is thread entry `0x7ea570` -> `0xa60fe4` -> `0x35840` -> `0x7519c0` -> scene walk `0xcc73b0` (recursive) -> `0xcc6e50`
+-> `0x784518`, whose command list is at renderer `+3324` (count at `+3320`) and parameter table at `+0x2b8`.

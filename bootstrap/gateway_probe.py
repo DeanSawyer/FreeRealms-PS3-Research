@@ -142,8 +142,12 @@ def configured_zone_type():
         return 2
 
 
-def zone_details(name=None, zone_type=None, tutorial=0, unknown=0, sky="", arena=0, zone_id=1):
-    """Inner packet 43 as the PS3 client (build 1.77) reads it; it must consume every byte."""
+def zone_details(name=None, zone_type=None, tutorial=0, unknown=0, sky=None, arena=0, zone_id=1):
+    """Inner packet 43 as the PS3 client (build 1.77) reads it; it must consume every byte.
+
+    The sky is empty unless FR_SKY names one (for example sky_wilds24.xml): an experiment for the render crash when the
+    camera looks at the area sky (docs/re/zone-loading.md, After the loading screen)."""
+    sky = os.environ.get("FR_SKY", "").strip() if sky is None else sky
     name = configured_zone() if name is None else name
     zone_type = configured_zone_type() if zone_type is None else zone_type
     return (struct.pack("<H", 43) + _string(name) + struct.pack("<iBB", zone_type, tutorial, unknown)
