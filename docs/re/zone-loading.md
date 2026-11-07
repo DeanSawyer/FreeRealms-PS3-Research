@@ -388,9 +388,17 @@ HUD:SetIsInStartingZone [40,18] -> HUD:SetShowNormalState [40,19] -> HUD:showMai
 
 `GetNextJob` walks the `DS_PROFILES` data source inside `while not done do for i = ... do ... end end`; the only way out is a row after the
 active job (wrapping round) whose `tonumber(Rank)` is above 0. The server sent one profile with every field but the id at 0, so the rank was
-0 and the loop never ends. The rank is at offset `0x37` of a 179-byte profile entry (read at blob offset `0x128` by `0xb0924c` and stored at
-profile object `+24`; Sanctuary's field order: after the five unknowns come `Rank`, `RankPercent`, stars). The server now sends rank 1 for
-the starter job (`PROFILE_RANK` in `bootstrap/gateway_probe.py`, `Ps3Packets.ProfileRank` in the C# port).
+0 and the loop never ends. The server now sends rank 1 for the starter job (`PROFILE_RANK` in `bootstrap/gateway_probe.py`,
+`Ps3Packets.ProfileRank` in the C# port).
+
+**Where the rank is.** The job list is a data source class (method table at `0xec9c0c`): its column names come from `0x264ea4` (Id, Name,
+Description, Type, Rank, StarsAvailable, ...: the order of the script's `ProfileDsColumns`), its row count from `0x265020`, its rows are filled by
+`0x2661a8` from the player's own profile list (`player+408`, one row per profile, so our one profile is one row), and its values come from
+`0x2656c0`, which looks the row's id up in the player's profile table and jumps on the column (table at `0x265844`): **Rank returns
+`profile+20`**, RankPercent `profile+24`, Id `profile+0`. The player-data reader stores entry offset `0x33` (blob `0x124`, read at `0xb09788`)
+into `profile+20` and `0x37` into `+24`. So the rank is at entry offset **`0x33`**. A first attempt put the 1 at `0x37` by following
+Sanctuary's field order (the PS3 entry lacks one of its unknown fields before the rank); that set RankPercent, and the run of 2026-11-06 17:26
+still hung in `GetNextJob` (same call stack).
 
 ### Repaired disassembly (why some earlier "no caller" results were unreliable)
 

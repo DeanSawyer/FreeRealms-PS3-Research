@@ -195,7 +195,7 @@ def describe_inner(opcode, inner):
 
 PROFILE_ID = 1          # Clover's DefaultProfileId (the first job a new character has)
 PROFILE_SIZE = 179      # bytes the client reads per profile entry
-PROFILE_RANK_OFFSET = 0x37   # the job's rank inside an entry (traced with tools/ppc_trace.py; Sanctuary's Rank)
+PROFILE_RANK_OFFSET = 0x33   # the job's rank inside an entry: the reader stores it at profile+20, which the job list's Rank column returns
 PROFILE_RANK = 1        # a new character's first job; rank 0 makes the HUD's GetNextJob loop forever
 
 

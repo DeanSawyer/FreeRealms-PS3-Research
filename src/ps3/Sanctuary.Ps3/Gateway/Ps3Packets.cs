@@ -47,8 +47,11 @@ public static class Ps3Packets
     public static byte[] ZoneDetails(string name, int zoneType, int tutorial = 0, int unknown = 0, string sky = "", int arena = 0, int zoneId = 1) =>
         new PacketWriter().U16(43).Str(name).I32(zoneType).U8(tutorial).U8(unknown).Str(sky).U8(arena).I32(zoneId).ToArray();
 
-    /// <summary>Offset of the job's rank inside a profile entry (traced from the client's reader; Sanctuary's <c>Rank</c>).</summary>
-    public const int ProfileRankOffset = 0x37;
+    /// <summary>
+    /// Offset of the job's rank inside a profile entry: the client's reader stores it at profile+20, which the job list's Rank column
+    /// returns (0x37, the next field, is RankPercent).
+    /// </summary>
+    public const int ProfileRankOffset = 0x33;
 
     /// <summary>
     /// Rank of the starter job. It must be above 0: the HUD script <c>GroupHandler:GetNextJob</c>, run from <c>HUD:showMain</c> right

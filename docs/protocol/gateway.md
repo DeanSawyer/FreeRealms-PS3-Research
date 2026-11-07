@@ -121,7 +121,7 @@ profile with id 1 does not.
 
 A profile entry is 179 bytes in this build: nine integers (id, name id, description id, type, icon, three image
 sets, is-combat), a few flags and integers (rank, rank percent, stars), 17 equipment words, eight ability lists
-(each starts with a count) and an ability-experience list. Only the id and the rank (offset `0x37`, set to 1) are filled in; everything
+(each starts with a count) and an ability-experience list. Only the id and the rank (offset `0x33`, set to 1) are filled in; everything
 else is zero. A rank of 0 hangs the client after loading: see `docs/re/zone-loading.md`, *Cause of the stuck loading screen*.
 This differs from Clover's `ClientPcProfile` (no item-class or item maps), so the PS3 build is an older layout.
 
