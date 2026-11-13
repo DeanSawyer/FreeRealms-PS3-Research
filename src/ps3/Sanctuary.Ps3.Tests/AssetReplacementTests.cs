@@ -23,7 +23,8 @@ public sealed class AssetReplacementTests
         using var install = Install();
         var replacement = Enumerable.Range(0, 1000).Select(value => (byte)value).ToArray();
 
-        var backup = AssetReplacement.Replace(install.Root, "CharacterCreatePopUps.GFX", replacement);
+        var backups = AssetReplacement.Replace(install.Root, "CharacterCreatePopUps.GFX", replacement);
+        var backup = backups.Single();
 
         var read = PackIndex.ReadAsset(install.Root, "characterCreatePopUps.gfx")!;
         CollectionAssert.AreEqual(replacement, read.Data);
@@ -32,7 +33,7 @@ public sealed class AssetReplacementTests
         Assert.AreEqual(1000u, AssetManifest.Load(Path.Combine(install.Root, "assets_ps3_manifest.bin")).Find("characterCreatePopUps.gfx")!.Value.Size);
         CollectionAssert.AreEqual(Other, PackIndex.ReadAsset(install.Root, "other.txt")!.Data);
 
-        AssetReplacement.Restore(backup);
+        AssetReplacement.Restore(backups);
 
         CollectionAssert.AreEqual(Original, PackIndex.ReadAsset(install.Root, "characterCreatePopUps.gfx")!.Data);
         Assert.AreEqual((uint)Original.Length, AssetManifest.Load(Path.Combine(install.Root, "assets_ps3_manifest.bin")).Find("characterCreatePopUps.gfx")!.Value.Size);

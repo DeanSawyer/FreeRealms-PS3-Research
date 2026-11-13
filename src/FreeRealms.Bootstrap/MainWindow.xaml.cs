@@ -183,11 +183,19 @@ public partial class MainWindow : Window
     /// <summary>What the panel test changed in the install, to take it out again.</summary>
     private static readonly string PanelBackupFile = Path.Combine(ManagerSettings.DataFolder, "panel_test.json");
 
-    private static AssetBackup? PanelBackup()
+    private static List<AssetBackup>? PanelBackup()
     {
         try
         {
-            return File.Exists(PanelBackupFile) ? JsonSerializer.Deserialize<AssetBackup>(File.ReadAllText(PanelBackupFile)) : null;
+            if (!File.Exists(PanelBackupFile))
+                return null;
+
+            var text = File.ReadAllText(PanelBackupFile);
+
+            // The first version of the test kept one backup, not a list.
+            return text.TrimStart().StartsWith('[')
+                ? JsonSerializer.Deserialize<List<AssetBackup>>(text)
+                : JsonSerializer.Deserialize<AssetBackup>(text) is { } one ? [one] : null;
         }
         catch (Exception exception) when (exception is IOException or JsonException)
         {
@@ -195,7 +203,28 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ShowPanelState() => PanelOutButton.IsEnabled = PanelBackup() is not null;
+    /// <summary>
+    /// Every copy of the game's files the panel test should change: the client folder of Settings and the game RPCS3 runs (beside
+    /// game.elf, and RPCS3's own dev_hdd0), which can be different copies. Only folders that have packs.
+    /// </summary>
+    private List<string> GameFolders()
+    {
+        var candidates = new List<string> { Path.Combine(settings.ClientFolder, "USRDIR"), settings.ClientFolder };
+
+        if (Path.GetDirectoryName(settings.GameElf) is { Length: > 0 } elfFolder)
+            candidates.AddRange([elfFolder, Path.Combine(elfFolder, "USRDIR")]);
+
+        if (Path.GetDirectoryName(settings.Rpcs3Executable) is { Length: > 0 } rpcs3Folder)
+            candidates.Add(Path.Combine(rpcs3Folder, "dev_hdd0", "game", "NPUA30048", "USRDIR"));
+
+        return candidates
+            .Where(folder => folder.Length > 0 && Directory.Exists(folder) && Directory.GetFiles(folder, "assets_ps3_*.pack").Length > 0)
+            .Select(folder => Path.GetFullPath(folder).TrimEnd('\\', '/'))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private void ShowPanelState() => PanelOutButton.IsEnabled = PanelBackup() is { Count: > 0 };
 
     private void PanelIn_Click(object sender, RoutedEventArgs e)
     {
@@ -206,23 +235,46 @@ public partial class MainWindow : Window
 
         try
         {
-            var usrDir = new[] { Path.Combine(settings.ClientFolder, "USRDIR"), settings.ClientFolder }
-                .FirstOrDefault(folder => Directory.Exists(folder) && Directory.GetFiles(folder, "assets_ps3_*.pack").Length > 0)
-                ?? throw new InvalidOperationException("The game's packs (assets_ps3_*.pack) are not in the client folder chosen in Settings.");
+            var folders = GameFolders();
 
-            // A movie already in comes out first, so the pack does not keep growing and the backup stays the original's.
+            if (folders.Count == 0)
+                throw new InvalidOperationException("No game packs (assets_ps3_*.pack) were found: check the client folder, rpcs3.exe and game.elf in Settings.");
+
+            // A movie already in comes out first, so the packs do not keep growing and the backups stay the originals'.
             if (PanelBackup() is { } old)
             {
                 AssetReplacement.Restore(old);
                 File.Delete(PanelBackupFile);
             }
 
-            var backup = AssetReplacement.Replace(usrDir, PanelTarget, File.ReadAllBytes(dialog.FileName));
+            var data = File.ReadAllBytes(dialog.FileName);
+            var backups = new List<AssetBackup>();
 
-            Directory.CreateDirectory(ManagerSettings.DataFolder);
-            File.WriteAllText(PanelBackupFile, JsonSerializer.Serialize(backup));
-            server.Write(LogSeverity.Info, "Manager",
-                $"Select panel test: {Path.GetFileName(dialog.FileName)} is in place of {PanelTarget} ({Path.GetFileName(backup.Pack)}{(backup.Manifest is null ? "; no manifest found" : string.Empty)}).");
+            try
+            {
+                foreach (var folder in folders)
+                {
+                    try
+                    {
+                        backups.AddRange(AssetReplacement.Replace(folder, PanelTarget, data));
+                    }
+                    catch (FileNotFoundException)
+                    {
+                        server.Write(LogSeverity.Warning, "Manager", $"Select panel test: no pack in {folder} lists {PanelTarget}.");
+                    }
+                }
+            }
+            finally
+            {
+                Directory.CreateDirectory(ManagerSettings.DataFolder);
+                File.WriteAllText(PanelBackupFile, JsonSerializer.Serialize(backups));
+            }
+
+            foreach (var backup in backups)
+                server.Write(LogSeverity.Info, "Manager", $"Select panel test: {Path.GetFileName(dialog.FileName)} is in place of {PanelTarget} in {backup.Pack}.");
+
+            if (backups.Count == 0)
+                throw new InvalidOperationException($"No pack lists {PanelTarget}.");
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -234,14 +286,14 @@ public partial class MainWindow : Window
 
     private void PanelOut_Click(object sender, RoutedEventArgs e)
     {
-        if (PanelBackup() is not { } backup)
+        if (PanelBackup() is not { } backups)
             return;
 
         try
         {
-            AssetReplacement.Restore(backup);
+            AssetReplacement.Restore(backups);
             File.Delete(PanelBackupFile);
-            server.Write(LogSeverity.Info, "Manager", $"Select panel test: {PanelTarget} is the game's own again.");
+            server.Write(LogSeverity.Info, "Manager", $"Select panel test: {PanelTarget} is the game's own again ({backups.Count} pack(s)).");
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {

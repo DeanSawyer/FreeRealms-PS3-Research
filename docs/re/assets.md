@@ -69,7 +69,7 @@ its CRC-32 and so does the manifest, so `IsLocalCurrent` (`0x801020`) still read
 check the bytes against the CRC-32. The manifest's size for the asset is set to the new length. Taking it out writes the old
 offset, length and size back and cuts the pack to its old length.
 
-The manager uses it for the select panel test: a `.gfx` chosen on the Characters page goes in place of `characterCreatePopUps.gfx`,
+The manager uses it for the select panel test: a `.gfx` chosen on the Characters page goes in place of `characterCreatePopUps.gfx` in every copy of the game it can find (the client folder, beside `game.elf`, and RPCS3's `dev_hdd0`),
 the movie of the select screen's prompt (window `wndCharacterCreatePopups`, 550 x 650), to see whether the PC client's
 `characterSelectV2.gfx` (CFX version 10, 425 x 525, exporter 3.4; the PS3's own movies are version 8) shows on the PS3.
 

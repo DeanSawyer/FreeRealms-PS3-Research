@@ -33,29 +33,17 @@ public static class AssetReplacement
 {
     private const string ManifestName = "assets_ps3_manifest.bin";
 
-    /// <summary>Puts <paramref name="data"/> in place of the asset <paramref name="name"/> (case-insensitive) of the install in <paramref name="usrDir"/>.</summary>
+    /// <summary>
+    /// Puts <paramref name="data"/> in place of the asset <paramref name="name"/> (case-insensitive) in every pack of the install in
+    /// <paramref name="usrDir"/> that lists it. One backup per pack; the first also holds the manifest's old size.
+    /// </summary>
     /// <exception cref="FileNotFoundException">No pack of the install lists the asset.</exception>
-    public static AssetBackup Replace(string usrDir, string name, ReadOnlySpan<byte> data)
+    public static IReadOnlyList<AssetBackup> Replace(string usrDir, string name, ReadOnlySpan<byte> data)
     {
-        var (pack, position, offset, length) = FindEntry(usrDir, name) ?? throw new FileNotFoundException($"No pack in {usrDir} lists {name}.");
+        var entries = FindEntries(usrDir, name);
 
-        long packLength;
-        long newOffset;
-
-        using (var stream = new FileStream(pack, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
-        {
-            packLength = stream.Length;
-            newOffset = (packLength + 15) & ~15L;
-
-            if (newOffset + data.Length > uint.MaxValue)
-                throw new IOException($"{Path.GetFileName(pack)} would grow past 4 GB.");
-
-            stream.SetLength(newOffset);
-            stream.Seek(newOffset, SeekOrigin.Begin);
-            stream.Write(data);
-
-            WriteEntry(stream, position, (uint)newOffset, (uint)data.Length);
-        }
+        if (entries.Count == 0)
+            throw new FileNotFoundException($"No pack in {usrDir} lists {name}.");
 
         var manifest = FindManifest(usrDir);
         long manifestPosition = -1;
@@ -72,7 +60,40 @@ public static class AssetReplacement
             manifest = null;
         }
 
-        return new AssetBackup(usrDir, name, pack, position, offset, length, packLength, manifest, manifestPosition, manifestSize);
+        var backups = new List<AssetBackup>();
+
+        foreach (var (pack, position, offset, length) in entries)
+        {
+            long packLength;
+
+            using (var stream = new FileStream(pack, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
+            {
+                packLength = stream.Length;
+                var newOffset = (packLength + 15) & ~15L;
+
+                if (newOffset + data.Length > uint.MaxValue)
+                    throw new IOException($"{Path.GetFileName(pack)} would grow past 4 GB.");
+
+                stream.SetLength(newOffset);
+                stream.Seek(newOffset, SeekOrigin.Begin);
+                stream.Write(data);
+
+                WriteEntry(stream, position, (uint)newOffset, (uint)data.Length);
+            }
+
+            backups.Add(backups.Count == 0
+                ? new AssetBackup(usrDir, name, pack, position, offset, length, packLength, manifest, manifestPosition, manifestSize)
+                : new AssetBackup(usrDir, name, pack, position, offset, length, packLength, null, -1, 0));
+        }
+
+        return backups;
+    }
+
+    /// <summary>Undoes <see cref="Replace"/> (the backups in any order).</summary>
+    public static void Restore(IEnumerable<AssetBackup> backups)
+    {
+        foreach (var backup in backups)
+            Restore(backup);
     }
 
     /// <summary>Undoes <see cref="Replace"/>.</summary>
@@ -101,11 +122,13 @@ public static class AssetReplacement
         return File.Exists(top) ? top : Directory.EnumerateFiles(usrDir, ManifestName, SearchOption.AllDirectories).FirstOrDefault();
     }
 
-    /// <summary>The pack listing the asset, where its entry's offset field is, and the entry's offset and length.</summary>
-    internal static (string Pack, long Position, uint Offset, uint Length)? FindEntry(string usrDir, string name)
+    /// <summary>Every pack entry listing the asset: the pack, where the entry's offset field is, and its offset and length.</summary>
+    internal static List<(string Pack, long Position, uint Offset, uint Length)> FindEntries(string usrDir, string name)
     {
+        var found = new List<(string Pack, long Position, uint Offset, uint Length)>();
+
         if (!Directory.Exists(usrDir))
-            return null;
+            return found;
 
         var packs = Directory.GetFiles(usrDir, "assets_ps3_*.pack");
         Array.Sort(packs, StringComparer.Ordinal);
@@ -137,9 +160,9 @@ public static class AssetReplacement
 
                     if (string.Equals(entryName, name, StringComparison.OrdinalIgnoreCase))
                     {
-                        return (pack, chunk + fields,
+                        found.Add((pack, chunk + fields,
                             BinaryPrimitives.ReadUInt32BigEndian(block.AsSpan(fields)),
-                            BinaryPrimitives.ReadUInt32BigEndian(block.AsSpan(fields + 4)));
+                            BinaryPrimitives.ReadUInt32BigEndian(block.AsSpan(fields + 4))));
                     }
 
                     position = fields + 12;
@@ -152,7 +175,7 @@ public static class AssetReplacement
             }
         }
 
-        return null;
+        return found;
     }
 
     private static void WriteEntry(FileStream stream, long position, uint offset, uint length)
