@@ -220,7 +220,8 @@ public sealed class Ps3WebService
                         _options.Replies.Detail,
                         string.Join(", ", characters.Select(character => $"{character.Name} (guid {character.Guid})")));
 
-                    return Ps3Replies.AccountInfo(characters, style, _options.Replies.Detail, newCharacterStop: true);
+                    // FR_NEW_CHARACTER_STOP=0 leaves the wheel's "New character" stop out (to test turning between saved characters only).
+                    return Ps3Replies.AccountInfo(characters, style, _options.Replies.Detail, newCharacterStop: Environment.GetEnvironmentVariable("FR_NEW_CHARACTER_STOP") != "0");
                 }
 
             case Ps3ReplyKind.CharacterCreate:
