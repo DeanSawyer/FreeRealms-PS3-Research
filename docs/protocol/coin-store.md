@@ -147,4 +147,14 @@ EnablePaymentSources (43) is two ints on the PS3 (reader `0x83190`), not the PC'
   before the store categories.*
 - The payment sources were refused.
 
+**How the game lists them** (read from `game.elf`, not checked in RPCS3 yet):
+- **PSN product data:** after the store arrives, the commerce processor (`0x42ae60`) asks PSN for one product per store item
+  (`%s-I%05d0000000000`, 60 per request: 58 requests for 3,461 items). It does not check the answers, so the 58 failures without PSN
+  end the same way as answers would: *OnMarketplaceReady* (true).
+- **The Station Cash list** (`0x23d778`) goes through the main store (id 1) and keeps an item when its category group (third int) is
+  in the category groups (42) and one of that group's categories is the chosen category or under it (`0x239f3c`, tree check `0x8db540`).
+- **The coin store** is ready (`0x1321c0`) when every listed item's definition is known (the client's definition table). If one is
+  missing, `InitializeSearchEngine` (`0x134f54`) asks for the missing ones (sub-opcode 2) once; the screen shows *loading* until the
+  answer (sub-opcode 3) raises *HandlerCoinStore.OnInitializeSearchEngine*.
+
 Buying with Station Cash (place order) is not answered yet.

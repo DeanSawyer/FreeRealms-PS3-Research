@@ -18,6 +18,9 @@ public static partial class Reports
     [GeneratedRegex(@"PAT|patch|assets_ps3|\.gcnk|\.gzne|FabledRealms|\.cob|\.odd|FreeRealms\.log|GameRuntimeTerrain|fatal|terminated|Call stack|Registers|Access violation|main_thread|LoadingScreenThread", RegexOptions.IgnoreCase)]
     private static partial Regex Rpcs3Interest();
 
+    [GeneratedRegex(@"Script event|store|market|coin|commerce|product|categor|serialize|search|Lua|script|error|fail", RegexOptions.IgnoreCase)]
+    private static partial Regex StoreInterest();
+
     /// <summary>Where report zips go: the Desktop, or the manager's folder when there is none.</summary>
     public static string ReportFolder
     {
@@ -207,7 +210,12 @@ public static partial class Reports
         {
             if (File.Exists(tty))
             {
-                File.WriteAllLines(Path.Combine(folder, "game_log_tail.txt"), ReadLines(tty).TakeLast(4000));
+                var game = ReadLines(tty);
+
+                File.WriteAllLines(Path.Combine(folder, "game_log_tail.txt"), game.TakeLast(20000));
+
+                // The store's lines on their own, since the HTTP and asset lines bury them.
+                File.WriteAllLines(Path.Combine(folder, "game_log_store.txt"), game.Where(line => StoreInterest().IsMatch(line)).TakeLast(5000));
                 break;
             }
         }

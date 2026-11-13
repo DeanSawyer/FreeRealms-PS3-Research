@@ -51,10 +51,16 @@ it had been applied. The padding `0xea0a20`–`0xea0a58` is left for the *select
 
 **What it does:** the game logs its own messages (for example *Failed to serialize InGamePurchaseStoreItemsResponsePacket packet.*)
 through one routine, `0x163a8` (level, logger, format, arguments), which drops them unless a debug level is set. The fix hooks its
-first instruction: the code in the zero padding at `0xe86e40`-`0xe86f14` (nothing refers to it) writes the message's format text, up
-to 400 characters and unformatted (a message that is only `%s`, as the scripts' errors are, gets its text: the first argument, read
-when it points into main memory or the stack; version 1.1), with `sys_tty_write` (syscall 403, channel 0), then runs the replaced instruction and goes on. RPCS3
-keeps the lines in `TTY.log`, which the Server Manager's test report copies as `game_log_tail.txt`.
+first instruction and writes each message with `sys_tty_write` (syscall 403, channel 0), then runs the replaced instruction and goes
+on. RPCS3 keeps the lines in `TTY.log`, which the Server Manager's test report copies as `game_log_tail.txt`.
+
+- **Version 1.2:** the message is formatted with the game's own `vsnprintf` (`0xa30ff8`, the one its `snprintf` at `0xa4cfd0` calls),
+  so the values are in it (*Added/Updated new store successfully - Store: 1, Count: 3461*), up to 999 characters.
+- It also writes the name of each script event the Marketplace and the coin store raise, as *Script event Handler.Event*: the hooks
+  at `0x87c14` (a `HandlerInGamePurchase` event, such as *OnMarketplaceReady*) and `0x133038` (a handler's event, such as
+  *HandlerCoinStore.OnInitializeSearchEngine*).
+- The code is in the zero padding at `0xe86e40`-`0xe87014` (nothing refers to it).
+- Versions 1.0 and 1.1 wrote the format text unformatted.
 
 ## Marketplace without PSN
 
