@@ -18,6 +18,9 @@ public static partial class Reports
     [GeneratedRegex(@"PAT|patch|assets_ps3|\.gcnk|\.gzne|FabledRealms|\.cob|\.odd|FreeRealms\.log|GameRuntimeTerrain|fatal|terminated|Call stack|Registers|Access violation|main_thread|LoadingScreenThread", RegexOptions.IgnoreCase)]
     private static partial Regex Rpcs3Interest();
 
+    [GeneratedRegex(@"Script event|store|market|coin|commerce|product|categor|serialize|search|Lua|script|error|fail", RegexOptions.IgnoreCase)]
+    private static partial Regex StoreInterest();
+
     /// <summary>Where report zips go: the Desktop, or the manager's folder when there is none.</summary>
     public static string ReportFolder
     {
@@ -100,8 +103,41 @@ public static partial class Reports
         WriteServerLog(folder, log().Where(entry => entry.Time >= started));
         WriteRpcs3(folder, rpcs3Folder);
         WriteTraces(folder);
+        WriteClientData(folder, settings.ClientFolder);
 
         return Zip(folder);
+    }
+
+    /// <summary>
+    /// The game's own Marketplace tables and character select movies, read from its packs, so a report shows what the store screen
+    /// expects and how the select screens are built (characterCreateSelect is the select bar the PS3 never shows).
+    /// </summary>
+    private static readonly string[] ClientDataFiles =
+    [
+        "ClientStorePortalCategories.txt", "ClientStoreBillboardPanels.txt", "ClientStoreBillboards.txt",
+        "characterCreateSelect.gfx", "characterNameScreen.gfx", "characterCreate.gfx", "characterCreateType.gfx",
+    ];
+
+    private static void WriteClientData(string folder, string clientFolder)
+    {
+        try
+        {
+            foreach (var name in ClientDataFiles)
+            {
+                foreach (var usrDir in new[] { Path.Combine(clientFolder, "USRDIR"), clientFolder })
+                {
+                    if (Sanctuary.Ps3.Assets.PackIndex.ReadAsset(usrDir, name) is { } asset)
+                    {
+                        File.WriteAllBytes(Path.Combine(folder, "client_" + name), asset.Data);
+                        break;
+                    }
+                }
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            File.WriteAllText(Path.Combine(folder, "client_data_error.txt"), exception.Message);
+        }
     }
 
     /// <summary>Logs and traces as they are now, without RPCS3: for a report at any time. Returns the zip's path.</summary>
@@ -120,6 +156,7 @@ public static partial class Reports
             WriteRpcs3(folder, Path.GetDirectoryName(settings.Rpcs3Executable)!);
 
         WriteTraces(folder);
+        WriteClientData(folder, settings.ClientFolder);
 
         return Zip(folder);
     }
@@ -171,6 +208,21 @@ public static partial class Reports
         var applied = kept.Take(Math.Max(0, kept.Count - 1500)).Where(line => line.Contains("PAT: Applied", StringComparison.Ordinal));
 
         File.WriteAllLines(Path.Combine(folder, "rpcs3_log_filtered.txt"), applied.Concat(kept.TakeLast(1500)));
+
+        // The game's own log lines, written to the TTY by the "game log to TTY" fix (RPCS3 keeps them in TTY.log beside RPCS3.log).
+        foreach (var tty in new[] { Path.Combine(rpcs3Folder, "log", "TTY.log"), Path.Combine(rpcs3Folder, "TTY.log") })
+        {
+            if (File.Exists(tty))
+            {
+                var game = ReadLines(tty);
+
+                File.WriteAllLines(Path.Combine(folder, "game_log_tail.txt"), game.TakeLast(20000));
+
+                // The store's lines on their own, since the HTTP and asset lines bury them.
+                File.WriteAllLines(Path.Combine(folder, "game_log_store.txt"), game.Where(line => StoreInterest().IsMatch(line)).TakeLast(5000));
+                break;
+            }
+        }
 
         foreach (var name in new[] { "patch_config.yml", "log.yml", "config.yml" })
         {

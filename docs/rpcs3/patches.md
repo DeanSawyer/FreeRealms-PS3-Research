@@ -46,3 +46,46 @@ when they differ, binds the wanted one through `0x91d2ac` with fields `+256` and
 **Fix:** both paths that load the wanted state (`0x7845b8` and `0x785170`) jump to a check in the unused padding at
 `0xea0a5c`–`0xea0a7c` (before the constructor list at `0xea0a80`): an empty state skips the bind and goes on at `0x7845e0`, as if
 it had been applied. The padding `0xea0a20`–`0xea0a58` is left for the *select exceptfds* patch.
+
+## Game log to TTY
+
+**What it does:** the game logs its own messages (for example *Failed to serialize InGamePurchaseStoreItemsResponsePacket packet.*)
+through one routine, `0x163a8` (level, logger, format, arguments), which drops them unless a debug level is set. The fix hooks its
+first instruction and writes each message with `sys_tty_write` (syscall 403, channel 0), then runs the replaced instruction and goes
+on. RPCS3 keeps the lines in `TTY.log`, which the Server Manager's test report copies as `game_log_tail.txt`.
+
+- **Version 1.2:** the message is formatted with the game's own `vsnprintf` (`0xa30ff8`, the one its `snprintf` at `0xa4cfd0` calls),
+  so the values are in it (*Added/Updated new store successfully - Store: 1, Count: 3461*), up to 999 characters.
+- It also writes the name of each script event the Marketplace and the coin store raise, as *Script event Handler.Event*: the hooks
+  at `0x87c14` (a `HandlerInGamePurchase` event, such as *OnMarketplaceReady*) and `0x133038` (a handler's event, such as
+  *HandlerCoinStore.OnInitializeSearchEngine*).
+- **Version 1.3:** also the game's debug output (`0xc7134`, the client's slot 204), as *Debug: ...*: the store lists' jobs
+  (*InGamePurchaseDataSource finished job N*, N being the rows) and the Marketplace support data messages.
+- The code is in the zero padding at `0xe86e40`-`0xe87090` (nothing refers to it).
+- Versions 1.0 and 1.1 wrote the format text unformatted.
+
+## Marketplace without PSN
+
+**Symptom:** the Marketplace and its coin store tab open but show nothing. The game's log has 58 times *ERROR in GetProductInfoList:
+sceNpCommerce2InitGetProductInfoListResult failed* (CommerceProcessorPsn) and never *MarketPlace System Support Data Complete*.
+
+**Cause:** the PS3 Marketplace gets its Station Cash product data from PSN (`sceNpCommerce2`), which RPCS3 cannot reach. The commerce
+processor (`0x42ae60`) reports to its listener when it is done, `ready(true)` (`0x42b078`, `0x42b10c`), or when fetching failed,
+`ready(false)` (`0x42aed8`). The listener is the Marketplace's *OnMarketplaceReady* (`0x8c1dc`, through the thunk `0xaa7348`), which on
+true checks the portal categories against the server's store (`0x96088`) and tells the screen it may show the store.
+
+**Fix:** the failure path reports `ready(true)` too (`li r4, 0` → `li r4, 1` at `0x42aed8`). Not checked in RPCS3 yet.
+
+## Marketplace store list (test)
+
+**Symptom:** the Station Cash shop opens with only *All Items* and *Hot New Items*, and no items, although the game took the store
+(*Added/Updated new store successfully - Store: 1, Count: 3461*), the Marketplace was ready and its search setup finished.
+
+**What the game does:** the shop's list is the *BaseClient.InGamePurchase.StoreItems* datasource (the screen at
+manager + `0x10000` + 22964, its datasource at screen + 4). It builds its rows (`0x23d778`) from a list of store item ids it keeps
+(datasource + 100), filtered by the chosen category (`0x239f3c`). Only the item preview, search results, mannequin and minigame ad
+lists are filled (`0x2393b8`); nothing found so far fills it for the main store.
+
+**Test:** when a store's items are gone through (`0x95d70`, when the store arrives and when the Marketplace is ready), each item not
+already in the list is added with `0x2393b8`. The hook replaces `lwz r11, 12(r28)` at `0x95ef8`; the code is at `0xe87090`-`0xe87100`.
+

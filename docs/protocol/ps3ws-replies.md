@@ -120,17 +120,29 @@ for testing.
 
 Whatever character select shows, the game server sends the saved character's full appearance and clothes in the world.
 
-The list is kept in `characters.json` (`--characters`; by default in the Server Manager's folder,
-`%LOCALAPPDATA%\FreeRealmsPS3Server`), written after every change and read when the server starts. A file that cannot be read is
-renamed to `characters.json.unreadable-<time>` instead of being overwritten.
+The list is kept in a database laid out like Sanctuary's (`Sanctuary.Database`: the tables Users, Characters, Items, Profiles and
+ProfileItems; code in `src/ps3/Sanctuary.Ps3/Database`), written after every change and read when the server starts:
+- **SQLite** by default: `characters.db` (`--characters`; by default in the Server Manager's folder,
+  `%LOCALAPPDATA%\FreeRealmsPS3Server`). A database that cannot be read is renamed to `characters.db.unreadable-<time>` instead
+  of being overwritten.
+- **MySQL** when `FR_MYSQL` holds a connection string (`Server=...;Database=...;User=...;Password=...`), with `FR_MYSQL_VERSION`
+  for the server's version as Sanctuary's `VersionString` (`8.0.21-mysql`, `10.5.3-mariadb`; asked of the server when not set).
+
+The tables are made the first time the database is opened. The `characters.json` of before (next to `characters.db`) is imported
+into a new database once and renamed to `characters.json.imported`.
+
+The columns follow Sanctuary's `DbCharacter`, `DbItem` and `DbProfile`; the PS3 server also keeps the zone a position is in, the
+third rotation, whether the starting coins were given, the creator's request as it came (`CreateValues`, which the game server
+builds the character from), and in `ProfileItems` each worn item's slot and the order the slots were filled.
 
 Besides the creator's choices, each character keeps its **progress**, like the item, profile, coin and position columns of
 Sanctuary's `DbCharacter`: the items it owns, each job's equipment (slots in the order they were filled), the active job, the coins
 and where it stood. The game server writes it after every equip, unequip and job switch, every 15 seconds while the character moves,
 and when the client leaves (Sanctuary saves the position then); a returning character logs in with it: the player data's item list,
 job list, active job and position come from it, and the character is dressed in its active job's equipment. A character that never
-changed anything starts as a new one (Sanctuary's starter items and spawn point) until it does. Nothing changes coins yet; the coin
-store will.
+changed anything starts as a new one (Sanctuary's starter items and spawn point) until it does. The [coin store](coin-store.md)
+changes the coins and the items' counts (each saved item has a count, 1 when missing), and the progress records whether the character
+has had its starting coins.
 
 The position comes from the client's position update, inner opcode 125. On the PS3 it is 40 bytes, not the 44 of Sanctuary's
 `PlayerUpdatePacketUpdatePosition`: `u16` opcode, `u64` guid, position x, y, z and rotation x, y, z as `f32`, a state byte, an

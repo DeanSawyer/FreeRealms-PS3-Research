@@ -39,9 +39,14 @@ public sealed class Inventory
     public const int JobSwitchEffect = 4005;
 
     // Definition fields (Items.FieldKinds order)
-    private const int FieldIconTint = 4, FieldClass = 8, FieldSlot = 10, FieldModel = 13, FieldTexture = 14, FieldType = 16, FieldComposite = 21, FieldTintAlias = 30;
+    private const int FieldIconTint = 4, FieldClass = 8, FieldSlot = 10, FieldModel = 13, FieldTexture = 14, FieldType = 16, FieldComposite = 21, FieldMaxStack = 28, FieldTintAlias = 30;
+
+    /// <summary>Sanctuary ItemDefinitionHelper.PetClothingItemType and PetUtilityItemType: bought as plain items.</summary>
+    private const int PetClothingItemType = 3, PetUtilityItemType = 4;
 
     private readonly Dictionary<int, (int Definition, int Tint)> _items = [];
+    private readonly Dictionary<int, int> _counts = [];
+    private int _transactions;
     private readonly Dictionary<int, OrderedDictionary<int, int>> _equipment = [];
     private readonly Dictionary<int, int[]> _classes;
     private readonly bool _itemClasses;
@@ -60,7 +65,10 @@ public sealed class Inventory
     public Inventory(Loadout loadout, GatewayOptions options, ulong guid = 1)
     {
         foreach (var item in loadout.Items)
+        {
             _items[item.Id] = (item.Definition, item.Tint);
+            _counts[item.Id] = item.Count > 0 ? item.Count : 1;
+        }
 
         foreach (var job in Jobs.Selected(options.Jobs))
         {
@@ -79,12 +87,18 @@ public sealed class Inventory
         Active = _equipment.ContainsKey(loadout.ActiveJob) || _equipment.Count == 0 ? loadout.ActiveJob : Jobs.StarterJob;
     }
 
-    /// <summary>The character's coins (nothing changes them yet; the coin store will).</summary>
+    /// <summary>The character's coins (the coin store changes them).</summary>
     public int Coins { get; private set; }
+
+    /// <summary>Adds <paramref name="coins"/> (the starting coins), stopping at int.MaxValue.</summary>
+    public void GiveCoins(int coins) => Coins = (int)Math.Clamp((long)Coins + coins, 0, int.MaxValue);
+
+    /// <summary>How many of an item the character has (0 when it has none).</summary>
+    public int Count(int itemId) => _items.ContainsKey(itemId) ? _counts.GetValueOrDefault(itemId, 1) : 0;
 
     /// <summary>What the character has now, to save: the items, each job's equipment in order, the active job and the coins.</summary>
     public Loadout Snapshot() => new(
-        [.. _items.OrderBy(pair => pair.Key).Select(pair => new OwnedItem(pair.Key, pair.Value.Definition, pair.Value.Tint))],
+        [.. _items.OrderBy(pair => pair.Key).Select(pair => new OwnedItem(pair.Key, pair.Value.Definition, pair.Value.Tint, Count(pair.Key)))],
         _equipment.ToDictionary(pair => pair.Key, pair => (IReadOnlyDictionary<int, int>)new OrderedDictionary<int, int>(pair.Value)),
         Active,
         Coins);
@@ -215,6 +229,165 @@ public sealed class Inventory
             replies.Add(new NamedPacket("EquippedItemsChange (others)", Clothing.EquippedItemsChange(_guid, pieces)));
 
         replies.Add(new NamedPacket("AbilitySetDefinition", SanctuaryFlow.Toolbar(Active)));
+
+        return replies;
+    }
+
+    /// <summary>
+    /// The replies to a coin store packet (<see cref="CoinStore"/>, opcode 165) or an item definition request (PlayerUpdate 35/34), or null
+    /// when <paramref name="inner"/> is neither. <paramref name="now"/> is the Unix time in seconds for the transaction record.
+    /// </summary>
+    public List<NamedPacket>? HandleCoinStore(byte[] inner, long now, bool member = true)
+    {
+        if (inner.Length >= 8 && BinaryPrimitives.ReadUInt16LittleEndian(inner) == 35 && BinaryPrimitives.ReadUInt16LittleEndian(inner.AsSpan(2)) == 34)
+        {
+            // PlayerUpdate ItemDefinitionRequest: the definition, as Sanctuary's handler sends it (one at a time here).
+            var id = BinaryPrimitives.ReadInt32LittleEndian(inner.AsSpan(4));
+
+            return Items.Definitions.ContainsKey(id) ? [new NamedPacket($"ItemDefinition {id}", Items.ItemDefinition(id))] : [];
+        }
+
+        switch (CoinStore.Sub(inner))
+        {
+            case CoinStore.ItemDefinitionsRequestSub when CoinStore.ReadDefinitionsRequest(inner) is { } ids:
+            {
+                // Sanctuary answers success with the same ids (its definitions go out through the PlayerUpdate request); the PS3 also
+                // gets the definitions it asked for, so the store can show them.
+                var replies = ids.Distinct().Where(Items.Definitions.ContainsKey).Take(CoinStore.DefinitionBatch)
+                    .Select(id => new NamedPacket($"ItemDefinition {id}", Items.ItemDefinition(id)))
+                    .ToList();
+
+                replies.Add(new NamedPacket("CoinStoreItemDefinitionsResponse", CoinStore.ItemDefinitionsResponse(true, ids)));
+
+                return replies;
+            }
+
+            case CoinStore.BuyRequestSub when CoinStore.ReadBuy(inner) is { } buy:
+                return Buy(buy, now, member);
+
+            case CoinStore.SellRequestSub when CoinStore.ReadSell(inner) is { } sell:
+                return Sell(sell, now);
+
+            case CoinStore.DynamicListRequestSub:
+                return [new NamedPacket("CoinStoreItemDynamicListUpdateResponse", CoinStore.DynamicListUpdateResponse())];
+
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// Sanctuary CoinStoreSellToClientRequestPacketHandler (the player buys). The definition is the store id % the community colour
+    /// step and must be of an item type Sanctuary sells as an item; the price is the definition's cost (a member's: less the member
+    /// discount) times the quantity; the tint is the one asked for only when the store item has a tint group, otherwise the icon tint;
+    /// a stackable item goes on the stack of the same definition and tint, within its maximum stack size. Replies: ItemAdd (a new item)
+    /// or ItemUpdate, CoinCount and TransactionComplete. Pets (type 2) are not sold here: this server has no pets. A quantity below 1
+    /// is refused (Sanctuary checks it only for pets).
+    /// </summary>
+    public List<NamedPacket> Buy(CoinStoreBuyRequest request, long now, bool member = true)
+    {
+        List<NamedPacket> Fail(CoinStoreResult result) =>
+            [new NamedPacket($"CoinStoreTransactionComplete {result}", CoinStore.TransactionComplete(result, 0, new CoinStoreTransaction(CoinStoreTransactionType.Buy)))];
+
+        var definition = request.Definition % CoinStore.CommunityColourIdStep;
+
+        if (!Items.Definitions.TryGetValue(definition, out var row))
+            return Fail(CoinStoreResult.InvalidItem);
+
+        if (Items.Int(row, FieldType) is not (1 or PetClothingItemType or PetUtilityItemType or 12))
+            return Fail(CoinStoreResult.Error);
+
+        if (request.Quantity < 1)
+            return Fail(CoinStoreResult.InvalidQuantity);
+
+        var total = (long)CoinStore.Price(row, member) * request.Quantity;
+
+        if (Coins < total)
+            return Fail(CoinStoreResult.NotEnoughCoins);
+
+        var hasTintGroup = CoinStore.Catalog.TryGetValue(definition, out var storeItem) && storeItem.TintGroupId != 0;
+        var tint = hasTintGroup ? request.Tint : Items.Int(row, FieldIconTint);
+        var owned = _items.Where(pair => pair.Value.Definition == definition && (!hasTintGroup || pair.Value.Tint == tint)).Sum(pair => (long)Count(pair.Key));
+        var maxStack = Items.Int(row, FieldMaxStack);
+
+        if (maxStack > 0 && owned + request.Quantity > maxStack)
+            return Fail(CoinStoreResult.InvalidQuantity);
+
+        var existing = _items.Where(pair => pair.Value.Definition == definition && pair.Value.Tint == tint).Select(pair => (int?)pair.Key).FirstOrDefault();
+        var itemId = existing ?? (_items.Count == 0 ? 1 : _items.Keys.Max() + 1);
+
+        _items[itemId] = (definition, tint);
+        _counts[itemId] = (int)Math.Min((long)(existing is null ? 0 : Count(itemId)) + request.Quantity, int.MaxValue);
+        Coins = (int)(Coins - total);
+
+        var replies = new List<NamedPacket>
+        {
+            existing is null
+                ? new NamedPacket($"ItemAdd {itemId}", Items.ItemAdd(new OwnedItem(itemId, definition, tint, _counts[itemId]), _counts[itemId]))
+                : new NamedPacket($"ItemUpdate {itemId}", CoinStore.ItemUpdate(itemId, _counts[itemId])),
+            new NamedPacket("CoinCount", CoinStore.CoinCount(Coins)),
+        };
+
+        var record = new CoinStoreTransaction(CoinStoreTransactionType.Buy, 0, ++_transactions, now, definition, tint, request.Quantity);
+
+        replies.Add(new NamedPacket("CoinStoreTransactionComplete Success", CoinStore.TransactionComplete(CoinStoreResult.Success, itemId, record)));
+
+        return replies;
+    }
+
+    /// <summary>
+    /// Sanctuary CoinStoreBuyFromClientRequestPacketHandler (the player sells): the item must be owned in that quantity; the coins go up
+    /// by the definition's resell value times the quantity. Replies: ItemDelete (all of it sold) or ItemUpdate, CoinCount and
+    /// TransactionComplete. A sold item is also taken out of every job's equipment, so the saved character never wears an item it no
+    /// longer has. A quantity below 1 is refused.
+    /// </summary>
+    public List<NamedPacket> Sell(CoinStoreSellRequest request, long now)
+    {
+        List<NamedPacket> Fail(CoinStoreResult result) =>
+            [new NamedPacket($"CoinStoreTransactionComplete {result}", CoinStore.TransactionComplete(result, 0, new CoinStoreTransaction(CoinStoreTransactionType.Sell)))];
+
+        if (!_items.TryGetValue(request.ItemGuid, out var item))
+            return Fail(CoinStoreResult.InvalidItem);
+
+        var count = Count(request.ItemGuid);
+
+        if (request.Quantity < 1 || count < request.Quantity)
+            return Fail(CoinStoreResult.InvalidQuantity);
+
+        if (!Items.Definitions.ContainsKey(item.Definition))
+            return Fail(CoinStoreResult.InvalidItem);
+
+        var sold = count == request.Quantity;
+
+        if (sold)
+        {
+            _items.Remove(request.ItemGuid);
+            _counts.Remove(request.ItemGuid);
+
+            foreach (var slots in _equipment.Values)
+            {
+                foreach (var slot in slots.Where(pair => pair.Value == request.ItemGuid).Select(pair => pair.Key).ToList())
+                    slots.Remove(slot);
+            }
+        }
+        else
+        {
+            _counts[request.ItemGuid] = count - request.Quantity;
+        }
+
+        GiveCoins((int)Math.Min((long)CoinStore.ResellValue(item.Definition) * request.Quantity, int.MaxValue));
+
+        var replies = new List<NamedPacket>
+        {
+            sold
+                ? new NamedPacket($"ItemDelete {request.ItemGuid}", CoinStore.ItemDelete(request.ItemGuid))
+                : new NamedPacket($"ItemUpdate {request.ItemGuid}", CoinStore.ItemUpdate(request.ItemGuid, count - request.Quantity)),
+            new NamedPacket("CoinCount", CoinStore.CoinCount(Coins)),
+        };
+
+        var record = new CoinStoreTransaction(CoinStoreTransactionType.Sell, 0, ++_transactions, now, item.Definition, item.Tint, request.Quantity);
+
+        replies.Add(new NamedPacket("CoinStoreTransactionComplete Success", CoinStore.TransactionComplete(CoinStoreResult.Success, request.ItemGuid, record)));
 
         return replies;
     }

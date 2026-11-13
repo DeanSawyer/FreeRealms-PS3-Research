@@ -10,6 +10,10 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="ZLibDotNet" />
+    <!-- The characters' database, as Sanctuary's (Sanctuary.Database.Sqlite / .MySql): SQLite by default, MySQL when asked for. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,6 +23,11 @@
     <EmbeddedResource Include="Data\ItemClasses.txt" LogicalName="Sanctuary.Ps3.ItemClasses.txt" />
     <EmbeddedResource Include="Data\ItemCategories.txt" LogicalName="Sanctuary.Ps3.ItemCategories.txt" />
     <EmbeddedResource Include="Data\ItemCategoryGroups.txt" LogicalName="Sanctuary.Ps3.ItemCategoryGroups.txt" />
+    <!-- The coin store: Sanctuary's Resources/CoinStoreItems.json joined with each item's definition and resell value; read by Gateway/CoinStore.cs. -->
+    <EmbeddedResource Include="Data\coin_store.tsv.gz" LogicalName="Sanctuary.Ps3.coin_store.tsv.gz" />
+    <EmbeddedResource Include="Data\ResellValues.txt" LogicalName="Sanctuary.Ps3.ResellValues.txt" />
+    <!-- The Marketplace's Station Cash shop: Sanctuary's Resources/Store*.json, gzipped; read by Gateway/Shop.cs. -->
+    <EmbeddedResource Include="Data\shop\*.json.gz" LogicalName="Sanctuary.Ps3.shop.%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

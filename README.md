@@ -55,7 +55,7 @@ Last updated: **13 November 2026.** Everything marked working was observed in RP
 | Starter items | ✅ Working | Every job's outfit and weapon, equipped on that job, listed in the equipment screen | [`gateway.md`](docs/protocol/gateway.md) |
 | **Job switching** | ✅ Working | Your character re-dresses in the new job's outfit | [`gateway.md`](docs/protocol/gateway.md) |
 | **Inventory** | 🔶 In progress | Equip and unequip are answered as Sanctuary does; the rest of the inventory is being worked on | [`gateway.md`](docs/protocol/gateway.md) |
-| **Coin store** (buy and sell for coins) | ⏭ Next | Comes after the inventory | — |
+| **Coin store** (buy and sell for coins) | 🔶 New, being tested | Sanctuary's 13,096 store items, its prices, buying and selling; every character starts with Sanctuary's 999,999,999 coins | [`coin-store.md`](docs/protocol/coin-store.md) |
 | Marketplace (Station Cash) | 🔶 Partly mapped | The PS3 build uses an older store protocol than Sanctuary; resumes after the coin store | — |
 | Other players, movement relay, chat | ⬜ Not started | Single player only | — |
 | Quests, combat, mini-games | ⬜ Not started | | — |
@@ -85,8 +85,9 @@ Last updated: **13 November 2026.** Everything marked working was observed in RP
   the server starts and warns in the log.
 * **The inventory is unfinished.** Equip (by item and by item record), unequip and job switch requests are handled with
   Sanctuary's checks. The action bar, style cards, combat abilities and the rest of the inventory screen are not answered yet.
-* **Saving is new.** Characters, their items, outfits, active job, coins and position are kept in `characters.json` and are
-  still being tested in RPCS3. Delete the file (or one character on the manager's Characters page) to start over.
+* **Saving is new.** Characters, their items, outfits, active job, coins and position are kept in a database like Sanctuary's
+  (`characters.db`, SQLite; or MySQL with `FR_MYSQL`) and are still being tested in RPCS3. An old `characters.json` is imported
+  once. Delete the database (or one character on the manager's Characters page) to start over.
 * **Single player only.** The client's movement updates arrive but are not relayed; there are no other players or chat.
 * **The character creator can be slow to appear** the first time it loads in RPCS3. Give it a minute before closing the game.
 * Keep the sky setting (`sky_wilds24.xml`): without it the game crashes as soon as you look up.
@@ -143,7 +144,7 @@ it starts.
 | **Diagnostics** | Start a test run; export the logs and traces to a zip at any time; open the trace and settings folders; check for updates. |
 
 A test report holds the server log and its most important lines, the end of RPCS3's log, RPCS3's settings and patches, and the
-server's trace files. Settings, saved characters (`characters.json`) and traces live in `%LOCALAPPDATA%\FreeRealmsPS3Server`.
+server's trace files. Settings, saved characters (`characters.db`) and traces live in `%LOCALAPPDATA%\FreeRealmsPS3Server`.
 When the server starts, the manager asks its DNS for the game's host name the way the game does and warns if something else
 answered. More in [`src/README.md`](src/README.md).
 
@@ -226,7 +227,7 @@ Start at the [documentation index](docs/README.md).
 - [x] Give every job Sanctuary's starter items; equip and switch jobs
 - [x] One C# server with a Windows Server Manager
 - [ ] **Inventory**: the rest of the inventory screen, the action bar and style cards *(in progress)*
-- [ ] **Coin store**: buy and sell for coins *(next)*
+- [ ] **Coin store**: buy and sell for coins *(built, being tested)*
 - [x] Custom character names (with two RPCS3 game fixes)
 - [ ] Keep characters between runs *(built, being tested)*
 - [ ] Marketplace: browse and buy with Station Cash

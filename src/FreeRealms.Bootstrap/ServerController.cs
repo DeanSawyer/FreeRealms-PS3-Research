@@ -86,7 +86,10 @@ public sealed class ServerController
             HttpPort = settings.HttpPort,
             EnableDns = settings.Dns,
             GatewayPort = settings.GatewayPort,
-            Gateway = GatewayOptions.FromEnvironment(name => switches.GetValueOrDefault(name), message => Write(LogSeverity.Warning, "Server", message)),
+            // The gameplay settings; any other FR_* switch (FR_COINSTORE_ITEMS and the like) can be set in the window that starts the manager.
+            Gateway = GatewayOptions.FromEnvironment(
+                name => switches.TryGetValue(name, out var value) ? value : Environment.GetEnvironmentVariable(name),
+                message => Write(LogSeverity.Warning, "Server", message)),
             Notice = message => Write(LogSeverity.Info, "Server", message),
         };
 

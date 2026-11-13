@@ -8,8 +8,8 @@ using System.Text;
 
 namespace Sanctuary.Ps3.Gateway;
 
-/// <summary>One item a character owns: its id, its definition and its tint.</summary>
-public readonly record struct OwnedItem(int Id, int Definition, int Tint);
+/// <summary>One item a character owns: its id, its definition, its tint and how many (stackable items bought in the coin store).</summary>
+public readonly record struct OwnedItem(int Id, int Definition, int Tint, int Count = 1);
 
 /// <summary>
 /// The items a new character owns and the item definitions the client needs for them, as Sanctuary gives them, like
@@ -45,7 +45,10 @@ public static class Items
 
     private static readonly Lazy<IReadOnlyDictionary<int, string[]>> Table = new(Load);
 
-    /// <summary>The definitions, by id, each as its 34 fields in text form; read from the embedded file on first use.</summary>
+    /// <summary>
+    /// The definitions, by id, each as its 34 fields in text form; read from the embedded file on first use, with the coin store's
+    /// (<see cref="CoinStore.Catalog"/>) added.
+    /// </summary>
     public static IReadOnlyDictionary<int, string[]> Definitions => Table.Value;
 
     public static int Int(string[] row, int field) => int.Parse(row[field], CultureInfo.InvariantCulture);
@@ -105,7 +108,7 @@ public static class Items
     }
 
     /// <summary>One <see cref="ItemAdd"/> per item the character owns, in item order.</summary>
-    public static List<byte[]> ItemAddPackets(IReadOnlyList<OwnedItem> items) => items.Select(item => ItemAdd(item)).ToList();
+    public static List<byte[]> ItemAddPackets(IReadOnlyList<OwnedItem> items) => items.Select(item => ItemAdd(item, item.Count)).ToList();
 
     /// <summary>One entry of the player data's item list (reader 0xb0f10c): id, an int, definition, tint, id, count, a byte, an int, an empty list, an int.</summary>
     public static byte[] ItemRecord(OwnedItem item, int count = 1) =>
@@ -117,7 +120,7 @@ public static class Items
         var writer = new PacketWriter().I32(items.Count);
 
         foreach (var item in items)
-            writer.Raw(ItemRecord(item));
+            writer.Raw(ItemRecord(item, item.Count));
 
         return writer.ToArray();
     }
@@ -228,6 +231,10 @@ public static class Items
 
             table[int.Parse(parts[0], CultureInfo.InvariantCulture)] = parts;
         }
+
+        // The coin store's items, so that what is bought can be shown, worn and saved like any other item.
+        foreach (var (id, item) in CoinStore.Catalog)
+            table.TryAdd(id, item.Definition);
 
         return table;
     }

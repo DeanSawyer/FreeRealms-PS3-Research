@@ -52,6 +52,33 @@ public sealed record GatewayOptions
     /// </summary>
     public bool Sanctuary { get; init; }
 
+    /// <summary>
+    /// <c>FR_COINSTORE</c> (not 0, on unless set to 0): with the Sanctuary flow, list Sanctuary's coin store items when the client is ready
+    /// and answer the store's requests (<see cref="Gateway.CoinStore"/>). Off, the list stays empty as before.
+    /// </summary>
+    public bool CoinStore { get; init; }
+
+    /// <summary>
+    /// <c>FR_STARTING_COINS</c>: the coins a character gets at its first login (and a character saved before the coin store, once);
+    /// Sanctuary's <c>login.json</c> <c>StartingCoins</c>, 999,999,999, unless set.
+    /// </summary>
+    public int StartingCoins { get; init; }
+
+    /// <summary>
+    /// <c>FR_MARKETPLACE</c> (not 0, on unless set to 0): with the Sanctuary flow, send its Marketplace login packets under the PS3's
+    /// sub-opcode numbers and answer the Marketplace requests (<see cref="Gateway.Marketplace"/>). Off, the PC numbers go out as before.
+    /// </summary>
+    public bool Marketplace { get; init; }
+
+    /// <summary><c>FR_COINSTORE_ITEMS</c>: list only the first this many store items (Sanctuary's order); 0, the default, lists all of them.</summary>
+    public int CoinStoreItems { get; init; }
+
+    /// <summary>
+    /// <c>FR_COINSTORE_DEFINITIONS=1</c>: send the listed items' definitions right after the list (PlayerUpdate 35/33), for testing
+    /// whether the PS3 store screen waits for them; Sanctuary sends them only when asked.
+    /// </summary>
+    public bool CoinStoreDefinitions { get; init; }
+
     /// <summary><c>FR_SKIP</c>: names of Sanctuary flow packets to leave out (lower case; "Name,Name").</summary>
     public IReadOnlySet<string> Skip { get; init; } = new HashSet<string>();
 
@@ -107,6 +134,13 @@ public sealed record GatewayOptions
             Jobs = ParseJobs(Value("FR_JOBS")),
             Items = Env(get, "FR_ITEMS", "1") != "0",
             Sanctuary = Value("FR_SANCTUARY") == "1",
+            CoinStore = Env(get, "FR_COINSTORE", "1") != "0",
+            Marketplace = Env(get, "FR_MARKETPLACE", "1") != "0",
+            CoinStoreItems = int.TryParse(Value("FR_COINSTORE_ITEMS"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var listed) && listed > 0 ? listed : 0,
+            CoinStoreDefinitions = Value("FR_COINSTORE_DEFINITIONS") == "1",
+            StartingCoins = int.TryParse(Env(get, "FR_STARTING_COINS", "999999999"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var coins) && coins >= 0
+                ? coins
+                : Gateway.CoinStore.SanctuaryStartingCoins,
             Skip = ParseSkip(get("FR_SKIP")),
             Sky = Env(get, "FR_SKY", DefaultSky),
             EquipPacket = Env(get, "FR_EQUIP", "1") switch

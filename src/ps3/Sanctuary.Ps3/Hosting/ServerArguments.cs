@@ -29,8 +29,10 @@ public static class ServerArguments
           --server-list-variant V   baseline (default) or zone (experimental Zone field)
           --existing-character      report one sample character instead of an empty account
           --account-status N        status for an account without characters (default 2; 1 crashes the client)
-          --characters FILE         where the characters are saved (default: FreeRealmsPS3Server/characters.json
-                                    in the local application data folder, the manager's file)
+          --characters FILE         the SQLite database the characters are saved in (default:
+                                    FreeRealmsPS3Server/characters.db in the local application data folder, the
+                                    manager's file; a characters.json next to it is imported once). FR_MYSQL
+                                    (a connection string) and FR_MYSQL_VERSION keep them in MySQL instead
           --no-save                 keep characters in memory only; they are gone when the server stops
           --xml-style S             attributes (default) or elements
           --gateway-port PORT       UDP port of the game-server stand-in (default 20260, 0 turns it off)
