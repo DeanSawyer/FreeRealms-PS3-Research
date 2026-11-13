@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Reflection;
 using System.Security.Principal;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -14,6 +15,7 @@ using System.Windows.Threading;
 
 using Microsoft.Win32;
 
+using Sanctuary.Ps3.Assets;
 using Sanctuary.Ps3.Gateway;
 using Sanctuary.Ps3.Web;
 
@@ -152,6 +154,7 @@ public partial class MainWindow : Window
         }
 
         NoCharacters.Visibility = characterRows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ShowPanelState();
         CreatorNextSwitch.IsChecked = creatorNext;
         CreatorNextSwitch.IsEnabled = ordered.Count < CharacterStore.MaxCharacters || creatorNext;
         CreatorNextHint.Text = ordered.Count >= CharacterStore.MaxCharacters && !creatorNext
@@ -170,6 +173,82 @@ public partial class MainWindow : Window
         Characters().SetCreatorNext(on);
         server.Write(LogSeverity.Info, "Manager", on ? "Characters: the next login opens the character creator." : "Characters: the next login shows character select again.");
         RefreshCharacters(force: true);
+    }
+
+    // --- Select panel test ---------------------------------------------------------------------------------------------
+
+    /// <summary>The movie the panel test replaces: the select screen's prompt (Start Game / Delete), also the creator's popups.</summary>
+    private const string PanelTarget = "characterCreatePopUps.gfx";
+
+    /// <summary>What the panel test changed in the install, to take it out again.</summary>
+    private static readonly string PanelBackupFile = Path.Combine(ManagerSettings.DataFolder, "panel_test.json");
+
+    private static AssetBackup? PanelBackup()
+    {
+        try
+        {
+            return File.Exists(PanelBackupFile) ? JsonSerializer.Deserialize<AssetBackup>(File.ReadAllText(PanelBackupFile)) : null;
+        }
+        catch (Exception exception) when (exception is IOException or JsonException)
+        {
+            return null;
+        }
+    }
+
+    private void ShowPanelState() => PanelOutButton.IsEnabled = PanelBackup() is not null;
+
+    private void PanelIn_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog { Filter = "Flash movie (*.gfx;*.swf)|*.gfx;*.swf|All files|*.*", Title = "The movie to show in place of the select prompt" };
+
+        if (dialog.ShowDialog(this) != true)
+            return;
+
+        try
+        {
+            var usrDir = new[] { Path.Combine(settings.ClientFolder, "USRDIR"), settings.ClientFolder }
+                .FirstOrDefault(folder => Directory.Exists(folder) && Directory.GetFiles(folder, "assets_ps3_*.pack").Length > 0)
+                ?? throw new InvalidOperationException("The game's packs (assets_ps3_*.pack) are not in the client folder chosen in Settings.");
+
+            // A movie already in comes out first, so the pack does not keep growing and the backup stays the original's.
+            if (PanelBackup() is { } old)
+            {
+                AssetReplacement.Restore(old);
+                File.Delete(PanelBackupFile);
+            }
+
+            var backup = AssetReplacement.Replace(usrDir, PanelTarget, File.ReadAllBytes(dialog.FileName));
+
+            Directory.CreateDirectory(ManagerSettings.DataFolder);
+            File.WriteAllText(PanelBackupFile, JsonSerializer.Serialize(backup));
+            server.Write(LogSeverity.Info, "Manager",
+                $"Select panel test: {Path.GetFileName(dialog.FileName)} is in place of {PanelTarget} ({Path.GetFileName(backup.Pack)}{(backup.Manifest is null ? "; no manifest found" : string.Empty)}).");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            MessageBox.Show(this, exception.Message, "Select panel test", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        ShowPanelState();
+    }
+
+    private void PanelOut_Click(object sender, RoutedEventArgs e)
+    {
+        if (PanelBackup() is not { } backup)
+            return;
+
+        try
+        {
+            AssetReplacement.Restore(backup);
+            File.Delete(PanelBackupFile);
+            server.Write(LogSeverity.Info, "Manager", $"Select panel test: {PanelTarget} is the game's own again.");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            MessageBox.Show(this, exception.Message, "Select panel test", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        ShowPanelState();
     }
 
     private void ShowNext_Click(object sender, RoutedEventArgs e)

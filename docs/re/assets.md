@@ -61,6 +61,18 @@ Consequences used elsewhere:
    caller gives up quietly — see [`zone-loading.md`](zone-loading.md).
 3. Names are normalised before the lookup (`0x7f7928` swaps an extension for the local variant when that file exists).
 
+## Replacing an asset (the manager's select panel test)
+
+`AssetReplacement` (`src/ps3/Sanctuary.Ps3/Assets`) puts other bytes in place of one asset without rebuilding a pack: it appends
+them to the pack that lists the asset (16-byte aligned) and points the index entry's offset and length at them. The entry keeps
+its CRC-32 and so does the manifest, so `IsLocalCurrent` (`0x801020`) still reads the asset from the pack; the client does not
+check the bytes against the CRC-32. The manifest's size for the asset is set to the new length. Taking it out writes the old
+offset, length and size back and cuts the pack to its old length.
+
+The manager uses it for the select panel test: a `.gfx` chosen on the Characters page goes in place of `characterCreatePopUps.gfx`,
+the movie of the select screen's prompt (window `wndCharacterCreatePopups`, 550 x 650), to see whether the PC client's
+`characterSelectV2.gfx` (CFX version 10, 425 x 525, exporter 3.4; the PS3's own movies are version 8) shows on the PS3.
+
 ## Open questions
 
 * Download of an asset that is in the manifest but not (or stale) in the packs goes through the HTTP asset service;
