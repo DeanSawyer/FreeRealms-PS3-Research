@@ -52,6 +52,18 @@ public sealed record GatewayOptions
     /// </summary>
     public bool Sanctuary { get; init; }
 
+    /// <summary>
+    /// <c>FR_COINSTORE</c> (not 0, on unless set to 0): with the Sanctuary flow, list Sanctuary's coin store items when the client is ready
+    /// and answer the store's requests (<see cref="Gateway.CoinStore"/>). Off, the list stays empty as before.
+    /// </summary>
+    public bool CoinStore { get; init; }
+
+    /// <summary>
+    /// <c>FR_STARTING_COINS</c>: the coins a character gets at its first login (and a character saved before the coin store, once);
+    /// Sanctuary's <c>login.json</c> <c>StartingCoins</c>, 999,999,999, unless set.
+    /// </summary>
+    public int StartingCoins { get; init; }
+
     /// <summary><c>FR_SKIP</c>: names of Sanctuary flow packets to leave out (lower case; "Name,Name").</summary>
     public IReadOnlySet<string> Skip { get; init; } = new HashSet<string>();
 
@@ -107,6 +119,10 @@ public sealed record GatewayOptions
             Jobs = ParseJobs(Value("FR_JOBS")),
             Items = Env(get, "FR_ITEMS", "1") != "0",
             Sanctuary = Value("FR_SANCTUARY") == "1",
+            CoinStore = Env(get, "FR_COINSTORE", "1") != "0",
+            StartingCoins = int.TryParse(Env(get, "FR_STARTING_COINS", "999999999"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var coins) && coins >= 0
+                ? coins
+                : Gateway.CoinStore.SanctuaryStartingCoins,
             Skip = ParseSkip(get("FR_SKIP")),
             Sky = Env(get, "FR_SKY", DefaultSky),
             EquipPacket = Env(get, "FR_EQUIP", "1") switch

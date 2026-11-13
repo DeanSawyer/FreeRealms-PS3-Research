@@ -21,8 +21,14 @@ public sealed class GatewayVectorTests
         public void Send(IPEndPoint peer, byte[] datagram) => Sent.Add((peer.Port, datagram));
     }
 
+    /// <summary>
+    /// The vectors were recorded before the coin store and the starting coins, so a scenario that does not name them runs with both off
+    /// (FR_COINSTORE=0, FR_STARTING_COINS=0): the empty store list and no coins, as recorded.
+    /// </summary>
+    private static readonly (string Name, string Value)[] BeforeTheCoinStore = [("FR_COINSTORE", "0"), ("FR_STARTING_COINS", "0")];
+
     private static GatewayOptions Options((string Name, string Value)[] env) =>
-        GatewayOptions.FromEnvironment(name => env.Where(item => item.Name == name).Select(item => item.Value).FirstOrDefault());
+        GatewayOptions.FromEnvironment(name => env.Concat(BeforeTheCoinStore).Where(item => item.Name == name).Select(item => item.Value).FirstOrDefault());
 
     private static GatewayWorld World((string Name, string Value)[] env, string? zone, bool hasSpawn, double x, double z)
     {

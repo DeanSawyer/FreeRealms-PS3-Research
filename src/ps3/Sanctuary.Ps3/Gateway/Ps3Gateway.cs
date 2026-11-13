@@ -484,6 +484,13 @@ public sealed class Ps3Gateway
                 var restored = options.Items && saved?.Progress is not null;
                 var loadout = restored ? SavedProgress.ToLoadout(saved!.Progress!, _world.Zone) : Loadout.ForNewCharacter(character, options);
 
+                // Sanctuary gives a new character its StartingCoins (login.json); a character saved before the coin store gets them once.
+                if (options.StartingCoins > 0 && !(restored && saved!.Progress!.GotStartingCoins))
+                {
+                    loadout = loadout with { Coins = (int)Math.Min((long)loadout.Coins + options.StartingCoins, int.MaxValue) };
+                    _logger?.LogInformation("gateway: starting coins: {Coins}", options.StartingCoins);
+                }
+
                 _positions.Remove(peer);
                 _positionSavedAt[peer] = _now;
 
@@ -601,6 +608,25 @@ public sealed class Ps3Gateway
             return;
         }
 
+        if (_world.Options.CoinStore && innerOpcode is CoinStore.Opcode or 35 && _inventories.TryGetValue(peer, out var shopper)
+            && shopper.HandleCoinStore(inner, _unixTime()) is { } shopReplies)
+        {
+            var sub = inner.Length >= 4 ? BinaryPrimitives.ReadUInt16LittleEndian(inner.AsSpan(2)) : -1;
+
+            _logger?.LogInformation("sanctuary: coin store request {Opcode}/{Sub} {Hex}", innerOpcode, sub, Convert.ToHexString(inner).ToLowerInvariant());
+            _trace.Write("coin_store", ("peer", peer.Address.ToString()), ("opcode", innerOpcode), ("sub", sub), ("hex", Convert.ToHexString(inner).ToLowerInvariant()));
+
+            SendNamed(peer, channel, $"coin store {innerOpcode}/{sub}", shopReplies);
+
+            if (innerOpcode == CoinStore.Opcode && sub is CoinStore.BuyRequestSub or CoinStore.SellRequestSub)
+            {
+                _logger?.LogInformation("gateway: coin store {Action}: {Coins} coin(s) left", sub == CoinStore.BuyRequestSub ? "buy" : "sell", shopper.Coins);
+                SaveProgress(peer, shopper);
+            }
+
+            return;
+        }
+
         if (innerOpcode == Placement.Opcode && Placement.FromUpdate(inner) is { } moved)
         {
             // The position update: remember where the character stands and save it now and then.
@@ -630,14 +656,27 @@ public sealed class Ps3Gateway
 
             var character = _characters.Snapshot();
 
-            SendNamed(peer, channel, "ClientIsReady", SanctuaryFlow.ClientIsReadyPackets(
+            var ready = SanctuaryFlow.ClientIsReadyPackets(
                 1,
                 character,
                 CharacterMappings.Head(character),
                 CharacterMappings.Hair(character),
                 CharacterMappings.SkinTone(character),
                 CharacterMappings.FacePaint(character),
-                CharacterMappings.ModelCustomization(character)));
+                CharacterMappings.ModelCustomization(character));
+
+            // FR_COINSTORE: the coin store's items instead of the empty list, and the coins the character has.
+            if (_world.Options.CoinStore)
+            {
+                ready = ready.Select(packet => packet.Name == "CoinStoreItemList" ? packet with { Inner = CoinStore.ItemList() } : packet).ToList();
+
+                if (_inventories.TryGetValue(peer, out var wallet))
+                    ready.Add(new NamedPacket("CoinCount", CoinStore.CoinCount(wallet.Coins)));
+
+                _logger?.LogInformation("gateway: coin store: {Items} item(s) listed", CoinStore.Catalog.Count);
+            }
+
+            SendNamed(peer, channel, "ClientIsReady", ready);
         }
 
         if (innerOpcode == 10)
@@ -665,7 +704,7 @@ public sealed class Ps3Gateway
 
         var now = inventory.Snapshot() with { Position = _positions.GetValueOrDefault(peer) };
 
-        if (!_characters.SaveProgress(playing.Guid, SavedProgress.ToProgress(now, _world.Zone)))
+        if (!_characters.SaveProgress(playing.Guid, SavedProgress.ToProgress(now, _world.Zone, gotStartingCoins: true)))
             return;
 
         _trace.Write("progress", ("peer", peer.Address.ToString()), ("guid", playing.Guid), ("job", inventory.Active));

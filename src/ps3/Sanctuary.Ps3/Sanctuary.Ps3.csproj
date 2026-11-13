@@ -19,6 +19,9 @@
     <EmbeddedResource Include="Data\ItemClasses.txt" LogicalName="Sanctuary.Ps3.ItemClasses.txt" />
     <EmbeddedResource Include="Data\ItemCategories.txt" LogicalName="Sanctuary.Ps3.ItemCategories.txt" />
     <EmbeddedResource Include="Data\ItemCategoryGroups.txt" LogicalName="Sanctuary.Ps3.ItemCategoryGroups.txt" />
+    <!-- The coin store: Sanctuary's Resources/CoinStoreItems.json joined with each item's definition and resell value; read by Gateway/CoinStore.cs. -->
+    <EmbeddedResource Include="Data\coin_store.tsv.gz" LogicalName="Sanctuary.Ps3.coin_store.tsv.gz" />
+    <EmbeddedResource Include="Data\ResellValues.txt" LogicalName="Sanctuary.Ps3.ResellValues.txt" />
   </ItemGroup>
 
 </Project>

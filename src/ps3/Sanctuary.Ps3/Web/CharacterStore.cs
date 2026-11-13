@@ -8,7 +8,7 @@ using System.Text.Json.Serialization;
 namespace Sanctuary.Ps3.Web;
 
 /// <summary>One item a character owns: its id in the character's inventory, its item definition and its tint.</summary>
-public sealed record SavedItem(int Id, int Definition, int Tint);
+public sealed record SavedItem(int Id, int Definition, int Tint, int Count = 1);
 
 /// <summary>One filled equipment slot of a job: the slot number and the id of the item in it.</summary>
 public sealed record SavedSlot(int Slot, int Item);
@@ -26,7 +26,8 @@ public sealed record CharacterProgress(
     int Coins,
     IReadOnlyList<SavedItem> Items,
     IReadOnlyDictionary<int, IReadOnlyList<SavedSlot>> Equipment,
-    SavedPosition? Position = null);
+    SavedPosition? Position = null,
+    bool GotStartingCoins = false);
 
 /// <summary>
 /// A character made in the character creator: the guid the server gave it, the values of its <c>character/create</c> request
@@ -449,6 +450,9 @@ public sealed class CharacterStore
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public SavedPosition? Position { get; set; }
 
+        /// <summary>Whether the character has had its starting coins (missing in files written before the coin store: no).</summary>
+        public bool GotStartingCoins { get; set; }
+
         public static StoredProgress From(CharacterProgress progress) => new()
         {
             ActiveJob = progress.ActiveJob,
@@ -458,6 +462,7 @@ public sealed class CharacterStore
                 pair => pair.Key.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 pair => pair.Value.ToList()),
             Position = progress.Position,
+            GotStartingCoins = progress.GotStartingCoins,
         };
 
         public CharacterProgress ToProgress()
@@ -470,7 +475,10 @@ public sealed class CharacterStore
                     equipment[id] = [.. slots ?? []];
             }
 
-            return new CharacterProgress(ActiveJob, Coins, [.. Items ?? []], equipment, Position);
+            // A count missing (files written before the coin store) or not positive is one.
+            var items = (Items ?? new List<SavedItem>()).Select(item => item.Count > 0 ? item : item with { Count = 1 }).ToList();
+
+            return new CharacterProgress(ActiveJob, Coins, items, equipment, Position, GotStartingCoins);
         }
     }
 }
