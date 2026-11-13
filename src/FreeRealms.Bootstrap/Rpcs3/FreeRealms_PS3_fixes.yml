@@ -113,3 +113,12 @@ PPU-5425f6d47ba410afbcbc7ce77f87f2ffcde68798:
       - [ be32, 0x00e86f0c, 0x38210080 ]
       - [ be32, 0x00e86f10, 0x3d2000f2 ]
       - [ be32, 0x00e86f14, 0x4b18f498 ]
+  "Free Realms PS3 marketplace without PSN":
+    Games:
+      All:
+        All: [ All ]
+    Author: "DeanSawyer"
+    Patch Version: 1.0
+    Notes: "The PS3 Marketplace waits for its PSN store data (sceNpCommerce2, which fails without PSN) before it reports ready; until then the store screen shows nothing. When fetching it fails, the commerce processor now reports ready=true instead of false (0x42aed8), so the store opens on the server's data."
+    Patch:
+      - [ be32, 0x0042aed8, 0x38800001 ]

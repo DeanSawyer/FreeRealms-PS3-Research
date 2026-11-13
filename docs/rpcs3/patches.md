@@ -55,3 +55,15 @@ first instruction: the code in the zero padding at `0xe86e40`-`0xe86f14` (nothin
 to 400 characters and unformatted (a message that is only `%s`, as the scripts' errors are, gets its text: the first argument, read
 when it points into main memory or the stack; version 1.1), with `sys_tty_write` (syscall 403, channel 0), then runs the replaced instruction and goes on. RPCS3
 keeps the lines in `TTY.log`, which the Server Manager's test report copies as `game_log_tail.txt`.
+
+## Marketplace without PSN
+
+**Symptom:** the Marketplace and its coin store tab open but show nothing. The game's log has 58 times *ERROR in GetProductInfoList:
+sceNpCommerce2InitGetProductInfoListResult failed* (CommerceProcessorPsn) and never *MarketPlace System Support Data Complete*.
+
+**Cause:** the PS3 Marketplace gets its Station Cash product data from PSN (`sceNpCommerce2`), which RPCS3 cannot reach. The commerce
+processor (`0x42ae60`) reports to its listener when it is done, `ready(true)` (`0x42b078`, `0x42b10c`), or when fetching failed,
+`ready(false)` (`0x42aed8`). The listener is the Marketplace's *OnMarketplaceReady* (`0x8c1dc`, through the thunk `0xaa7348`), which on
+true checks the portal categories against the server's store (`0x96088`) and tells the screen it may show the store.
+
+**Fix:** the failure path reports `ready(true)` too (`li r4, 0` → `li r4, 1` at `0x42aed8`). Not checked in RPCS3 yet.
