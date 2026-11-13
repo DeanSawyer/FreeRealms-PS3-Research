@@ -391,7 +391,7 @@ public sealed class WebServiceTests
 
         var listed = System.Xml.Linq.XDocument.Parse(Encoding.UTF8.GetString(rig.Post("/ps3ws/account/info.action", "Session=x").Body)).Root!;
 
-        Assert.AreEqual("Guid,Name,Model", Names(listed.Element("Characters")!.Element("Character")!.Element("Details")!));
+        Assert.AreEqual(Names(Details(CharacterDetail.Full)), Names(listed.Element("Characters")!.Element("Character")!.Element("Details")!));
     }
 
     [TestMethod]
