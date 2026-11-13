@@ -59,7 +59,8 @@ Last updated: **13 November 2026.** Everything marked working was observed in RP
 | Marketplace (Station Cash) | 🔶 Partly mapped | The PS3 build uses an older store protocol than Sanctuary; resumes after the coin store | — |
 | Other players, movement relay, chat | ⬜ Not started | Single player only | — |
 | Quests, combat, mini-games | ⬜ Not started | | — |
-| **Keeping characters** | 🔶 New, being tested | Characters are saved (up to 10, unique names, as in Sanctuary). The PS3 shows one in character select; pick which, or make another, on the manager's Characters page | [`ps3ws-replies.md`](docs/protocol/ps3ws-replies.md#saved-characters) |
+| **Keeping characters** | 🔶 New, being tested | Characters are saved (up to 10, unique names, as in Sanctuary) | [`ps3ws-replies.md`](docs/protocol/ps3ws-replies.md#saved-characters) |
+| **Character wheel** | 🔶 New, being tested | Character select turns with the D-pad through your saved characters, then **New character**; an RPCS3 game fix the manager adds | [`patches.md`](docs/rpcs3/patches.md#character-wheel) |
 | **Saving progress** | 🔶 New, being tested | Like Sanctuary's database: items, each job's outfit, the active job, coins and where you stood are saved and come back next time | [`ps3ws-replies.md`](docs/protocol/ps3ws-replies.md#saved-characters) |
 | Accounts | ⬜ Not started | The PS3 sends no session to the web server, so every player shares one list of characters | — |
 
@@ -210,7 +211,7 @@ Start at the [documentation index](docs/README.md).
 | :--- | :--- |
 | How the installer and the patch digest work | [`docs/install/digest-format.md`](docs/install/digest-format.md) |
 | HTTP web-service formats: the name check, the character list, saved characters | [`docs/protocol/ps3ws-replies.md`](docs/protocol/ps3ws-replies.md) |
-| The RPCS3 game fixes (custom names, a renderer crash) | [`docs/rpcs3/patches.md`](docs/rpcs3/patches.md) |
+| The RPCS3 game fixes (custom names, a renderer crash, the character wheel) | [`docs/rpcs3/patches.md`](docs/rpcs3/patches.md) |
 | UDP game-server protocol, items, jobs, inventory, and the session log | [`docs/protocol/gateway.md`](docs/protocol/gateway.md) |
 | Packs, manifest, name hash, request path | [`docs/re/assets.md`](docs/re/assets.md) |
 | Zone loading, the loading overlay, the sky crash | [`docs/re/zone-loading.md`](docs/re/zone-loading.md) |

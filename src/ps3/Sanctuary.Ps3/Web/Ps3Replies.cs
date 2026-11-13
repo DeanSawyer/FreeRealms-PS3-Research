@@ -177,7 +177,7 @@ public static partial class Ps3Replies
     /// server's SendSelfToClient sends them), <c>EyeColor</c>, <c>HairColor</c> and <c>Attachments/Attachment</c> (Model, Texture,
     /// Tint, TintOverrideId, EffectId, Slot) on <c>Details</c>.
     /// </summary>
-    public static byte[] AccountInfo(IReadOnlyList<SavedCharacter> characters, XmlStyle style = XmlStyle.Attributes, CharacterDetail detail = CharacterDetail.Full, int maxCharacters = MaxCharacters)
+    public static byte[] AccountInfo(IReadOnlyList<SavedCharacter> characters, XmlStyle style = XmlStyle.Attributes, CharacterDetail detail = CharacterDetail.Full, int maxCharacters = MaxCharacters, bool newCharacterStop = false)
     {
         string El(string tag, (string, object)[]? fields = null, string[]? children = null) => Element(tag, fields, children, style);
 
@@ -223,10 +223,18 @@ public static partial class Ps3Replies
             list.Add(El("Character", [("HeadshotUrl", string.Empty)], [details]));
         }
 
+        // The character wheel's last stop (the RPCS3 patch "character wheel"): guid 0, which the patched select screen turns into
+        // "go to the creator" instead of a login. Without the patch only the first character is ever shown, so it is never reached.
+        if (newCharacterStop && characters.Count < maxCharacters)
+            list.Add(El("Character", [("HeadshotUrl", string.Empty)], [El("Details", [("Guid", 0), ("Name", NewCharacterName), ("Model", 1)])]));
+
         var account = El("Account", [("Member", 1), ("MaxCharacters", maxCharacters), ("Admin", 0)]);
 
         return Document("AccountInfoReply", null, [account, El("Characters", children: [.. list])], style);
     }
+
+    /// <summary>The name of the character wheel's "make a new character" stop.</summary>
+    public const string NewCharacterName = "New character";
 
     /// <summary><c>character/create</c> answered with the guid the server gave the new character.</summary>
     public static byte[] CharacterCreate(ulong guid, XmlStyle style = XmlStyle.Attributes) =>
