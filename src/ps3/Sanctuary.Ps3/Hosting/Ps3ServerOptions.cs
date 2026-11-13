@@ -70,8 +70,8 @@ public sealed record Ps3ServerOptions
     public bool ServeMismatch { get; init; }
 
     /// <summary>
-    /// The JSON file the account's characters are saved in (<c>--characters</c>), so they are still there after a restart; null keeps
-    /// them in memory only (<c>--no-save</c>, and the tests).
+    /// The SQLite database the account's characters are saved in (<c>--characters</c>), so they are still there after a restart; null
+    /// keeps them in memory only (<c>--no-save</c>, and the tests). <c>FR_MYSQL</c> (a connection string) keeps them in MySQL instead.
     /// </summary>
     public string? CharacterFile { get; init; }
 
@@ -81,9 +81,9 @@ public sealed record Ps3ServerOptions
     /// </summary>
     public CharacterDetail? SelectDetail { get; init; }
 
-    /// <summary>Where the characters are saved when nothing else is said: <c>FreeRealmsPS3Server\characters.json</c> in the local application data folder (the manager's folder).</summary>
+    /// <summary>Where the characters are saved when nothing else is said: <c>FreeRealmsPS3Server\characters.db</c> in the local application data folder (the manager's folder).</summary>
     public static string DefaultCharacterFile =>
-        System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FreeRealmsPS3Server", "characters.json");
+        System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FreeRealmsPS3Server", "characters.db");
 
     /// <summary>The <c>FR_*</c> switches of the game-server stand-in.</summary>
     public GatewayOptions Gateway { get; init; } = new();

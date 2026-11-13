@@ -109,7 +109,7 @@ public partial class MainWindow : Window
     // --- Characters ---------------------------------------------------------------------------------------------------
 
     /// <summary>The running server's characters, or the saved file when the server is stopped.</summary>
-    private CharacterStore Characters() => server.Server?.Characters ?? new CharacterStore(ManagerSettings.CharacterFile);
+    private CharacterStore Characters() => server.Server?.Characters ?? CharacterStore.ForServer(ManagerSettings.CharacterFile);
 
     /// <summary>Fills the Characters page; with <paramref name="force"/> false only when something changed.</summary>
     private void RefreshCharacters(bool force)

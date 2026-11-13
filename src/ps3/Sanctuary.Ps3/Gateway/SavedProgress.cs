@@ -5,7 +5,7 @@ using Sanctuary.Ps3.Web;
 
 namespace Sanctuary.Ps3.Gateway;
 
-/// <summary>Turns a saved character's progress (<see cref="CharacterProgress"/>, in characters.json) into a <see cref="Loadout"/> and back.</summary>
+/// <summary>Turns a saved character's progress (<see cref="CharacterProgress"/>, kept in the database) into a <see cref="Loadout"/> and back.</summary>
 public static class SavedProgress
 {
     /// <summary>The loadout of <paramref name="progress"/>; the saved position only when it was saved in <paramref name="zone"/> and is believable.</summary>
