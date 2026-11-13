@@ -245,7 +245,7 @@
         <StackPanel DockPanel.Dock="Top">
           <TextBlock Text="Characters" Style="{StaticResource PageTitle}"/>
           <TextBlock Style="{StaticResource PageSubtitle}" TextWrapping="Wrap"
-                     Text="Characters saved on this server, up to 10 as in Sanctuary. The PS3 shows only one in character select (Start Game or Delete), so choose here which one it shows, or send the next login to the creator to make another."/>
+                     Text="Characters saved on this server, up to 10 as in Sanctuary. With the character wheel fix, character select turns through them with the D-pad, ending on New character. The one marked Shown next comes first."/>
         </StackPanel>
         <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Margin="0,0,0,16">
           <DockPanel>
@@ -455,7 +455,7 @@
               <CheckBox x:Name="InstallPatchesSwitch" Style="{StaticResource Switch}" Margin="0,12,0,0">
                 <StackPanel>
                   <TextBlock Text="Add the game fixes to RPCS3 before a test run" FontWeight="SemiBold"/>
-                  <TextBlock Text="Adds and turns on the keyboard fix (custom names) and the renderer crash guard in RPCS3's game patches. Patches you turned off stay off." Style="{StaticResource Hint}" TextWrapping="Wrap"/>
+                  <TextBlock Text="Adds and turns on the keyboard fix (custom names), the renderer crash guard and the character wheel in RPCS3's game patches. Patches you turned off stay off." Style="{StaticResource Hint}" TextWrapping="Wrap"/>
                 </StackPanel>
               </CheckBox>
             </StackPanel>

@@ -322,9 +322,14 @@ public sealed class WebServiceTests
 
         Assert.AreEqual("1", account.Attribute("Status")!.Value);
 
-        var characters = account.Element("Characters")!.Elements("Character").ToList();
+        var listed = account.Element("Characters")!.Elements("Character").ToList();
 
-        Assert.AreEqual(2, characters.Count);
+        // The two characters, then the character wheel's "New character" stop (guid 0).
+        Assert.AreEqual(3, listed.Count);
+        Assert.AreEqual("0", listed[2].Element("Details")!.Attribute("Guid")!.Value);
+        Assert.AreEqual(Ps3Replies.NewCharacterName, listed[2].Element("Details")!.Attribute("Name")!.Value);
+
+        var characters = listed.Take(2).ToList();
 
         // The newest character comes first (the PS3 shows only the first); Mentor Kenner was made first.
         Assert.AreEqual("2", characters[0].Element("Details")!.Attribute("Guid")!.Value);
@@ -419,8 +424,28 @@ public sealed class WebServiceTests
         var account = System.Xml.Linq.XDocument.Parse(Encoding.UTF8.GetString(rig.Post("/ps3ws/account/info.action", "Session=x").Body)).Root!;
         var names = account.Element("Characters")!.Elements("Character").Select(character => character.Element("Details")!.Attribute("Name")!.Value).ToArray();
 
-        CollectionAssert.AreEqual(new[] { "Mira Moonpetal", "Aedon Amberarm" }, names, "the new character first: the PS3 shows only the first");
+        CollectionAssert.AreEqual(new[] { "Mira Moonpetal", "Aedon Amberarm", Ps3Replies.NewCharacterName }, names, "the new character first: the PS3 shows the first; the wheel's last stop makes another");
         Assert.AreEqual(CharacterStore.MaxCharacters.ToString(System.Globalization.CultureInfo.InvariantCulture), account.Element("Account")!.Attribute("MaxCharacters")!.Value);
+    }
+
+    [TestMethod]
+    public void TheNewCharacterStopIsLeftOutWhenTheAccountIsFull()
+    {
+        var store = new CharacterStore();
+
+        for (var index = 0; index < CharacterStore.MaxCharacters; index++)
+            store.Create([("FirstName", $"Hero{index}")]);
+
+        var full = System.Xml.Linq.XDocument.Parse(Encoding.UTF8.GetString(Ps3Replies.AccountInfo(store.All(), newCharacterStop: true))).Root!;
+
+        Assert.AreEqual(CharacterStore.MaxCharacters, full.Element("Characters")!.Elements("Character").Count());
+
+        store.Delete(1);
+
+        var room = System.Xml.Linq.XDocument.Parse(Encoding.UTF8.GetString(Ps3Replies.AccountInfo(store.All(), newCharacterStop: true))).Root!;
+
+        Assert.AreEqual(CharacterStore.MaxCharacters, room.Element("Characters")!.Elements("Character").Count());
+        Assert.AreEqual("0", room.Element("Characters")!.Elements("Character").Last().Element("Details")!.Attribute("Guid")!.Value);
     }
 
     [TestMethod]

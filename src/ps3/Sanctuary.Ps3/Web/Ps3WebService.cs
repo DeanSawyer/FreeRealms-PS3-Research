@@ -220,7 +220,7 @@ public sealed class Ps3WebService
                         _options.Replies.Detail,
                         string.Join(", ", characters.Select(character => $"{character.Name} (guid {character.Guid})")));
 
-                    return Ps3Replies.AccountInfo(characters, style, _options.Replies.Detail);
+                    return Ps3Replies.AccountInfo(characters, style, _options.Replies.Detail, newCharacterStop: true);
                 }
 
             case Ps3ReplyKind.CharacterCreate:
