@@ -44,11 +44,14 @@ public static class Marketplace
     /// <summary>EnablePaymentSources (PS3 43): SMS and PayPal, both on as Sanctuary sends them; the PS3 reads two ints (0x83190), the PC two bytes.</summary>
     public static byte[] EnablePaymentSources() => new PacketWriter().U16(Opcode).U16(EnablePaymentSourcesSub).I32(1).I32(1).ToArray();
 
-    /// <summary>CurrencyCodes reply: error code, locale, then a map of one currency (key: the Jenkins hash of its code) as Sanctuary sends it.</summary>
+    /// <summary>
+    /// CurrencyCodes reply: error code, locale, then a map of one currency (key: the Jenkins hash of its code) as Sanctuary sends it, but
+    /// without the PC's last bool: the PS3 reads four strings and two ints per currency (0xaa55bc).
+    /// </summary>
     public static byte[] CurrencyCodes(string locale) =>
         new PacketWriter()
             .U16(Opcode).U16(CurrencyCodesResponseSub).I32(Ok).Str(locale)
-            .I32(1).U32(OneAtATimeHash("USD")).Str("USD").Str("$").Str(".").Str("US Dollar").I32(100).I32(2).U8(0)
+            .I32(1).U32(OneAtATimeHash("USD")).Str("USD").Str("$").Str(".").Str("US Dollar").I32(100).I32(2)
             .ToArray();
 
     /// <summary>StateCodes reply: error code, then one state, as Sanctuary sends it.</summary>

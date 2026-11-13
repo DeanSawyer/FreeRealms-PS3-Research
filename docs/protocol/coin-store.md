@@ -128,7 +128,7 @@ dispatcher `0x9425c`, jump table at `0x94380`):
 | 42 | 6 | category groups: count, then per group key, id, category ids (as the PC) |
 | 14 | 7 | categories: count, then per category key and five ints (id, name, image, tint, parent); nothing after (the PC's *sorted* byte made the client refuse it) |
 | 5 type 2 | 5 type 1 | store id, the store (id, name, description, image, tint), then its items keyed by id |
-| 35 | 9 | item groups: id, name, a third int (description: a guess), image, tint, exclusive byte, (store item id, order) pairs |
+| 35 | 9 | item groups: id, name, a third int (description: a guess), image, tint, exclusive byte, then a map: key, store item id, order |
 
 A PS3 **store item** (reader `0xa980e0`; names from its debug print, `0x8d4d40`) is:
 - **Ids:** store id, store item id, category group id, name id, description id, image set id and image tint.
@@ -137,6 +137,7 @@ A PS3 **store item** (reader `0xa980e0`; names from its debug print, `0x8d4d40`)
 - **More ints:** rental period, rental price, terms id, max per order, sort order, category sort order and limited edition id.
 - **Last:** an *is tintable* byte, then entries of three ints each. The entry order (quantity, item, tint) is a guess.
 
+The currency codes reply has no last bool per currency on the PS3 (reader `0xaa55bc`: four strings, two ints).
 EnablePaymentSources (43) is two ints on the PS3 (reader `0x83190`), not the PC's two bytes.
 
 **What the game's log showed** (13 November, `fr_test_20261113_051855`, with the *game log to TTY* fix):

@@ -120,8 +120,9 @@ public static class Shop
             writer.I32(Int(group, "Id")).I32(Int(group, "Id")).I32(Int(group, "NameId")).I32(Int(group, "DescriptionId"))
                 .I32(Image(group)).I32(Tint(group)).U8(Bool(group, "IsExclusive") ? 1 : 0).I32(entries.Count);
 
+            // A map, as the PC's: the key, then the store item id and the order (reader 0xa94dd8).
             foreach (var (id, order) in entries)
-                writer.I32(id).I32(order);
+                writer.I32(id).I32(id).I32(order);
         }
 
         return writer.ToArray();
