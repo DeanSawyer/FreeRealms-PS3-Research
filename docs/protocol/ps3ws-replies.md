@@ -105,14 +105,18 @@ field above arrived, the loading screen ended, and the main thread then waited o
 (`_sys_lwmutex_lock`, 94 s, every other thread idle); no `character/login` followed. Login state 5 calls the setup `0x78bc88`
 with `r7 = 1`, which builds the select actor from the first saved record; the creator calls the same function with `r7 = 0` and
 an empty default record (`0x78c6f4`: empty strings, `Model` 0, colours 0), which works. So one of the fields sent hangs it. The
-server therefore sends less by default, chosen with `FR_SELECT_DETAIL`:
+server could send less, chosen with `FR_SELECT_DETAIL`:
 
 | `FR_SELECT_DETAIL` | `Details` carries |
 | :--- | :--- |
 | `minimal` | `Guid`, `Name` |
-| `basic` (default) | plus `Model` |
+| `basic` | plus `Model` |
 | `looks` | plus `Head`, `Hair`, `ModelCustomization`, `FacePaint`, `SkinTone`, `EyeColor`, `HairColor` |
-| `full` | plus `Attachments` |
+| `full` (default) | plus `Attachments` |
+
+The freeze did not come back: later runs with `full` showed the character in their clothes and went on to log in, while with
+`basic` character select shows nobody (13 November, `fr_test_20261113_033656`). So `full` is the default again; the others stay
+for testing.
 
 Whatever character select shows, the game server sends the saved character's full appearance and clothes in the world.
 
@@ -177,7 +181,7 @@ reported with `Status` 2 (`--account-status 2`, the default); `Status` 1 needs a
 ## Not known yet
 
 - What `character/delete` sends. The server takes its `Guid` as login's is sent; no delete has been seen in a test run yet.
-- Which field of the full record freezes character select (try `looks`, then `full`).
+- Whether the one character select freeze with the full record (`fr_test_20261113_012648`) comes back.
 - Whether character select lists more than the first saved character, and what it does with three.
 - Whether `Key` is used to encrypt the game connection. `GatewayAddress` is `host:port` and `GatewayTicket` comes back
   as the ticket in the client's first gateway packet; see `docs/protocol/gateway.md`.

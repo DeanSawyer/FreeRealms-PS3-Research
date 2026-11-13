@@ -58,7 +58,7 @@ public sealed record Ps3ReplyOptions(
     bool ExistingCharacter = false,
     bool ZoneField = false,
     string Gateway = "127.0.0.1:20260",
-    CharacterDetail Detail = CharacterDetail.Basic);
+    CharacterDetail Detail = CharacterDetail.Full);
 
 /// <summary>
 /// The ps3ws web-service replies. Every reply is XML read by the client's own reader; the client treats a reply as successful

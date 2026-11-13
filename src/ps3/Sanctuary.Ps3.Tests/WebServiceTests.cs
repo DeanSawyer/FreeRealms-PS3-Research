@@ -381,8 +381,9 @@ public sealed class WebServiceTests
         Assert.IsNull(Details(CharacterDetail.Looks).Element("Attachments"));
         Assert.AreEqual(1, Details(CharacterDetail.Full).Element("Attachments")!.Elements("Attachment").Count());
 
-        // The server's default is Basic: the full record froze the game in character select.
-        Assert.AreEqual(CharacterDetail.Basic, new Ps3ReplyOptions().Detail);
+        // The server's default is Full: with less, character select has nobody to show (13 November); the one freeze with the
+        // full record did not come back.
+        Assert.AreEqual(CharacterDetail.Full, new Ps3ReplyOptions().Detail);
 
         using var rig = new Rig();
 

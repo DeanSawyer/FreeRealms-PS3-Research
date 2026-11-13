@@ -77,7 +77,7 @@ public sealed record Ps3ServerOptions
 
     /// <summary>
     /// How much of each saved character the account reply sends; null reads the <c>FR_SELECT_DETAIL</c> environment variable
-    /// (<c>minimal</c>, <c>basic</c>, <c>looks</c> or <c>full</c>), else <see cref="CharacterDetail.Basic"/>.
+    /// (<c>minimal</c>, <c>basic</c>, <c>looks</c> or <c>full</c>), else <see cref="CharacterDetail.Full"/>.
     /// </summary>
     public CharacterDetail? SelectDetail { get; init; }
 

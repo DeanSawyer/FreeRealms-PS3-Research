@@ -115,7 +115,7 @@ public static class Ps3Server
             var detail = options.SelectDetail
                 ?? (Enum.TryParse<CharacterDetail>(Environment.GetEnvironmentVariable("FR_SELECT_DETAIL"), ignoreCase: true, out var chosen) && Enum.IsDefined(chosen)
                     ? chosen
-                    : CharacterDetail.Basic);
+                    : CharacterDetail.Full);
 
             if (characters.LoadProblem is { } problem)
                 log.LogWarning("characters: {Problem}", problem);
