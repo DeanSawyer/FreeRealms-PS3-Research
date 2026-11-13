@@ -22,6 +22,8 @@
     <!-- The coin store: Sanctuary's Resources/CoinStoreItems.json joined with each item's definition and resell value; read by Gateway/CoinStore.cs. -->
     <EmbeddedResource Include="Data\coin_store.tsv.gz" LogicalName="Sanctuary.Ps3.coin_store.tsv.gz" />
     <EmbeddedResource Include="Data\ResellValues.txt" LogicalName="Sanctuary.Ps3.ResellValues.txt" />
+    <!-- The Marketplace's Station Cash shop: Sanctuary's Resources/Store*.json, gzipped; read by Gateway/Shop.cs. -->
+    <EmbeddedResource Include="Data\shop\*.json.gz" LogicalName="Sanctuary.Ps3.shop.%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

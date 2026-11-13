@@ -687,6 +687,10 @@ public sealed class Ps3Gateway
                         _ => packet,
                     })
                     .ToList();
+
+                // Sanctuary's Station Cash shop (BaseZone.SendInGamePurchase): categories, the store's items and the item groups.
+                ready.AddRange(Shop.Packets());
+                _logger?.LogInformation("gateway: marketplace: {Bundles} store item(s) listed", Shop.BundleCount);
             }
 
             // FR_COINSTORE: the coin store's items instead of the empty list, and the coins the character has.

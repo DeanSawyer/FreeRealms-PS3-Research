@@ -47,5 +47,28 @@ public sealed class MarketplaceTests
         Assert.AreEqual(1330388359u, BinaryPrimitives.ReadUInt32LittleEndian(currencies.AsSpan(4 + 4 + 4 + 5 + 4)));
     }
 
+    [TestMethod]
+    public void SanctuarysShopIsListedInThePs3Layouts()
+    {
+        var packets = Shop.Packets();
+
+        CollectionAssert.AreEqual(new[] { 42, 14, 5, 35 }, packets.Select(packet => Sub(packet.Inner)).ToArray());
+        Assert.IsTrue(Shop.BundleCount > 3000, "Sanctuary's main store has about 3,400 bundles");
+
+        // The store: type 2 (the whole store), store id 1, then the store itself (id 1) and its items.
+        var store = packets[2].Inner;
+
+        Assert.AreEqual(2, BinaryPrimitives.ReadInt32LittleEndian(store.AsSpan(4)));
+        Assert.AreEqual(1, BinaryPrimitives.ReadInt32LittleEndian(store.AsSpan(8)));
+        Assert.AreEqual(1, BinaryPrimitives.ReadInt32LittleEndian(store.AsSpan(12)));
+        Assert.AreEqual(Shop.BundleCount, BinaryPrimitives.ReadInt32LittleEndian(store.AsSpan(32)));
+
+        // The first item: its id as the key, then the store id and its id again.
+        var first = BinaryPrimitives.ReadInt32LittleEndian(store.AsSpan(36));
+
+        Assert.AreEqual(1, BinaryPrimitives.ReadInt32LittleEndian(store.AsSpan(40)));
+        Assert.AreEqual(first, BinaryPrimitives.ReadInt32LittleEndian(store.AsSpan(44)));
+    }
+
     private static int Sub(byte[] inner) => BinaryPrimitives.ReadUInt16LittleEndian(inner.AsSpan(2));
 }
