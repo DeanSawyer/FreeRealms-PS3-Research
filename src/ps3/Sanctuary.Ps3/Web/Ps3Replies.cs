@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -29,17 +30,35 @@ public enum Ps3ReplyKind
     Generic,
 }
 
+/// <summary>How much of each saved character <c>account/info</c> sends (environment variable <c>FR_SELECT_DETAIL</c>).</summary>
+public enum CharacterDetail
+{
+    /// <summary><c>Guid</c> and <c>Name</c> only, like the old sample character.</summary>
+    Minimal,
+
+    /// <summary>Plus <c>Model</c>. The default: the full record froze the game in character select (13 November test).</summary>
+    Basic,
+
+    /// <summary>Plus the appearance: head, hair, customization, face paint, skin tone (asset names) and the eye and hair colours.</summary>
+    Looks,
+
+    /// <summary>Plus one <c>Attachment</c> per piece of clothing.</summary>
+    Full,
+}
+
 /// <param name="Style">How simple values are written.</param>
 /// <param name="AccountStatus">Status for an account without characters. 2 is the client's "no existing character" result, 1 a success with an empty list (which crashes the client).</param>
 /// <param name="ExistingCharacter">Report one sample character instead of an empty account.</param>
 /// <param name="ZoneField">Experimental: one extra <c>Zone</c> field in the server list, unverified against the parser.</param>
 /// <param name="Gateway">Where the character login reply sends the client's UDP connection.</param>
+/// <param name="Detail">How much of each saved character the account reply sends.</param>
 public sealed record Ps3ReplyOptions(
     XmlStyle Style = XmlStyle.Attributes,
     int AccountStatus = 2,
     bool ExistingCharacter = false,
     bool ZoneField = false,
-    string Gateway = "127.0.0.1:20260");
+    string Gateway = "127.0.0.1:20260",
+    CharacterDetail Detail = CharacterDetail.Full);
 
 /// <summary>
 /// The ps3ws web-service replies. Every reply is XML read by the client's own reader; the client treats a reply as successful
@@ -149,6 +168,90 @@ public static partial class Ps3Replies
             [Ps3ReplyKind.FriendsList] = Reply("CharacterFriendsReply", children: [El("Friends")]),
             [Ps3ReplyKind.Generic] = Reply("Response"),
         };
+    }
+
+    /// <summary>
+    /// <c>account/info</c> for an account with <paramref name="characters"/> (at least one): <c>Status</c> 1 and a <c>Character</c>
+    /// for each, so the client goes to character select. The layout is the one the client's reader takes (<c>0xd9b6f8</c>):
+    /// <c>HeadshotUrl</c> on <c>Character</c>; <c>Guid</c>, <c>Name</c>, <c>Model</c>, the appearance asset names (as the game
+    /// server's SendSelfToClient sends them), <c>EyeColor</c>, <c>HairColor</c> and <c>Attachments/Attachment</c> (Model, Texture,
+    /// Tint, TintOverrideId, EffectId, Slot) on <c>Details</c>.
+    /// </summary>
+    public static byte[] AccountInfo(IReadOnlyList<SavedCharacter> characters, XmlStyle style = XmlStyle.Attributes, CharacterDetail detail = CharacterDetail.Full, int maxCharacters = MaxCharacters)
+    {
+        string El(string tag, (string, object)[]? fields = null, string[]? children = null) => Element(tag, fields, children, style);
+
+        var list = new List<string>(characters.Count);
+
+        foreach (var character in characters)
+        {
+            var values = character.Values;
+            var fields = new List<(string, object)> { ("Guid", character.Guid), ("Name", character.Name) };
+
+            if (detail >= CharacterDetail.Basic)
+                fields.Add(("Model", Gateway.CharacterMappings.Number(values, "Model", 1)));
+
+            if (detail >= CharacterDetail.Looks)
+            {
+                fields.AddRange(
+                [
+                    ("Head", Gateway.CharacterMappings.Head(values)),
+                    ("Hair", Gateway.CharacterMappings.Hair(values)),
+                    ("ModelCustomization", Gateway.CharacterMappings.ModelCustomization(values)),
+                    ("FacePaint", Gateway.CharacterMappings.FacePaint(values)),
+                    ("SkinTone", Gateway.CharacterMappings.SkinTone(values)),
+                    ("EyeColor", Gateway.CharacterMappings.Number(values, "EyeColor", 0)),
+                    ("HairColor", Gateway.CharacterMappings.Number(values, "HairColor", 0)),
+                ]);
+            }
+
+            string[]? children = null;
+
+            if (detail >= CharacterDetail.Full)
+            {
+                var attachments = Gateway.Clothing.Attachments(values)
+                    .Select(piece => El("Attachment", [
+                        ("Model", piece.Model), ("Texture", piece.TextureAlias), ("Tint", piece.TintAlias),
+                        ("TintOverrideId", piece.Tint), ("EffectId", piece.CompositeEffect), ("Slot", piece.Slot)]))
+                    .ToArray();
+
+                children = [El("Attachments", children: attachments)];
+            }
+
+            var details = El("Details", [.. fields], children);
+
+            list.Add(El("Character", [("HeadshotUrl", string.Empty)], [details]));
+        }
+
+        var account = El("Account", [("Member", 1), ("MaxCharacters", maxCharacters), ("Admin", 0)]);
+
+        return Document("AccountInfoReply", null, [account, El("Characters", children: [.. list])], style);
+    }
+
+    /// <summary><c>character/create</c> answered with the guid the server gave the new character.</summary>
+    public static byte[] CharacterCreate(ulong guid, XmlStyle style = XmlStyle.Attributes) =>
+        Document("CharacterCreateReply", [("Guid", guid)], null, style);
+
+    /// <summary>How many characters an account may have (the <c>MaxCharacters</c> the client is told with saved characters): Sanctuary's default.</summary>
+    public const int MaxCharacters = CharacterStore.MaxCharacters;
+
+    /// <summary>
+    /// <c>character/checkName</c>: 1 when the name is free, 2 ("Name already taken", the creator shows <c>Char_Name_Taken_PS3</c>)
+    /// when a saved character has it, as Sanctuary refuses a duplicate name.
+    /// </summary>
+    public static byte[] CheckName(bool taken, XmlStyle style = XmlStyle.Attributes) =>
+        taken
+            ? Document("CheckNameReply", null, [Element("Suggestions", null, null, style)], style, status: 2, message: "Name already taken")
+            : Document("CheckNameReply", null, [Element("Suggestions", null, null, style)], style);
+
+    private static byte[] Document(string root, (string, object)[]? fields, string[]? children, XmlStyle style, int status = 1, string message = "Success")
+    {
+        var head = new List<(string, object)> { ("Status", status), ("StatusMessage", message) };
+
+        if (fields is not null)
+            head.AddRange(fields);
+
+        return new UTF8Encoding(false).GetBytes(XmlDeclaration + Element(root, head, children, style) + "\r\n");
     }
 
     /// <summary>The <c>Status</c> value in a reply, for the log line; null when there is none.</summary>

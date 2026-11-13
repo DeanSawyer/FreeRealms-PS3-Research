@@ -15,6 +15,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The RPCS3 game fixes the manager adds before a test run (docs/rpcs3/patches.md). -->
+    <EmbeddedResource Include="Rpcs3\FreeRealms_PS3_fixes.yml" LogicalName="FreeRealms_PS3_fixes.yml" />
+  </ItemGroup>
+
+  <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../ps3/Sanctuary.Ps3/Sanctuary.Ps3.csproj" />
   </ItemGroup>

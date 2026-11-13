@@ -47,7 +47,7 @@ Last updated: **13 November 2026.** Everything marked working was observed in RP
 | DNS redirect, `AppConfig`, patch digest, `.zs` asset downloads | ✅ Working | The installer reaches 100 % | [`digest-format.md`](docs/install/digest-format.md) |
 | Web services: server list, account, character create and login | ✅ Working | | [`ps3ws-replies.md`](docs/protocol/ps3ws-replies.md) |
 | Character creator: appearance and clothes | ✅ Working | What you pick is what you wear in the world | [`zone-loading.md`](docs/re/zone-loading.md) |
-| Character creator: **custom names** | ❌ Not working | Typing your own name fails; use a suggested name for now | [`ps3ws-replies.md`](docs/protocol/ps3ws-replies.md) |
+| Character creator: **custom names** | ✅ Working | Needs two RPCS3 game fixes, which the Server Manager adds before a test run | [`patches.md`](docs/rpcs3/patches.md) |
 | Game-server connection: SOE UDP gateway, login, zone, player data | ✅ Working | | [`gateway.md`](docs/protocol/gateway.md) |
 | **Entering the world** | ✅ Working | The loading screen drops and your character stands in FabledRealms | [`zone-loading.md`](docs/re/zone-loading.md) |
 | The sky | ✅ Fixed | Looking up used to crash the renderer; the zone now names its sky | [`zone-loading.md`](docs/re/zone-loading.md) |
@@ -59,27 +59,34 @@ Last updated: **13 November 2026.** Everything marked working was observed in RP
 | Marketplace (Station Cash) | 🔶 Partly mapped | The PS3 build uses an older store protocol than Sanctuary; resumes after the coin store | — |
 | Other players, movement relay, chat | ⬜ Not started | Single player only | — |
 | Quests, combat, mini-games | ⬜ Not started | | — |
-| Saving characters and items, accounts | ⬜ Not started | Everything is kept in memory until the server stops | — |
+| **Keeping characters** | 🔶 New, being tested | Characters are saved (up to 10, unique names, as in Sanctuary). The PS3 shows one in character select; pick which, or make another, on the manager's Characters page | [`ps3ws-replies.md`](docs/protocol/ps3ws-replies.md#saved-characters) |
+| **Saving progress** | 🔶 New, being tested | Like Sanctuary's database: items, each job's outfit, the active job, coins and where you stood are saved and come back next time | [`ps3ws-replies.md`](docs/protocol/ps3ws-replies.md#saved-characters) |
+| Accounts | ⬜ Not started | The PS3 sends no session to the web server, so every player shares one list of characters | — |
 
 ### What a session looks like today
 
 1. Start the server in the [Server Manager](#the-server-manager) and the game in RPCS3. The game's host names resolve to your PC.
 2. The client checks its install against the patch digest and downloads anything missing.
-3. You see one server and an account with no characters, so the game opens the character creator.
-4. You create a character with a **suggested** name. The game connects to the game server and loads FabledRealms.
+3. You see one server. With no saved characters the game opens the character creator; otherwise character select shows the
+   characters you made before.
+4. You create a character, with a suggested name or your own, or pick a saved one. The game connects to the game server and
+   loads FabledRealms.
 5. Your character appears wearing what you picked. With the Sanctuary flow on (the default), the server sends what Sanctuary
    sends: your stats, the item classes and categories, the adventurer's journal, the welcome screen, your area and the toolbar.
 6. Open the equipment screen to see every job's starter items, and switch jobs to change outfits.
 
 ### Known issues
 
-* **Custom names don't work.** Typing your own name in the character creator fails. The server's answer to the name check
-  (`character/checkName`) is the first suspect; what the client expects there is listed as open in
-  [`ps3ws-replies.md`](docs/protocol/ps3ws-replies.md#not-known-yet).
+* **Custom names need the RPCS3 game fixes.** Without them the creator waits forever after you type your name (the game's
+  chat code closes the on-screen keyboard before the creator reads it), or the renderer crashes. The Server Manager adds both
+  fixes before a test run; to add them by hand, see [`patches.md`](docs/rpcs3/patches.md).
+* **A VPN or an antivirus DNS filter stops the game at the first loading screen.** Proton VPN, for one, answers every DNS
+  request on the PC itself, so the game never finds the server. Turn it off while you play; the manager checks for this when
+  the server starts and warns in the log.
 * **The inventory is unfinished.** Equip (by item and by item record), unequip and job switch requests are handled with
   Sanctuary's checks. The action bar, style cards, combat abilities and the rest of the inventory screen are not answered yet.
-* **Nothing is saved.** The character, its items and its equipment live in memory: stopping the server forgets them, and every
-  run starts with a new character.
+* **Saving is new.** Characters, their items, outfits, active job, coins and position are kept in `characters.json` and are
+  still being tested in RPCS3. Delete the file (or one character on the manager's Characters page) to start over.
 * **Single player only.** The client's movement updates arrive but are not relayed; there are no other players or chat.
 * **The character creator can be slow to appear** the first time it loads in RPCS3. Give it a minute before closing the game.
 * Keep the sky setting (`sky_wilds24.xml`): without it the game crashes as soon as you look up.
@@ -90,7 +97,9 @@ Last updated: **13 November 2026.** Everything marked working was observed in RP
 
 * Windows with [RPCS3](https://rpcs3.net/) and **your own** Free Realms PS3 client folder (`NPUA30048`, with
   `USRDIR\Digests\NPUA30048.soe`). Tests so far used a decrypted `game.elf` (RPCS3 → *Utilities → Decrypt PS3 Binaries*) and
-  RPCS3's game patch *“Free Realms PS3 select exceptfds compatibility”*.
+  RPCS3's game patch *“Free Realms PS3 select exceptfds compatibility”*, plus this project's two game fixes
+  ([`patches.md`](docs/rpcs3/patches.md)), which the Server Manager adds for you.
+* No VPN or antivirus DNS protection running while you play (see [Known issues](#known-issues)).
 * Administrator rights: the server binds UDP 53 (DNS) and TCP 80 (web). Use an isolated test machine or network.
 
 **With the Server Manager (recommended)**
@@ -102,7 +111,8 @@ Last updated: **13 November 2026.** Everything marked working was observed in RP
 2. Open **Free Realms PS3 Server Manager**. In **Settings**, choose `rpcs3.exe` (the game RPCS3 has installed is filled in),
    check the client folder, and press **Save settings**.
 3. On the **Dashboard**, press **Test run in RPCS3**. The server starts, then RPCS3 starts on the game.
-4. Create a character with a suggested name and play. When you close RPCS3, a report zip is saved to your Desktop.
+4. Create a character (a suggested name or your own) and play. Next time, character select shows it. When you close RPCS3, a
+   report zip is saved to your Desktop.
 
 **With the console server**
 
@@ -124,15 +134,18 @@ it starts.
 
 | Page | What it does |
 | :--- | :--- |
-| **Dashboard** | Start and stop the server; the state of the DNS, web and game services with their ports; uptime, players, packets received and your character; recent activity. **Test run in RPCS3** starts everything and saves a report when RPCS3 closes. |
+| **Dashboard** | Start and stop the server; the state of the DNS, web and game services with their ports; uptime, players, packets received, your character and how many are saved; recent activity. **Test run in RPCS3** adds the game fixes to RPCS3, starts everything and saves a report when RPCS3 closes. |
 | **Players** | Every connected PS3: online id and character, address, current job, state (connecting, logged in, in world), packets and timings, refreshed every second. |
+| **Characters** | Every saved character with when it was made and last played. The PS3 shows only one in character select, so pick the one it shows next, send the next login to the creator to make another, or delete one. |
 | **Gameplay** | The server's behaviour without environment variables: the Sanctuary flow, starter items, jobs, sky, spawn point and how the creator's clothes go on. **Save and restart server** applies them. |
-| **Settings** | Client folder, an optional second client folder and original digest, `rpcs3.exe` and `game.elf`, network addresses and ports, the DNS stand-in. Choosing `rpcs3.exe` fills in the game RPCS3 has installed. |
+| **Settings** | Client folder, an optional second client folder and original digest, `rpcs3.exe` and `game.elf`, whether to add the game fixes to RPCS3, network addresses and ports, the DNS stand-in. Choosing `rpcs3.exe` fills in the game RPCS3 has installed. |
 | **Logs** | The live log of every service with search and filters by level and source; pause, copy, clear. |
 | **Diagnostics** | Start a test run; export the logs and traces to a zip at any time; open the trace and settings folders; check for updates. |
 
 A test report holds the server log and its most important lines, the end of RPCS3's log, RPCS3's settings and patches, and the
-server's trace files. Settings and traces live in `%LOCALAPPDATA%\FreeRealmsPS3Server`. More in [`src/README.md`](src/README.md).
+server's trace files. Settings, saved characters (`characters.json`) and traces live in `%LOCALAPPDATA%\FreeRealmsPS3Server`.
+When the server starts, the manager asks its DNS for the game's host name the way the game does and warns if something else
+answered. More in [`src/README.md`](src/README.md).
 
 ## How it fits together
 
@@ -195,7 +208,8 @@ Start at the [documentation index](docs/README.md).
 | Topic | Document |
 | :--- | :--- |
 | How the installer and the patch digest work | [`docs/install/digest-format.md`](docs/install/digest-format.md) |
-| HTTP web-service formats, including what is still unknown about the name check | [`docs/protocol/ps3ws-replies.md`](docs/protocol/ps3ws-replies.md) |
+| HTTP web-service formats: the name check, the character list, saved characters | [`docs/protocol/ps3ws-replies.md`](docs/protocol/ps3ws-replies.md) |
+| The RPCS3 game fixes (custom names, a renderer crash) | [`docs/rpcs3/patches.md`](docs/rpcs3/patches.md) |
 | UDP game-server protocol, items, jobs, inventory, and the session log | [`docs/protocol/gateway.md`](docs/protocol/gateway.md) |
 | Packs, manifest, name hash, request path | [`docs/re/assets.md`](docs/re/assets.md) |
 | Zone loading, the loading overlay, the sky crash | [`docs/re/zone-loading.md`](docs/re/zone-loading.md) |
@@ -213,10 +227,11 @@ Start at the [documentation index](docs/README.md).
 - [x] One C# server with a Windows Server Manager
 - [ ] **Inventory**: the rest of the inventory screen, the action bar and style cards *(in progress)*
 - [ ] **Coin store**: buy and sell for coins *(next)*
-- [ ] Custom character names
+- [x] Custom character names (with two RPCS3 game fixes)
+- [ ] Keep characters between runs *(built, being tested)*
 - [ ] Marketplace: browse and buy with Station Cash
 - [ ] Movement, other players and chat
-- [ ] Save characters and items (Sanctuary's database)
+- [ ] Save items, jobs, coins and position like Sanctuary's database *(built, being tested)*
 - [ ] Accounts linked to the Clover server
 - [ ] Offer the PS3 client as a second client option in Sanctuary / Clover
 

@@ -1,0 +1,48 @@
+# RPCS3 game fixes
+
+Two small patches to the game's code make the character creator's custom names work in RPCS3. They are in
+[`src/FreeRealms.Bootstrap/Rpcs3/FreeRealms_PS3_fixes.yml`](../../src/FreeRealms.Bootstrap/Rpcs3/FreeRealms_PS3_fixes.yml), for
+the decrypted 1.77 `game.elf` (RPCS3 hash `PPU-5425f6d47ba410afbcbc7ce77f87f2ffcde68798`).
+
+## Adding them
+
+**With the Server Manager:** nothing to do. Before each test run (setting *Add the game fixes to RPCS3 before a test run*, on by
+default) the manager adds any fix that is missing to RPCS3's `patches\imported_patch.yml` and turns it on in
+`config\patch_config.yml`, keeping a `.bak` copy of each file it changes. A fix already listed is left alone, so one you turned off
+stays off. RPCS3 must be closed, because it writes those files itself.
+
+**By hand:** open RPCS3 → *Manage → Game Patches*, drag the `.yml` file into the window, tick both fixes and press *Save*.
+
+RPCS3's log shows them at boot: `PAT: Applied patch (... description='Free Realms PS3 keyboard close fix' ...)`. The first boot
+after a change takes longer while RPCS3 recompiles the game.
+
+## Keyboard close fix
+
+**Symptom:** in the creator, choose *Custom Name*, type a name and confirm: the screen waits forever and no name check reaches the
+server.
+
+**Cause:** two pieces of the game answer the system's *keyboard finished* event (`CELL_SYSUTIL_OSKDIALOG_FINISHED`, 0x503):
+
+| Handler | What it does |
+| :--- | :--- |
+| `0x1ee0a0` (general; chat) | Calls `cellOskDialogUnloadAsync` first, *then* checks its own flag (`+4192` of the UI object from `0x886a60`) to see whether it opened the keyboard |
+| `0x78ae60` (character creator) | Calls `cellOskDialogUnloadAsync` to read the text; on success splits it at the first space into first and last name (`0x1080e70+200` / `+236`) and sets the *done* flags (`+32`, `+34`) its state machine waits for |
+
+The general handler runs first and closes the keyboard although it did not open it. When the creator then asks for the text, RPCS3
+answers `CELL_MSGDIALOG_ERROR_DIALOG_NOT_OPENED` (0x8002b302), the creator logs the error and returns without setting its flags.
+
+**Fix:** the general handler checks its flag before closing the keyboard (`0x1ee134`–`0x1ee170` rearranged, the cancel event at
+`0x1ee1e0` goes the same way, and the branch at `0x1ee230` follows the move). When chat opened the keyboard it behaves as before.
+
+## Renderer null state guard
+
+**Symptom:** the emulator stops with `VM: Access violation reading location 0x108` in the *Deep Engine Renderer* thread at
+`0x7845a4`. It happened a few seconds after confirming a custom name; the same spot crashed in the world before the sky fix.
+
+**Cause:** `0x784518` applies a render state block. It compares the wanted state (`+336`) with the one last applied (`+680`) and,
+when they differ, binds the wanted one through `0x91d2ac` with fields `+256` and `+264` of it. Between the comparison and that call
+(after `0x91f8d0`, which can wait for the command buffer) the slot can become empty, and the code reads `+264` of nothing.
+
+**Fix:** both paths that load the wanted state (`0x7845b8` and `0x785170`) jump to a check in the unused padding at
+`0xea0a5c`–`0xea0a7c` (before the constructor list at `0xea0a80`): an empty state skips the bind and goes on at `0x7845e0`, as if
+it had been applied. The padding `0xea0a20`–`0xea0a58` is left for the *select exceptfds* patch.

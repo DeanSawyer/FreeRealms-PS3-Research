@@ -19,10 +19,11 @@ No game files are packaged; you need your own `NPUA30048` client folder.
 
 | Page | What it does |
 | :--- | :--- |
-| **Dashboard** | **Start server** / **Stop server**; a card for each service (DNS, web server, game server) with its state and port; uptime, connected players, packets received and the last character created; the recent activity. **Test run in RPCS3** starts the server if needed, then RPCS3 on the game, and saves a report when RPCS3 is closed. |
+| **Dashboard** | **Start server** / **Stop server**; a card for each service (DNS, web server, game server) with its state and port; uptime, connected players, packets received, the character being played and how many are saved; the recent activity. **Test run in RPCS3** starts the server if needed, then RPCS3 on the game, and saves a report when RPCS3 is closed. |
 | **Players** | Every connected PS3 client, refreshed each second: online id and character, address, current job, state (connecting, logged in, in world), packets received, time since the last packet and since it connected. |
+| **Characters** | Every saved character (up to 10, names unique as in Sanctuary): when it was made and last played, which one the PS3 shows next in character select. **Show next** picks another, **Next login opens the character creator** makes a new one without losing the others, **Delete** removes one. Works with the server stopped too. |
 | **Gameplay** | **Sanctuary flow** (what the PC server Sanctuary sends, with inventory and job switching; on by default), **starter items**, **jobs** (`all` or a list of ids), **sky** (keep `sky_wilds24.xml`), **spawn point**, how the creator's clothes go on, and the basic flow's welcome screen and game time. **Save and restart server** applies them. |
-| **Settings** | Client folder; an optional second client folder and original patch digest; whether the digest describes your local files; `rpcs3.exe` and `game.elf`; restoring the original game scripts before a test run; listen address, the address the PS3 connects to, the web and game server ports, and the DNS stand-in. |
+| **Settings** | Client folder; an optional second client folder and original patch digest; whether the digest describes your local files; `rpcs3.exe` and `game.elf`; restoring the original game scripts and adding the game fixes to RPCS3 before a test run; listen address, the address the PS3 connects to, the web and game server ports, and the DNS stand-in. |
 | **Logs** | The live log of every service. Search, filter by level (all, warnings, errors) and by source (game server, web and DNS); pause, copy, clear. |
 | **Diagnostics** | Start a test run; **Export now** saves the logs and traces to a zip on the Desktop without RPCS3; open the trace and settings folders; check GitHub for a newer release. |
 
@@ -46,7 +47,17 @@ Redact before sharing: the files can contain local paths and your online id.
 
 ## Files
 
-`%LOCALAPPDATA%\FreeRealmsPS3Server` holds `settings.json` and the `traces` folder.
+`%LOCALAPPDATA%\FreeRealmsPS3Server` holds `settings.json`, `characters.json` (the characters made in the game, listed in
+character select next time; delete the file to start over) and the `traces` folder.
+
+## Game fixes and the DNS check
+
+Before a test run the manager adds the RPCS3 game fixes custom names need (`Rpcs3\FreeRealms_PS3_fixes.yml`, see
+[`docs/rpcs3/patches.md`](../docs/rpcs3/patches.md)) to RPCS3's patches and turns them on, unless **Settings** says not to.
+
+When the server starts, the manager asks its DNS for `ps3.freerealms.com` the way the game does. If the answer is not the
+address the PS3 connects to, the log warns that something on the PC (a VPN such as Proton VPN, or an antivirus DNS filter) is
+taking the game's DNS requests; turn it off while you play.
 
 ## Run from source
 

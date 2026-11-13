@@ -29,6 +29,9 @@ public static class ServerArguments
           --server-list-variant V   baseline (default) or zone (experimental Zone field)
           --existing-character      report one sample character instead of an empty account
           --account-status N        status for an account without characters (default 2; 1 crashes the client)
+          --characters FILE         where the characters are saved (default: FreeRealmsPS3Server/characters.json
+                                    in the local application data folder, the manager's file)
+          --no-save                 keep characters in memory only; they are gone when the server stops
           --xml-style S             attributes (default) or elements
           --gateway-port PORT       UDP port of the game-server stand-in (default 20260, 0 turns it off)
           --advertise IP            IPv4 address PS3 clients connect to (default 127.0.0.1)
@@ -55,6 +58,7 @@ public static class ServerArguments
         var zoneField = false;
         var existing = false;
         var accountStatus = 2;
+        string? characters = Ps3ServerOptions.DefaultCharacterFile;
         var style = XmlStyle.Attributes;
         var gatewayPort = 20260;
         var advertise = IPAddress.Loopback;
@@ -100,6 +104,16 @@ public static class ServerArguments
                     break;
                 case "--no-dns":
                     dns = false;
+                    break;
+                case "--no-save":
+                    characters = null;
+                    break;
+                case "--characters":
+                    characters = Value();
+
+                    if (string.IsNullOrWhiteSpace(characters))
+                        return ParseResult.Fail("--characters needs a file name");
+
                     break;
                 case "--client":
                     client = Value();
@@ -207,6 +221,7 @@ public static class ServerArguments
             ZoneField = zoneField,
             ExistingCharacter = existing,
             AccountStatus = accountStatus,
+            CharacterFile = characters,
             XmlStyle = style,
             EnableGateway = gatewayPort != 0,
             GatewayPort = gatewayPort,

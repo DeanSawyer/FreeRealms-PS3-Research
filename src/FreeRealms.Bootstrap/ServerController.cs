@@ -80,6 +80,7 @@ public sealed class ServerController
             ExtraClients = Directory.Exists(settings.ExtraClientFolder) ? new[] { settings.ExtraClientFolder } : Array.Empty<string>(),
             DigestPath = File.Exists(settings.OriginalDigest) ? settings.OriginalDigest : null,
             MatchLocal = settings.MatchLocal,
+            CharacterFile = ManagerSettings.CharacterFile,
             Bind = bind,
             Advertise = advertise,
             HttpPort = settings.HttpPort,
@@ -110,6 +111,17 @@ public sealed class ServerController
         StartedAt = DateTime.Now;
 
         Write(LogSeverity.Info, "Manager", $"Server started: web {running.HttpPort}, game server {(running.GatewayPort is { } port ? port.ToString() : "off")}, DNS {(running.DnsPort is { } dns ? dns.ToString() : "off")}.");
+
+        if (running.DnsPort is { } dnsPort)
+        {
+            var asked = bind.Equals(IPAddress.Any) ? IPAddress.Loopback : bind;
+            var problem = await DnsCheck.ProblemAsync(asked, advertise, dnsPort);
+
+            if (problem is null)
+                Write(LogSeverity.Info, "Manager", $"DNS check: {DnsCheck.Host} -> {advertise}, as the game will see it.");
+            else
+                Write(LogSeverity.Warning, "Manager", problem);
+        }
     }
 
     /// <summary>Stops every service; safe to call when nothing runs.</summary>

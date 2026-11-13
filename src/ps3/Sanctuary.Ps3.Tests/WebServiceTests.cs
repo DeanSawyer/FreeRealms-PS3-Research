@@ -304,6 +304,138 @@ public sealed class WebServiceTests
         Assert.AreEqual("Next", rig.Characters.Snapshot()["Name"]);
     }
 
+    [TestMethod]
+    public void SavedCharactersAreListedPickedAtLoginAndDeleted()
+    {
+        using var rig = new Rig(configure: options => options.Replies = new Ps3ReplyOptions(Detail: CharacterDetail.Full));
+
+        // No characters yet: the fixed "no characters" reply, which sends the client to the creator.
+        CollectionAssert.AreEqual(Ps3Replies.Build()[Ps3ReplyKind.AccountInfo], rig.Post("/ps3ws/account/info.action", "Session=x").Body);
+
+        var first = rig.Post("/ps3ws/character/create.action", "Session=x&FirstName=Mentor&LastName=Kenner&Model=1&Head=2&Hair=4&HairColor=10&EyeColor=63&SkinTone=2&ItemChest=28216&ItemChestTint=234");
+        var second = rig.Post("/ps3ws/character/create.action", "Session=x&FirstName=Aedon&LastName=Amberarm");
+
+        CollectionAssert.AreEqual(Ps3Replies.CharacterCreate(1), first.Body);
+        CollectionAssert.AreEqual(Ps3Replies.CharacterCreate(2), second.Body);
+
+        var account = System.Xml.Linq.XDocument.Parse(Encoding.UTF8.GetString(rig.Post("/ps3ws/account/info.action", "Session=x").Body)).Root!;
+
+        Assert.AreEqual("1", account.Attribute("Status")!.Value);
+
+        var characters = account.Element("Characters")!.Elements("Character").ToList();
+
+        Assert.AreEqual(2, characters.Count);
+
+        // The newest character comes first (the PS3 shows only the first); Mentor Kenner was made first.
+        Assert.AreEqual("2", characters[0].Element("Details")!.Attribute("Guid")!.Value);
+
+        var mentor = characters.Single(character => character.Element("Details")!.Attribute("Guid")!.Value == "1");
+        var details = mentor.Element("Details")!;
+
+        Assert.AreEqual("Mentor Kenner", details.Attribute("Name")!.Value);
+        Assert.AreEqual("<race>_<gender>_head_african.adr", details.Attribute("Head")!.Value);
+        Assert.AreEqual("skintone2", details.Attribute("SkinTone")!.Value);
+        Assert.AreEqual("63", details.Attribute("EyeColor")!.Value);
+        Assert.AreEqual("10", details.Attribute("HairColor")!.Value);
+        Assert.IsNotNull(mentor.Attribute("HeadshotUrl"));
+
+        var attachment = details.Element("Attachments")!.Elements("Attachment").Single();
+
+        Assert.AreEqual("234", attachment.Attribute("TintOverrideId")!.Value);
+        Assert.IsFalse(string.IsNullOrEmpty(attachment.Attribute("Model")!.Value));
+
+        // Login picks the character the game server sends; delete removes one.
+        rig.Post("/ps3ws/character/login.action", "Guid=1&Server=1&Session=x");
+
+        Assert.AreEqual("Mentor", rig.Characters.Snapshot()["FirstName"]);
+
+        rig.Post("/ps3ws/character/delete.action", "Guid=2&Session=x");
+
+        Assert.AreEqual(1, rig.Characters.Count);
+        Assert.AreEqual("Mentor Kenner", rig.Characters.All().Single().Name);
+
+        // An unknown or missing guid changes nothing.
+        rig.Post("/ps3ws/character/login.action", "Guid=99&Session=x");
+        rig.Post("/ps3ws/character/delete.action", "Guid=abc&Session=x");
+
+        Assert.AreEqual(1, rig.Characters.Count);
+        Assert.AreEqual("Mentor", rig.Characters.Snapshot()["FirstName"]);
+    }
+
+    [TestMethod]
+    public void TheDetailLevelDecidesWhatEachCharacterCarries()
+    {
+        var store = new CharacterStore();
+
+        store.Create([("FirstName", "Mentor"), ("LastName", "Kenner"), ("Model", "1"), ("Head", "2"), ("ItemChest", "28216")]);
+
+        System.Xml.Linq.XElement Details(CharacterDetail detail) =>
+            System.Xml.Linq.XDocument.Parse(Encoding.UTF8.GetString(Ps3Replies.AccountInfo(store.All(), XmlStyle.Attributes, detail)))
+                .Root!.Element("Characters")!.Element("Character")!.Element("Details")!;
+
+        string Names(System.Xml.Linq.XElement element) => string.Join(",", element.Attributes().Select(attribute => attribute.Name.LocalName));
+
+        Assert.AreEqual("Guid,Name", Names(Details(CharacterDetail.Minimal)));
+        Assert.AreEqual("Guid,Name,Model", Names(Details(CharacterDetail.Basic)));
+        Assert.AreEqual("Guid,Name,Model,Head,Hair,ModelCustomization,FacePaint,SkinTone,EyeColor,HairColor", Names(Details(CharacterDetail.Looks)));
+        Assert.IsNull(Details(CharacterDetail.Looks).Element("Attachments"));
+        Assert.AreEqual(1, Details(CharacterDetail.Full).Element("Attachments")!.Elements("Attachment").Count());
+
+        // The server's default is Full: with less, character select has nobody to show (13 November); the one freeze with the
+        // full record did not come back.
+        Assert.AreEqual(CharacterDetail.Full, new Ps3ReplyOptions().Detail);
+
+        using var rig = new Rig();
+
+        rig.Post("/ps3ws/character/create.action", "Session=x&FirstName=Mentor&Head=2");
+
+        var listed = System.Xml.Linq.XDocument.Parse(Encoding.UTF8.GetString(rig.Post("/ps3ws/account/info.action", "Session=x").Body)).Root!;
+
+        Assert.AreEqual(Names(Details(CharacterDetail.Full)), Names(listed.Element("Characters")!.Element("Character")!.Element("Details")!));
+    }
+
+    [TestMethod]
+    public void ATakenNameIsRefusedAndTheCreatorCanBeAskedFor()
+    {
+        using var rig = new Rig();
+
+        rig.Post("/ps3ws/character/create.action", "Session=x&FirstName=Aedon&LastName=Amberarm");
+
+        // Sanctuary refuses a duplicate name; the name check says "Name already taken" (2).
+        var taken = rig.Post("/ps3ws/character/checkName.action", "FirstName=aedon&LastName=amberarm&Session=x").Body;
+
+        CollectionAssert.AreEqual(Ps3Replies.CheckName(taken: true), taken);
+        Assert.AreEqual("2", Ps3Replies.StatusOf(taken));
+        CollectionAssert.AreEqual(
+            Ps3Replies.Build()[Ps3ReplyKind.CheckName],
+            rig.Post("/ps3ws/character/checkName.action", "FirstName=Mira&LastName=Moonpetal&Session=x").Body);
+
+        // With the creator asked for, the account looks empty once, so the game opens the creator.
+        rig.Characters.SetCreatorNext(true);
+
+        CollectionAssert.AreEqual(Ps3Replies.Build()[Ps3ReplyKind.AccountInfo], rig.Post("/ps3ws/account/info.action", "Session=x").Body);
+
+        rig.Post("/ps3ws/character/create.action", "Session=x&FirstName=Mira&LastName=Moonpetal");
+
+        var account = System.Xml.Linq.XDocument.Parse(Encoding.UTF8.GetString(rig.Post("/ps3ws/account/info.action", "Session=x").Body)).Root!;
+        var names = account.Element("Characters")!.Elements("Character").Select(character => character.Element("Details")!.Attribute("Name")!.Value).ToArray();
+
+        CollectionAssert.AreEqual(new[] { "Mira Moonpetal", "Aedon Amberarm" }, names, "the new character first: the PS3 shows only the first");
+        Assert.AreEqual(CharacterStore.MaxCharacters.ToString(System.Globalization.CultureInfo.InvariantCulture), account.Element("Account")!.Attribute("MaxCharacters")!.Value);
+    }
+
+    [TestMethod]
+    public void TheExistingCharacterSampleStillWinsOverSavedCharacters()
+    {
+        using var rig = new Rig(configure: options => options.Replies = new Ps3ReplyOptions(ExistingCharacter: true));
+
+        rig.Post("/ps3ws/character/create.action", "Session=x&FirstName=Mentor");
+
+        CollectionAssert.AreEqual(
+            Ps3Replies.Build(new Ps3ReplyOptions(ExistingCharacter: true))[Ps3ReplyKind.AccountInfo],
+            rig.Post("/ps3ws/account/info.action", "Session=x").Body);
+    }
+
     // ----------------------------------------------------------------------------------------- .zs downloads
 
     [TestMethod]

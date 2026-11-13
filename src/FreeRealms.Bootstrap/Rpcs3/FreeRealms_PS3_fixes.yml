@@ -1,0 +1,52 @@
+Version: 1.2
+
+# Game fixes for Free Realms (NPUA30048 1.77, the decrypted game.elf) that the PS3 server needs. The server manager adds them to
+# RPCS3's patches\imported_patch.yml and turns them on before a test run; to add them by hand, drag this file into RPCS3's
+# Manage > Game Patches window and tick both. Why each is needed: docs/rpcs3/patches.md.
+
+PPU-5425f6d47ba410afbcbc7ce77f87f2ffcde68798:
+  "Free Realms PS3 keyboard close fix":
+    Games:
+      All:
+        All: [ All ]
+    Author: "DeanSawyer"
+    Patch Version: 1.0
+    Notes: "The game's general keyboard handler closed the on-screen keyboard before character creation could read the custom name, so creation waited forever. It now closes the keyboard only when it opened it (chat)."
+    Patch:
+      - [ be32, 0x001ee134, 0x4869892d ]
+      - [ be32, 0x001ee138, 0x81230004 ]
+      - [ be32, 0x001ee13c, 0x88091060 ]
+      - [ be32, 0x001ee140, 0x2f800000 ]
+      - [ be32, 0x001ee144, 0x419effb0 ]
+      - [ be32, 0x001ee148, 0x38610078 ]
+      - [ be32, 0x001ee14c, 0x48bbf285 ]
+      - [ be32, 0x001ee150, 0x2f830000 ]
+      - [ be32, 0x001ee154, 0x409e0340 ]
+      - [ be32, 0x001ee158, 0x80610080 ]
+      - [ be32, 0x001ee15c, 0x2f830000 ]
+      - [ be32, 0x001ee160, 0x419e0014 ]
+      - [ be32, 0x001ee164, 0x488432d9 ]
+      - [ be32, 0x001ee168, 0x2f830000 ]
+      - [ be32, 0x001ee16c, 0x409e00bc ]
+      - [ be32, 0x001ee170, 0x60000000 ]
+      - [ be32, 0x001ee1e0, 0x4bffff54 ]
+      - [ be32, 0x001ee230, 0x409eff44 ]
+  "Free Realms PS3 renderer null state guard":
+    Games:
+      All:
+        All: [ All ]
+    Author: "DeanSawyer"
+    Patch Version: 1.0
+    Notes: "Skips binding a render state whose slot became null (the Deep Engine Renderer crash reading 0x108 at 0x7845a4, seen after entering a custom name). Uses the padding at 0xea0a5c-0xea0a7c."
+    Patch:
+      - [ be32, 0x007845b8, 0x4871c4b4 ]
+      - [ be32, 0x00785170, 0x4871b8ec ]
+      - [ be32, 0x00ea0a5c, 0x2f8b0000 ]
+      - [ be32, 0x00ea0a60, 0x409e0008 ]
+      - [ be32, 0x00ea0a64, 0x4b8e3b7c ]
+      - [ be32, 0x00ea0a68, 0x4b8e3b68 ]
+      - [ be32, 0x00ea0a6c, 0x78eb0020 ]
+      - [ be32, 0x00ea0a70, 0x2f8b0000 ]
+      - [ be32, 0x00ea0a74, 0x409e0008 ]
+      - [ be32, 0x00ea0a78, 0x4b8e3b68 ]
+      - [ be32, 0x00ea0a7c, 0x4b8e3b40 ]

@@ -152,13 +152,24 @@ public sealed class ServerArgumentsTests
     }
 
     [TestMethod]
+    public void CharactersAreSavedInTheManagersFileUnlessToldOtherwise()
+    {
+        Assert.AreEqual(Ps3ServerOptions.DefaultCharacterFile, Parse("--client", "x").Options!.CharacterFile);
+        Assert.AreEqual("mine.json", Parse("--client", "x", "--characters", "mine.json").Options!.CharacterFile);
+        Assert.IsNull(Parse("--client", "x", "--no-save").Options!.CharacterFile);
+        Assert.IsNotNull(Parse("--client", "x", "--characters").Error);
+        Assert.IsTrue(Ps3ServerOptions.DefaultCharacterFile.EndsWith("characters.json", StringComparison.Ordinal));
+        Assert.IsNull(new Ps3ServerOptions { ClientRoot = "x" }.CharacterFile, "tests and embedders keep characters in memory");
+    }
+
+    [TestMethod]
     public void TheUsageTextNamesEveryOption()
     {
         foreach (var option in new[]
         {
             "--client", "--digest", "--match-local", "--extra-client", "--codec", "--serve-mismatch", "--server-list-variant",
             "--existing-character", "--account-status", "--xml-style", "--gateway-port", "--advertise", "--upstream", "--no-dns",
-            "--bind", "--port", "--help", "FR_TRACE_DIR",
+            "--bind", "--port", "--help", "FR_TRACE_DIR", "--characters", "--no-save",
         })
         {
             Assert.IsTrue(ServerArguments.Usage.Contains(option, StringComparison.Ordinal), option);

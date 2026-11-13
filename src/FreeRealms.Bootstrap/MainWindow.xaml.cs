@@ -15,8 +15,12 @@ using System.Windows.Threading;
 using Microsoft.Win32;
 
 using Sanctuary.Ps3.Gateway;
+using Sanctuary.Ps3.Web;
 
 namespace FreeRealms.Bootstrap;
+
+/// <summary>One row of the Characters page.</summary>
+public sealed record CharacterRow(ulong Guid, string Name, string Detail, string Made, string LastPlayed, bool ShownNext);
 
 /// <summary>One row of the Players page.</summary>
 public sealed record PlayerRow(string OnlineId, string Character, string Address, string Job, string State, int Packets, string LastPacket, string Connected);
@@ -29,6 +33,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<LogEntry> logEntries = [];
     private readonly ObservableCollection<LogEntry> recent = [];
     private readonly ObservableCollection<PlayerRow> players = [];
+    private readonly ObservableCollection<CharacterRow> characterRows = [];
     private readonly ConcurrentQueue<LogEntry> incoming = new();
     private readonly DispatcherTimer logPump;
     private readonly DispatcherTimer statusTimer;
@@ -40,6 +45,7 @@ public partial class MainWindow : Window
     private bool busy;
     private bool closing;
     private string? lastReport;
+    private string charactersShown = string.Empty;
 
     public MainWindow()
     {
@@ -53,6 +59,7 @@ public partial class MainWindow : Window
         LogList.ItemsSource = logView;
         RecentLog.ItemsSource = recent;
         PlayersList.ItemsSource = players;
+        CharactersList.ItemsSource = characterRows;
 
         server.Log += entry => incoming.Enqueue(entry);
 
@@ -84,6 +91,7 @@ public partial class MainWindow : Window
 
         PageDashboard.Visibility = NavDashboard.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PagePlayers.Visibility = NavPlayers.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        PageCharacters.Visibility = NavCharacters.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PageGameplay.Visibility = NavGameplay.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PageSettings.Visibility = NavSettings.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PageLogs.Visibility = NavLogs.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
@@ -91,9 +99,108 @@ public partial class MainWindow : Window
 
         if (NavLogs.IsChecked == true)
             ScrollLogToEnd();
+
+        if (NavCharacters.IsChecked == true)
+            RefreshCharacters(force: true);
     }
 
     private void OpenLogs_Click(object sender, RoutedEventArgs e) => NavLogs.IsChecked = true;
+
+    // --- Characters ---------------------------------------------------------------------------------------------------
+
+    /// <summary>The running server's characters, or the saved file when the server is stopped.</summary>
+    private CharacterStore Characters() => server.Server?.Characters ?? new CharacterStore(ManagerSettings.CharacterFile);
+
+    /// <summary>Fills the Characters page; with <paramref name="force"/> false only when something changed.</summary>
+    private void RefreshCharacters(bool force)
+    {
+        CharacterStore store;
+
+        try
+        {
+            store = Characters();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            server.Write(LogSeverity.Warning, "Manager", $"Characters could not be read: {exception.Message}");
+
+            return;
+        }
+
+        var ordered = store.Ordered();
+        var creatorNext = store.CreatorNext;
+        var shownNext = creatorNext ? null : ordered.FirstOrDefault()?.Guid;
+        var signature = $"{creatorNext}|{string.Join(';', ordered.Select(character => $"{character.Guid}:{character.Name}:{character.LastPlayed?.Ticks}:{character.Progress?.ActiveJob}:{character.Progress?.Items.Count}"))}";
+
+        if (!force && signature == charactersShown)
+            return;
+
+        charactersShown = signature;
+        characterRows.Clear();
+
+        foreach (var character in ordered)
+        {
+            characterRows.Add(new CharacterRow(
+                character.Guid,
+                character.Name.Length > 0 ? character.Name : "(no name)",
+                character.Progress is { } progress
+                    ? $"guid {character.Guid} · {Jobs.NameOf(progress.ActiveJob)} · {progress.Items.Count} items"
+                    : $"guid {character.Guid} · not in the world yet",
+                When(character.Created),
+                character.LastPlayed is { } played ? When(played) : "never",
+                character.Guid == shownNext));
+        }
+
+        NoCharacters.Visibility = characterRows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        CreatorNextSwitch.IsChecked = creatorNext;
+        CreatorNextSwitch.IsEnabled = ordered.Count < CharacterStore.MaxCharacters || creatorNext;
+        CreatorNextHint.Text = ordered.Count >= CharacterStore.MaxCharacters && !creatorNext
+            ? $"This account has {CharacterStore.MaxCharacters} characters, Sanctuary's limit. Delete one to make another."
+            : "Make another character; the ones below are kept. Turns itself off once the new character is made.";
+
+        static string When(DateTime time) => time.ToLocalTime().ToString("d MMM yyyy, HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    private void RefreshCharacters_Click(object sender, RoutedEventArgs e) => RefreshCharacters(force: true);
+
+    private void CreatorNext_Click(object sender, RoutedEventArgs e)
+    {
+        var on = CreatorNextSwitch.IsChecked == true;
+
+        Characters().SetCreatorNext(on);
+        server.Write(LogSeverity.Info, "Manager", on ? "Characters: the next login opens the character creator." : "Characters: the next login shows character select again.");
+        RefreshCharacters(force: true);
+    }
+
+    private void ShowNext_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: ulong guid })
+            return;
+
+        var store = Characters();
+
+        if (store.ShowNext(guid))
+            server.Write(LogSeverity.Info, "Manager", $"Characters: the PS3 shows {store.Find(guid)?.Name} next time.");
+
+        RefreshCharacters(force: true);
+    }
+
+    private void DeleteCharacter_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: ulong guid })
+            return;
+
+        var store = Characters();
+        var name = store.Find(guid)?.Name ?? $"guid {guid}";
+
+        if (MessageBox.Show(this, $"Delete {name}? This cannot be undone.", "Delete character", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
+        if (store.Delete(guid))
+            server.Write(LogSeverity.Info, "Manager", $"Characters: deleted {name}.");
+
+        RefreshCharacters(force: true);
+    }
 
     // --- Server -------------------------------------------------------------------------------------------------------
 
@@ -319,6 +426,10 @@ public partial class MainWindow : Window
     private void RefreshStatus()
     {
         var running = server.Server;
+
+        // The game changes the list too (create, login, delete); keep the open page current.
+        if (ready && PageCharacters.Visibility == Visibility.Visible)
+            RefreshCharacters(force: false);
         var green = (Brush)FindResource("SuccessBrush");
         var grey = (Brush)FindResource("MutedBrush");
         var amber = (Brush)FindResource("WarningBrush");
@@ -348,6 +459,7 @@ public partial class MainWindow : Window
             UptimeText.Text = "—";
             PlayersText.Text = "0";
             PacketsText.Text = "0";
+            SavedCharactersText.Text = string.Empty;
             players.Clear();
             NoPlayers.Visibility = Visibility.Visible;
 
@@ -380,6 +492,12 @@ public partial class MainWindow : Window
         PlayersText.Text = sessions.Count.ToString(CultureInfo.InvariantCulture);
         PacketsText.Text = (running.Gateway?.PacketCount ?? 0).ToString("N0", CultureInfo.InvariantCulture);
         CharacterText.Text = name.Length > 0 ? name : "—";
+        SavedCharactersText.Text = running.Characters.Count switch
+        {
+            0 => "none saved yet",
+            1 => "1 saved character",
+            var count => $"{count} saved characters",
+        };
 
         players.Clear();
 
@@ -434,6 +552,7 @@ public partial class MainWindow : Window
         Rpcs3Box.Text = settings.Rpcs3Executable;
         ElfBox.Text = settings.GameElf;
         RestoreScriptsSwitch.IsChecked = settings.RestoreScripts;
+        InstallPatchesSwitch.IsChecked = settings.InstallPatches;
         BindBox.Text = settings.Bind;
         AdvertiseBox.Text = settings.Advertise;
         HttpPortBox.Text = settings.HttpPort.ToString(CultureInfo.InvariantCulture);
@@ -470,6 +589,7 @@ public partial class MainWindow : Window
             Rpcs3Executable = Rpcs3Box.Text.Trim(),
             GameElf = ElfBox.Text.Trim(),
             RestoreScripts = RestoreScriptsSwitch.IsChecked == true,
+            InstallPatches = InstallPatchesSwitch.IsChecked == true,
             Bind = BindBox.Text.Trim(),
             Advertise = AdvertiseBox.Text.Trim(),
             HttpPort = httpPort,
