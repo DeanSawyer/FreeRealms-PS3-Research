@@ -130,7 +130,7 @@ public partial class MainWindow : Window
         var ordered = store.Ordered();
         var creatorNext = store.CreatorNext;
         var shownNext = creatorNext ? null : ordered.FirstOrDefault()?.Guid;
-        var signature = $"{creatorNext}|{string.Join(';', ordered.Select(character => $"{character.Guid}:{character.Name}:{character.LastPlayed?.Ticks}"))}";
+        var signature = $"{creatorNext}|{string.Join(';', ordered.Select(character => $"{character.Guid}:{character.Name}:{character.LastPlayed?.Ticks}:{character.Progress?.ActiveJob}:{character.Progress?.Items.Count}"))}";
 
         if (!force && signature == charactersShown)
             return;
@@ -143,7 +143,9 @@ public partial class MainWindow : Window
             characterRows.Add(new CharacterRow(
                 character.Guid,
                 character.Name.Length > 0 ? character.Name : "(no name)",
-                $"guid {character.Guid}",
+                character.Progress is { } progress
+                    ? $"guid {character.Guid} · {Jobs.NameOf(progress.ActiveJob)} · {progress.Items.Count} items"
+                    : $"guid {character.Guid} · not in the world yet",
                 When(character.Created),
                 character.LastPlayed is { } played ? When(played) : "never",
                 character.Guid == shownNext));

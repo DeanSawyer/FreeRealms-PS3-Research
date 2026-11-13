@@ -2,6 +2,7 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 
 namespace Sanctuary.Ps3.Gateway;
@@ -15,6 +16,25 @@ public sealed record LoginFields(string Ticket, ulong Guid, string Version, stri
 /// (docs/protocol/gateway.md). Ported from <c>bootstrap/gateway_probe.py</c>. Everything here returns the packet's bytes; sending is
 /// <see cref="Ps3Gateway"/>'s job, so another transport (Clover's UdpLibrary) can carry the same packets.
 /// </summary>
+/// <summary>
+/// What a character carries into the world: its items, each job's equipment ({slot: item id}, in the order the slots were filled), the
+/// active job and the coins. A new character gets Sanctuary's (<see cref="ForNewCharacter"/>); a saved one gets what it had.
+/// </summary>
+public sealed record Loadout(
+    IReadOnlyList<OwnedItem> Items,
+    IReadOnlyDictionary<int, IReadOnlyDictionary<int, int>> Equipment,
+    int ActiveJob = Ps3Packets.ProfileId,
+    int Coins = 0)
+{
+    /// <summary>The items and equipment Sanctuary gives a new character (<see cref="Ps3Packets.CharacterItems"/>), on the first job, with no coins.</summary>
+    public static Loadout ForNewCharacter(IReadOnlyDictionary<string, string> character, GatewayOptions options)
+    {
+        var (items, equipment) = Ps3Packets.CharacterItems(character, options);
+
+        return new Loadout(items, equipment.ToDictionary(pair => pair.Key, pair => (IReadOnlyDictionary<int, int>)pair.Value));
+    }
+}
+
 public static class Ps3Packets
 {
     /// <summary>Clover's DefaultProfileId: the first job a new character has.</summary>
@@ -117,14 +137,17 @@ public static class Ps3Packets
     /// The profile list of the player data: a count, then every job Sanctuary gives a new character (<c>FR_JOBS</c>), each wearing its
     /// starter outfit.
     /// </summary>
-    public static byte[] ProfileList(IReadOnlyDictionary<string, string> character, GatewayOptions options)
+    public static byte[] ProfileList(IReadOnlyDictionary<string, string> character, GatewayOptions options) =>
+        ProfileList(Loadout.ForNewCharacter(character, options), options);
+
+    /// <summary>The profile list with each job wearing what <paramref name="loadout"/> says.</summary>
+    public static byte[] ProfileList(Loadout loadout, GatewayOptions options)
     {
         var chosen = Jobs.Selected(options.Jobs);
-        var (_, equipment) = CharacterItems(character, options);
         var writer = new PacketWriter().I32(chosen.Count);
 
         foreach (var job in chosen)
-            writer.Raw(Profile(job.Id, equipment.GetValueOrDefault(job.Id), options.Items));
+            writer.Raw(Profile(job.Id, loadout.Equipment.GetValueOrDefault(job.Id), options.Items));
 
         return writer.ToArray();
     }
@@ -142,7 +165,11 @@ public static class Ps3Packets
     /// null when the list is empty. The item list holds the character's starter items (<see cref="Items"/>, <c>FR_ITEMS</c>);
     /// every other list is empty, so there are no pets, quests or stats yet.
     /// </summary>
-    public static byte[] PlayerBlob(IReadOnlyDictionary<string, string> character, GatewayWorld world, long unixTime, int guid = 1)
+    public static byte[] PlayerBlob(IReadOnlyDictionary<string, string> character, GatewayWorld world, long unixTime, int guid = 1) =>
+        PlayerBlob(character, world, unixTime, Loadout.ForNewCharacter(character, world.Options), guid);
+
+    /// <summary>The player data with the items, jobs, active job and coins of <paramref name="loadout"/> (a saved character's).</summary>
+    public static byte[] PlayerBlob(IReadOnlyDictionary<string, string> character, GatewayWorld world, long unixTime, Loadout loadout, int guid = 1)
     {
         var spawn = world.Spawn;
 
@@ -157,23 +184,27 @@ public static class Ps3Packets
             .F32(SpawnRotation.X).F32(SpawnRotation.Y).F32(SpawnRotation.Z).F32(SpawnRotation.W)
             .I32(0).I32(0).I32(0) // name ids
             .Str(Text(character, "FirstName", "Test")).Str(Text(character, "LastName", string.Empty))
-            .I32(0).I64(unixTime).I32(0).I32(0) // coins, birthday, age, play time
+            .I32(loadout.Coins).I64(unixTime).I32(0).I32(0) // coins, birthday, age, play time
             .U8(0).I32(2).U8(0) // underage, membership status, member nag screen
             .I32(0).I32(0).I32(0).I32(0).I32(1) // chat country, chat language, preferred language, chat language, login count
             .U8(0) // grandfathered
             .I32(0).I32(0) // two vehicle loadouts (kart race, demo derby)
-            .Raw(ProfileList(character, world.Options)) // profile list: the jobs (Jobs)
-            .I32(ProfileId) // active profile id
+            .Raw(ProfileList(loadout, world.Options)) // profile list: the jobs (Jobs)
+            .I32(loadout.ActiveJob) // active profile id
             .Zeros(ItemListOffset) // remaining fields: empty lists and zeros, except...
-            .Raw(Items.ItemList(CharacterItems(character, world.Options).Items)) // ...the item list
+            .Raw(Items.ItemList(loadout.Items)) // ...the item list
             .Zeros(0x111 - 0xa3 - ItemListOffset - 4)
             .ToArray();
     }
 
     /// <summary>Inner packet 12, SendSelfToClient: <c>i32</c> length, then the player blob.</summary>
-    public static byte[] SendSelfToClient(IReadOnlyDictionary<string, string> character, GatewayWorld world, long unixTime)
+    public static byte[] SendSelfToClient(IReadOnlyDictionary<string, string> character, GatewayWorld world, long unixTime) =>
+        SendSelfToClient(character, world, unixTime, Loadout.ForNewCharacter(character, world.Options));
+
+    /// <summary>SendSelfToClient with a saved character's <paramref name="loadout"/>.</summary>
+    public static byte[] SendSelfToClient(IReadOnlyDictionary<string, string> character, GatewayWorld world, long unixTime, Loadout loadout)
     {
-        var blob = PlayerBlob(character, world, unixTime);
+        var blob = PlayerBlob(character, world, unixTime, loadout);
 
         return new PacketWriter().U16(12).I32(blob.Length).Raw(blob).ToArray();
     }

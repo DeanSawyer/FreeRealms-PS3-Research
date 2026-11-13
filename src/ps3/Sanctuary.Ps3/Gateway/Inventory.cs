@@ -49,17 +49,24 @@ public sealed class Inventory
 
     /// <summary>The character's items and each chosen job's equipment, as <see cref="Ps3Packets.CharacterItems"/> gives them.</summary>
     public Inventory(IReadOnlyDictionary<string, string> character, GatewayOptions options, ulong guid = 1, int activeJob = Jobs.StarterJob)
+        : this(Loadout.ForNewCharacter(character, options) with { ActiveJob = activeJob }, options, guid)
     {
-        var (owned, equipment) = Ps3Packets.CharacterItems(character, options);
+    }
 
-        foreach (var item in owned)
+    /// <summary>
+    /// A saved character's inventory: <paramref name="loadout"/>'s items, each chosen job's equipment (a job the loadout lacks starts
+    /// empty) and its active job (the first job when that job is no longer chosen, <c>FR_JOBS</c>).
+    /// </summary>
+    public Inventory(Loadout loadout, GatewayOptions options, ulong guid = 1)
+    {
+        foreach (var item in loadout.Items)
             _items[item.Id] = (item.Definition, item.Tint);
 
         foreach (var job in Jobs.Selected(options.Jobs))
         {
             var slots = new OrderedDictionary<int, int>();
 
-            foreach (var (slot, itemId) in equipment.GetValueOrDefault(job.Id) ?? new Dictionary<int, int>())
+            foreach (var (slot, itemId) in loadout.Equipment.GetValueOrDefault(job.Id) ?? new Dictionary<int, int>())
                 slots[slot] = itemId;
 
             _equipment[job.Id] = slots;
@@ -68,8 +75,22 @@ public sealed class Inventory
         _classes = ReferenceData.ItemClasses.ToDictionary(row => row[0]);
         _itemClasses = options.Items;
         _guid = guid;
-        Active = activeJob;
+        Coins = loadout.Coins;
+        Active = _equipment.ContainsKey(loadout.ActiveJob) || _equipment.Count == 0 ? loadout.ActiveJob : Jobs.StarterJob;
     }
+
+    /// <summary>The character's coins (nothing changes them yet; the coin store will).</summary>
+    public int Coins { get; private set; }
+
+    /// <summary>What the character has now, to save: the items, each job's equipment in order, the active job and the coins.</summary>
+    public Loadout Snapshot() => new(
+        [.. _items.OrderBy(pair => pair.Key).Select(pair => new OwnedItem(pair.Key, pair.Value.Definition, pair.Value.Tint))],
+        _equipment.ToDictionary(pair => pair.Key, pair => (IReadOnlyDictionary<int, int>)new OrderedDictionary<int, int>(pair.Value)),
+        Active,
+        Coins);
+
+    /// <summary>What the active job wears, as the client draws it (to dress a saved character after it loads).</summary>
+    public IReadOnlyList<Attachment> ActiveAttachments() => Attachments();
 
     /// <summary>The active job.</summary>
     public int Active { get; private set; }

@@ -7,11 +7,23 @@ using System.Text.Json.Serialization;
 
 namespace Sanctuary.Ps3.Web;
 
+/// <summary>One item a character owns: its id in the character's inventory, its item definition and its tint.</summary>
+public sealed record SavedItem(int Id, int Definition, int Tint);
+
+/// <summary>One filled equipment slot of a job: the slot number and the id of the item in it.</summary>
+public sealed record SavedSlot(int Slot, int Item);
+
 /// <summary>
-/// A character made in the character creator: the guid the server gave it and the values of its <c>character/create</c> request
-/// (FirstName, LastName, Head, ItemChest, ...; never the Session).
+/// What a character has gained by playing, like the item, profile and coin columns of Sanctuary's <c>DbCharacter</c>: the active job,
+/// the items, each job's equipment (slots in the order they were filled) and the coins. Saved by the game server whenever it changes.
 /// </summary>
-public sealed record SavedCharacter(ulong Guid, IReadOnlyDictionary<string, string> Values, DateTime Created, DateTime? LastPlayed)
+public sealed record CharacterProgress(int ActiveJob, int Coins, IReadOnlyList<SavedItem> Items, IReadOnlyDictionary<int, IReadOnlyList<SavedSlot>> Equipment);
+
+/// <summary>
+/// A character made in the character creator: the guid the server gave it, the values of its <c>character/create</c> request
+/// (FirstName, LastName, Head, ItemChest, ...; never the Session), and its progress once it has entered the world.
+/// </summary>
+public sealed record SavedCharacter(ulong Guid, IReadOnlyDictionary<string, string> Values, DateTime Created, DateTime? LastPlayed, CharacterProgress? Progress = null)
 {
     public string FirstName => Values.TryGetValue("FirstName", out var first) ? first : string.Empty;
 
@@ -176,6 +188,30 @@ public sealed class CharacterStore
             return _characters.Find(character => character.Guid == guid);
     }
 
+    /// <summary>The character the game server sends: the one picked at login, else the one the PS3 shows next. Null when there is none.</summary>
+    public SavedCharacter? Current()
+    {
+        lock (_gate)
+            return (_current is { } guid ? _characters.Find(entry => entry.Guid == guid) : null) ?? Ordered_().FirstOrDefault();
+    }
+
+    /// <summary>Keeps <paramref name="progress"/> for <paramref name="guid"/> and saves. False when there is no such character.</summary>
+    public bool SaveProgress(ulong guid, CharacterProgress progress)
+    {
+        lock (_gate)
+        {
+            var index = _characters.FindIndex(character => character.Guid == guid);
+
+            if (index < 0)
+                return false;
+
+            _characters[index] = _characters[index] with { Progress = progress };
+            Save();
+
+            return true;
+        }
+    }
+
     /// <summary>
     /// Adds a character made from <paramref name="values"/> (the first value of each name wins; Session is never kept), makes it the
     /// one the game server sends, saves, and returns its guid.
@@ -279,7 +315,8 @@ public sealed class CharacterStore
                     entry.Guid,
                     new Dictionary<string, string>(entry.Values ?? new Dictionary<string, string>(), StringComparer.Ordinal),
                     entry.Created,
-                    entry.LastPlayed));
+                    entry.LastPlayed,
+                    entry.Progress?.ToProgress()));
             }
 
             _nextGuid = Math.Max(file.NextGuid, _characters.Count == 0 ? 1 : _characters.Max(character => character.Guid) + 1);
@@ -324,6 +361,7 @@ public sealed class CharacterStore
                 Created = character.Created,
                 LastPlayed = character.LastPlayed,
                 Values = Sorted(character.Values),
+                Progress = character.Progress is { } progress ? StoredProgress.From(progress) : null,
             })],
         };
 
@@ -383,5 +421,43 @@ public sealed class CharacterStore
         public DateTime? LastPlayed { get; set; }
 
         public IDictionary<string, string>? Values { get; set; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public StoredProgress? Progress { get; set; }
+    }
+
+    private sealed class StoredProgress
+    {
+        public int ActiveJob { get; set; }
+
+        public int Coins { get; set; }
+
+        public List<SavedItem>? Items { get; set; }
+
+        /// <summary>Job id (as text, JSON keys being text) to its filled slots in order.</summary>
+        public Dictionary<string, List<SavedSlot>>? Equipment { get; set; }
+
+        public static StoredProgress From(CharacterProgress progress) => new()
+        {
+            ActiveJob = progress.ActiveJob,
+            Coins = progress.Coins,
+            Items = [.. progress.Items],
+            Equipment = progress.Equipment.ToDictionary(
+                pair => pair.Key.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                pair => pair.Value.ToList()),
+        };
+
+        public CharacterProgress ToProgress()
+        {
+            var equipment = new Dictionary<int, IReadOnlyList<SavedSlot>>();
+
+            foreach (var (job, slots) in Equipment ?? new Dictionary<string, List<SavedSlot>>())
+            {
+                if (int.TryParse(job, System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture, out var id))
+                    equipment[id] = [.. slots ?? []];
+            }
+
+            return new CharacterProgress(ActiveJob, Coins, [.. Items ?? []], equipment);
+        }
     }
 }

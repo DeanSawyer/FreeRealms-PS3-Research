@@ -118,8 +118,16 @@ Whatever character select shows, the game server sends the saved character's ful
 
 The list is kept in `characters.json` (`--characters`; by default in the Server Manager's folder,
 `%LOCALAPPDATA%\FreeRealmsPS3Server`), written after every change and read when the server starts. A file that cannot be read is
-renamed to `characters.json.unreadable-<time>` instead of being overwritten. Only the creator's choices are kept; items, jobs and
-position are not saved yet.
+renamed to `characters.json.unreadable-<time>` instead of being overwritten.
+
+Besides the creator's choices, each character keeps its **progress**, like the item, profile and coin columns of Sanctuary's
+`DbCharacter`: the items it owns, each job's equipment (slots in the order they were filled), the active job and the coins. The
+game server writes it after every equip, unequip and job switch, and a returning character logs in with it: the player data's
+item list, job list and active job come from it, and the character is dressed in its active job's equipment. A character that
+never changed anything starts as a new one (Sanctuary's starter items) until it does. Nothing changes coins yet; the coin store
+will. **Position is not saved yet:** the client's position update (inner opcode 125) is 40 bytes on the PS3, not the 44 of
+Sanctuary's `PlayerUpdatePacketUpdatePosition`, and its layout has not been read from the client, so a saved position could put
+the character outside the world.
 
 ## The name check
 
