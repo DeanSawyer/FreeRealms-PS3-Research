@@ -491,7 +491,7 @@ public sealed class CharacterStore
 
     private static bool IsDatabaseProblem(Exception exception) =>
         exception is System.Data.Common.DbException or Microsoft.EntityFrameworkCore.DbUpdateException or InvalidOperationException
-            or IOException or UnauthorizedAccessException or ArgumentException;
+            or NotSupportedException or IOException or UnauthorizedAccessException or ArgumentException;
 
     /// <summary>The <c>characters.json</c> of before the database, read once to import it.</summary>
     private sealed class StoreFile

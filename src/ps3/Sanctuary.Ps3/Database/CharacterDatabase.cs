@@ -77,7 +77,8 @@ public sealed class CharacterDatabase
     {
         using var db = Open();
 
-        var user = db.Users.AsNoTracking().OrderBy(u => u.Id).FirstOrDefault();
+        // SQLite cannot sort by an unsigned id in the query, so the (few) rows are sorted here.
+        var user = db.Users.AsNoTracking().AsEnumerable().MinBy(u => u.Id);
 
         if (user is null)
             return null;
@@ -88,8 +89,9 @@ public sealed class CharacterDatabase
             .Include(c => c.Profiles)
             .ThenInclude(p => p.Items)
             .Where(c => c.UserId == user.Id)
-            .OrderBy(c => c.Id)
             .AsSplitQuery()
+            .AsEnumerable()
+            .OrderBy(c => c.Id)
             .ToList();
 
         return new StoredAccount(user.NextCharacterId, user.ShowNextCharacterId, user.CreatorNext, [.. characters.Select(ToSaved)]);
@@ -106,7 +108,7 @@ public sealed class CharacterDatabase
         db.Items.ExecuteDelete();
         db.Characters.ExecuteDelete();
 
-        var user = db.Users.OrderBy(u => u.Id).FirstOrDefault();
+        var user = db.Users.AsEnumerable().MinBy(u => u.Id);
 
         if (user is null)
         {
