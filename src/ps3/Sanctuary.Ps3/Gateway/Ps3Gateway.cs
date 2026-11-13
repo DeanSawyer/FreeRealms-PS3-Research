@@ -627,6 +627,16 @@ public sealed class Ps3Gateway
             return;
         }
 
+        if (_world.Options.Marketplace && innerOpcode == Marketplace.Opcode && Marketplace.Handle(inner) is { } marketReplies)
+        {
+            var sub = inner.Length >= 4 ? BinaryPrimitives.ReadUInt16LittleEndian(inner.AsSpan(2)) : -1;
+
+            _logger?.LogInformation("sanctuary: marketplace request {Opcode}/{Sub} {Hex}", innerOpcode, sub, Convert.ToHexString(inner).ToLowerInvariant());
+            SendNamed(peer, channel, $"marketplace {innerOpcode}/{sub}", marketReplies);
+
+            return;
+        }
+
         if (innerOpcode == Placement.Opcode && Placement.FromUpdate(inner) is { } moved)
         {
             // The position update: remember where the character stands and save it now and then.
@@ -664,6 +674,20 @@ public sealed class Ps3Gateway
                 CharacterMappings.SkinTone(character),
                 CharacterMappings.FacePaint(character),
                 CharacterMappings.ModelCustomization(character));
+
+            // FR_MARKETPLACE: Sanctuary's Marketplace packets under the PS3's numbers; the bundle lists have no PS3 counterpart checked yet.
+            if (_world.Options.Marketplace)
+            {
+                ready = ready
+                    .Where(packet => packet.Name is not ("InGamePurchaseBundleCategoryGroups" or "InGamePurchaseBundleCategories" or "InGamePurchaseBundleGroups"))
+                    .Select(packet => packet.Name switch
+                    {
+                        "InGamePurchaseEnableMarketplace" => packet with { Inner = Marketplace.EnableMarketplace() },
+                        "InGamePurchaseEnablePaymentSources" => packet with { Inner = Marketplace.EnablePaymentSources() },
+                        _ => packet,
+                    })
+                    .ToList();
+            }
 
             // FR_COINSTORE: the coin store's items instead of the empty list, and the coins the character has.
             if (_world.Options.CoinStore)

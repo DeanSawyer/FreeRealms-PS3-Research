@@ -64,6 +64,12 @@ public sealed record GatewayOptions
     /// </summary>
     public int StartingCoins { get; init; }
 
+    /// <summary>
+    /// <c>FR_MARKETPLACE</c> (not 0, on unless set to 0): with the Sanctuary flow, send its Marketplace login packets under the PS3's
+    /// sub-opcode numbers and answer the Marketplace requests (<see cref="Gateway.Marketplace"/>). Off, the PC numbers go out as before.
+    /// </summary>
+    public bool Marketplace { get; init; }
+
     /// <summary><c>FR_COINSTORE_ITEMS</c>: list only the first this many store items (Sanctuary's order); 0, the default, lists all of them.</summary>
     public int CoinStoreItems { get; init; }
 
@@ -129,6 +135,7 @@ public sealed record GatewayOptions
             Items = Env(get, "FR_ITEMS", "1") != "0",
             Sanctuary = Value("FR_SANCTUARY") == "1",
             CoinStore = Env(get, "FR_COINSTORE", "1") != "0",
+            Marketplace = Env(get, "FR_MARKETPLACE", "1") != "0",
             CoinStoreItems = int.TryParse(Value("FR_COINSTORE_ITEMS"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var listed) && listed > 0 ? listed : 0,
             CoinStoreDefinitions = Value("FR_COINSTORE_DEFINITIONS") == "1",
             StartingCoins = int.TryParse(Env(get, "FR_STARTING_COINS", "999999999"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var coins) && coins >= 0
