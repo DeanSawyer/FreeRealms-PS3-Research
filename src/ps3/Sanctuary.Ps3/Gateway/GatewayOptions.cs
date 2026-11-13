@@ -64,6 +64,15 @@ public sealed record GatewayOptions
     /// </summary>
     public int StartingCoins { get; init; }
 
+    /// <summary><c>FR_COINSTORE_ITEMS</c>: list only the first this many store items (Sanctuary's order); 0, the default, lists all of them.</summary>
+    public int CoinStoreItems { get; init; }
+
+    /// <summary>
+    /// <c>FR_COINSTORE_DEFINITIONS=1</c>: send the listed items' definitions right after the list (PlayerUpdate 35/33), for testing
+    /// whether the PS3 store screen waits for them; Sanctuary sends them only when asked.
+    /// </summary>
+    public bool CoinStoreDefinitions { get; init; }
+
     /// <summary><c>FR_SKIP</c>: names of Sanctuary flow packets to leave out (lower case; "Name,Name").</summary>
     public IReadOnlySet<string> Skip { get; init; } = new HashSet<string>();
 
@@ -120,6 +129,8 @@ public sealed record GatewayOptions
             Items = Env(get, "FR_ITEMS", "1") != "0",
             Sanctuary = Value("FR_SANCTUARY") == "1",
             CoinStore = Env(get, "FR_COINSTORE", "1") != "0",
+            CoinStoreItems = int.TryParse(Value("FR_COINSTORE_ITEMS"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var listed) && listed > 0 ? listed : 0,
+            CoinStoreDefinitions = Value("FR_COINSTORE_DEFINITIONS") == "1",
             StartingCoins = int.TryParse(Env(get, "FR_STARTING_COINS", "999999999"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var coins) && coins >= 0
                 ? coins
                 : Gateway.CoinStore.SanctuaryStartingCoins,

@@ -668,12 +668,20 @@ public sealed class Ps3Gateway
             // FR_COINSTORE: the coin store's items instead of the empty list, and the coins the character has.
             if (_world.Options.CoinStore)
             {
-                ready = ready.Select(packet => packet.Name == "CoinStoreItemList" ? packet with { Inner = CoinStore.ItemList() } : packet).ToList();
+                var listed = CoinStore.Ordered(_world.Options.CoinStoreItems);
+
+                ready = ready.Select(packet => packet.Name == "CoinStoreItemList" ? packet with { Inner = CoinStore.ItemList(listed) } : packet).ToList();
 
                 if (_inventories.TryGetValue(peer, out var wallet))
                     ready.Add(new NamedPacket("CoinCount", CoinStore.CoinCount(wallet.Coins)));
 
-                _logger?.LogInformation("gateway: coin store: {Items} item(s) listed", CoinStore.Catalog.Count);
+                if (_world.Options.CoinStoreDefinitions)
+                    ready.AddRange(listed.Select(item => new NamedPacket($"ItemDefinition {item.Id}", Items.ItemDefinition(item.Id))));
+
+                _logger?.LogInformation(
+                    "gateway: coin store: {Items} item(s) listed{Definitions}",
+                    listed.Count,
+                    _world.Options.CoinStoreDefinitions ? ", with their definitions" : string.Empty);
             }
 
             SendNamed(peer, channel, "ClientIsReady", ready);

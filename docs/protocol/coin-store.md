@@ -94,6 +94,16 @@ Both were written from Sanctuary's resources with the same field rules as `tools
 | :--- | :--- | :--- |
 | `FR_COINSTORE` | on | `0`: the empty item list as before, and no answers to the store |
 | `FR_STARTING_COINS` | 999999999 | The coins given at a character's first login |
+| `FR_COINSTORE_ITEMS` | all | Test: list only the first this many items |
+| `FR_COINSTORE_DEFINITIONS` | off | Test: `1` sends the listed items' definitions right after the list |
+
+**First test (13 November, `fr_test_20261113_041837`):**
+- The list (170,267 bytes, 338 fragments) was received and acknowledged.
+- Every time the store screen opened, the client sent sub-opcode 8, and the reply was acknowledged.
+- The screen stayed on *loading* with no items. The client asked for no definitions: no sub-opcode 2 and no 35/34.
+
+The client sends sub-opcode 2 only from `SortItems` (`0x1f51d8`) and `InitializeSearchEngine` (`0x1f5338`), so the next test
+lists fewer items with their definitions sent ahead.
 
 ## Not done yet
 

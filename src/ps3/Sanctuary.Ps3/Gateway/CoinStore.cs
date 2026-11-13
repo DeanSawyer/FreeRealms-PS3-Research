@@ -134,6 +134,19 @@ public static class CoinStore
             .ThenBy(item => item.Id)
             .ToList();
 
+        return ItemListOf(list);
+    }
+
+    /// <summary>The store items in Sanctuary's order; only the first <paramref name="limit"/> when it is above 0.</summary>
+    public static List<StoreItem> Ordered(int limit = 0)
+    {
+        var ordered = Catalog.Values.OrderBy(item => item.Id % CommunityColourIdStep).ThenBy(item => item.Id);
+
+        return limit > 0 ? ordered.Take(limit).ToList() : ordered.ToList();
+    }
+
+    private static byte[] ItemListOf(List<StoreItem> list)
+    {
         var writer = new PacketWriter().U16(Opcode).U16(ItemListSub).I32(list.Count);
 
         foreach (var item in list)
