@@ -239,7 +239,7 @@ public static partial class Ps3Replies
     public const string NewCharacterName = "New character";
 
     /// <summary>
-    /// The guid of the character wheel's "make a new character" stop; the patch (<c>0xe87094</c>) compares the shown character's
+    /// The guid of the character wheel's "make a new character" stop; the patch (<c>0xe87054</c>) compares the shown character's
     /// guid with it. Saved characters count up from 1 and never get near it. It is not 0: the preview of the shown character is
     /// an actor with the character's guid as its id, and the game already has an actor with id 0.
     /// </summary>

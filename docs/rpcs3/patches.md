@@ -146,6 +146,16 @@ presses: the creator's turntable keeps the last values (`this+4516`/`+4520`) and
 as presses, so while a direction was held every return to state 11 turned and rebuilt again. 1.4 keeps the last values in the same
 fields and turns only when one changes; the builder check and the state 12 code are gone.
 
+**Version 1.5 (13 November) and the select panel:** turning still crashed in 1.4, as soon as a direction was pressed
+(`fr_test_20261113_112745` and the run after it): rebuilding the 3D preview is what fails. 1.5 no longer rebuilds it. Left and right
+only turn the game's list (one step per press), X plays the first character of the list or opens the creator on New character,
+and Triangle does nothing. Which character is first is shown by the **select panel**: the PC client's `characterSelectV2.gfx`, put
+in place of the select prompt's movie (`characterCreatePopUps.gfx`) by the Server Manager and filled with the characters by an
+ActionScript block it adds to the movie's first frame (`SelectPanelMovie`): `addCharacter(index, id, name, state)` for each line,
+in the order the server sends them, then a key listener that moves the selection with `R` and `L`, the key codes the PS3 game
+sends a movie for the D-pad (its own `characterNameScreen.gfx` reads `U`, `D`, `L`, `R`, `X`, `O`, `S`, `T`). The 3D preview stays the
+first character the game was given. The D-pad's left is `+10552` (the creator's turntable steps back on it, `0x7914dc`), right `+10556`.
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 

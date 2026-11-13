@@ -224,61 +224,91 @@ public partial class MainWindow : Window
             .ToList();
     }
 
-    private void ShowPanelState() => PanelOutButton.IsEnabled = PanelBackup() is { Count: > 0 };
+    /// <summary>The panel movie chosen on the Characters page, kept so it can be filled again with the characters before each test run.</summary>
+    private static readonly string PanelSourceFile = Path.Combine(ManagerSettings.DataFolder, "select_panel.gfx");
+
+    private void ShowPanelState() => PanelOutButton.IsEnabled = PanelBackup() is { Count: > 0 } || File.Exists(PanelSourceFile);
+
+    /// <summary>
+    /// The lines of the select panel, in the order the server sends the characters to the game (the one shown next first), then New
+    /// character while the account has room, as the server adds it: the panel and the game's list must turn together.
+    /// </summary>
+    private List<PanelEntry> PanelEntries()
+    {
+        var store = Characters();
+        var entries = store.Ordered().Select(character => new PanelEntry(character.Guid.ToString(CultureInfo.InvariantCulture), character.Name, false)).ToList();
+
+        if (entries.Count < CharacterStore.MaxCharacters && Environment.GetEnvironmentVariable("FR_NEW_CHARACTER_STOP") != "0")
+            entries.Add(new PanelEntry(Ps3Replies.NewCharacterGuid.ToString(CultureInfo.InvariantCulture), Ps3Replies.NewCharacterName, true));
+
+        return entries;
+    }
+
+    /// <summary>Fills the chosen panel movie with the characters and puts it in place of the select prompt in every copy of the game.</summary>
+    private void InstallPanel()
+    {
+        var folders = GameFolders();
+
+        if (folders.Count == 0)
+            throw new InvalidOperationException("No game packs (assets_ps3_*.pack) were found: check the client folder, rpcs3.exe and game.elf in Settings.");
+
+        var entries = PanelEntries();
+        var data = SelectPanelMovie.WithCharacters(File.ReadAllBytes(PanelSourceFile), entries);
+
+        // A movie already in comes out first, so the packs do not keep growing and the backups stay the originals'.
+        if (PanelBackup() is { } old)
+        {
+            AssetReplacement.Restore(old);
+            File.Delete(PanelBackupFile);
+        }
+
+        var backups = new List<AssetBackup>();
+
+        try
+        {
+            foreach (var folder in folders)
+            {
+                try
+                {
+                    backups.AddRange(AssetReplacement.Replace(folder, PanelTarget, data));
+                }
+                catch (FileNotFoundException)
+                {
+                    server.Write(LogSeverity.Warning, "Manager", $"Select panel: no pack in {folder} lists {PanelTarget}.");
+                }
+            }
+        }
+        finally
+        {
+            Directory.CreateDirectory(ManagerSettings.DataFolder);
+            File.WriteAllText(PanelBackupFile, JsonSerializer.Serialize(backups));
+        }
+
+        if (backups.Count == 0)
+            throw new InvalidOperationException($"No pack lists {PanelTarget}.");
+
+        foreach (var backup in backups)
+            server.Write(LogSeverity.Info, "Manager", $"Select panel: in place of {PanelTarget} in {backup.Pack}.");
+
+        server.Write(LogSeverity.Info, "Manager", $"Select panel: {string.Join(", ", entries.Select(entry => entry.Name))}.");
+    }
 
     private void PanelIn_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog { Filter = "Flash movie (*.gfx;*.swf)|*.gfx;*.swf|All files|*.*", Title = "The movie to show in place of the select prompt" };
+        var dialog = new OpenFileDialog { Filter = "Flash movie (*.gfx;*.swf)|*.gfx;*.swf|All files|*.*", Title = "The select panel movie (characterSelectV2.gfx)" };
 
         if (dialog.ShowDialog(this) != true)
             return;
 
         try
         {
-            var folders = GameFolders();
-
-            if (folders.Count == 0)
-                throw new InvalidOperationException("No game packs (assets_ps3_*.pack) were found: check the client folder, rpcs3.exe and game.elf in Settings.");
-
-            // A movie already in comes out first, so the packs do not keep growing and the backups stay the originals'.
-            if (PanelBackup() is { } old)
-            {
-                AssetReplacement.Restore(old);
-                File.Delete(PanelBackupFile);
-            }
-
-            var data = File.ReadAllBytes(dialog.FileName);
-            var backups = new List<AssetBackup>();
-
-            try
-            {
-                foreach (var folder in folders)
-                {
-                    try
-                    {
-                        backups.AddRange(AssetReplacement.Replace(folder, PanelTarget, data));
-                    }
-                    catch (FileNotFoundException)
-                    {
-                        server.Write(LogSeverity.Warning, "Manager", $"Select panel test: no pack in {folder} lists {PanelTarget}.");
-                    }
-                }
-            }
-            finally
-            {
-                Directory.CreateDirectory(ManagerSettings.DataFolder);
-                File.WriteAllText(PanelBackupFile, JsonSerializer.Serialize(backups));
-            }
-
-            foreach (var backup in backups)
-                server.Write(LogSeverity.Info, "Manager", $"Select panel test: {Path.GetFileName(dialog.FileName)} is in place of {PanelTarget} in {backup.Pack}.");
-
-            if (backups.Count == 0)
-                throw new InvalidOperationException($"No pack lists {PanelTarget}.");
+            Directory.CreateDirectory(ManagerSettings.DataFolder);
+            File.Copy(dialog.FileName, PanelSourceFile, overwrite: true);
+            InstallPanel();
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)
         {
-            MessageBox.Show(this, exception.Message, "Select panel test", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, exception.Message, "Select panel", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         ShowPanelState();
@@ -286,18 +316,20 @@ public partial class MainWindow : Window
 
     private void PanelOut_Click(object sender, RoutedEventArgs e)
     {
-        if (PanelBackup() is not { } backups)
-            return;
-
         try
         {
-            AssetReplacement.Restore(backups);
-            File.Delete(PanelBackupFile);
-            server.Write(LogSeverity.Info, "Manager", $"Select panel test: {PanelTarget} is the game's own again ({backups.Count} pack(s)).");
+            if (PanelBackup() is { } backups)
+            {
+                AssetReplacement.Restore(backups);
+                File.Delete(PanelBackupFile);
+                server.Write(LogSeverity.Info, "Manager", $"Select panel: {PanelTarget} is the game's own again ({backups.Count} pack(s)).");
+            }
+
+            File.Delete(PanelSourceFile);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            MessageBox.Show(this, exception.Message, "Select panel test", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, exception.Message, "Select panel", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         ShowPanelState();
@@ -411,6 +443,19 @@ public partial class MainWindow : Window
             return;
 
         SetBusy(true, testRun: true);
+
+        // The select panel is filled with the characters as they are now (made or deleted since it was put in).
+        if (File.Exists(PanelSourceFile))
+        {
+            try
+            {
+                InstallPanel();
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)
+            {
+                server.Write(LogSeverity.Warning, "Manager", $"Select panel: could not be filled again ({exception.Message}).");
+            }
+        }
 
         try
         {

@@ -261,13 +261,13 @@
         <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Margin="0,0,0,16">
           <DockPanel>
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-              <Button Content="Put a movie in..." Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" Click="PanelIn_Click"/>
+              <Button Content="Put the panel in..." Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" Click="PanelIn_Click"/>
               <Button x:Name="PanelOutButton" Content="Take it out" Style="{StaticResource SecondaryButton}" Margin="0" Click="PanelOut_Click"/>
             </StackPanel>
             <StackPanel Margin="0,0,16,0">
-              <TextBlock Text="Select panel test" FontWeight="SemiBold"/>
+              <TextBlock Text="Select panel" FontWeight="SemiBold"/>
               <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap"
-                         Text="Shows a .gfx movie (such as the PC client's characterSelectV2.gfx) in place of the select screen's prompt, characterCreatePopUps.gfx. While it is in, the prompt and the creator's popups are gone, so take it out before making a character. Close the game first."/>
+                         Text="Puts the PC client's character select panel (characterSelectV2.gfx) in place of the select screen's prompt and fills it with the characters below, again before each test run. D-pad left and right choose, X plays (or makes a new character). Needs the character wheel fix. Close the game first."/>
             </StackPanel>
           </DockPanel>
         </Border>
