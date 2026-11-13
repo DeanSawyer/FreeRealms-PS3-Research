@@ -111,16 +111,19 @@ public static class Ps3Server
                 log.LogInformation("DNS listening on {Bind}:{Port}; hosts -> {Advertise}; upstream={Upstream}", options.Bind, dns.Port, options.Advertise, options.Upstream);
             }
 
-            var characters = new CharacterStore(options.CharacterFile);
+            var characters = CharacterStore.ForServer(options.CharacterFile);
             var detail = options.SelectDetail
                 ?? (Enum.TryParse<CharacterDetail>(Environment.GetEnvironmentVariable("FR_SELECT_DETAIL"), ignoreCase: true, out var chosen) && Enum.IsDefined(chosen)
                     ? chosen
                     : CharacterDetail.Full);
 
+            if (characters.Imported is { } imported)
+                log.LogInformation("characters: {Imported}", imported);
+
             if (characters.LoadProblem is { } problem)
                 log.LogWarning("characters: {Problem}", problem);
-            else if (options.CharacterFile is { } file)
-                log.LogInformation("characters: {Count} saved in {File}; character select gets detail {Detail}", characters.Count, file, detail);
+            else if (characters.Location is { } location)
+                log.LogInformation("characters: {Count} saved in {Database}; character select gets detail {Detail}", characters.Count, location, detail);
             else
                 log.LogInformation("characters: kept in memory only (not saved)");
             var gatewayPort = options.GatewayPort;

@@ -12,7 +12,7 @@ public sealed class ManagerSettings
     public static readonly string TraceFolder = Path.Combine(DataFolder, "traces");
 
     /// <summary>The characters made in the game, kept between runs (the console server's default file too).</summary>
-    public static readonly string CharacterFile = Path.Combine(DataFolder, "characters.json");
+    public static readonly string CharacterFile = Path.Combine(DataFolder, "characters.db");
 
     private static readonly string SettingsPath = Path.Combine(DataFolder, "settings.json");
 

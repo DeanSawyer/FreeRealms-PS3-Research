@@ -158,7 +158,7 @@ public sealed class ServerArgumentsTests
         Assert.AreEqual("mine.json", Parse("--client", "x", "--characters", "mine.json").Options!.CharacterFile);
         Assert.IsNull(Parse("--client", "x", "--no-save").Options!.CharacterFile);
         Assert.IsNotNull(Parse("--client", "x", "--characters").Error);
-        Assert.IsTrue(Ps3ServerOptions.DefaultCharacterFile.EndsWith("characters.json", StringComparison.Ordinal));
+        Assert.IsTrue(Ps3ServerOptions.DefaultCharacterFile.EndsWith("characters.db", StringComparison.Ordinal));
         Assert.IsNull(new Ps3ServerOptions { ClientRoot = "x" }.CharacterFile, "tests and embedders keep characters in memory");
     }
 

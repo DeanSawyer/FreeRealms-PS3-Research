@@ -6,7 +6,10 @@
 
   <!-- Versions match the Sanctuary (Clover) solution so these projects can be moved into it unchanged. -->
   <ItemGroup>
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.17" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.17" />
     <PackageVersion Include="MSTest" Version="4.2.3" />
+    <PackageVersion Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
     <PackageVersion Include="ZLibDotNet" Version="0.1.1" />
   </ItemGroup>
 

@@ -71,7 +71,7 @@ Different from Sanctuary:
 - A quantity below 1 is refused. Sanctuary checks it only for pets.
 - A sold item is also taken off every job that wore it, so a saved character never wears an item it no longer has.
 
-Every buy and sell is saved, with the items' counts and the coins (`characters.json`, see [`ps3ws-replies.md`](ps3ws-replies.md)).
+Every buy and sell is saved, with the items' counts and the coins (the characters' database, see [`ps3ws-replies.md`](ps3ws-replies.md)).
 
 **Coins:** a character gets Sanctuary's `StartingCoins` (`Sanctuary.Login/login.json`: 999,999,999) at its first login. A
 character saved before the coin store gets them once, at its next login.

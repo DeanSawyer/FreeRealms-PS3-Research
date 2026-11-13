@@ -120,9 +120,20 @@ for testing.
 
 Whatever character select shows, the game server sends the saved character's full appearance and clothes in the world.
 
-The list is kept in `characters.json` (`--characters`; by default in the Server Manager's folder,
-`%LOCALAPPDATA%\FreeRealmsPS3Server`), written after every change and read when the server starts. A file that cannot be read is
-renamed to `characters.json.unreadable-<time>` instead of being overwritten.
+The list is kept in a database laid out like Sanctuary's (`Sanctuary.Database`: the tables Users, Characters, Items, Profiles and
+ProfileItems; code in `src/ps3/Sanctuary.Ps3/Database`), written after every change and read when the server starts:
+- **SQLite** by default: `characters.db` (`--characters`; by default in the Server Manager's folder,
+  `%LOCALAPPDATA%\FreeRealmsPS3Server`). A database that cannot be read is renamed to `characters.db.unreadable-<time>` instead
+  of being overwritten.
+- **MySQL** when `FR_MYSQL` holds a connection string (`Server=...;Database=...;User=...;Password=...`), with `FR_MYSQL_VERSION`
+  for the server's version as Sanctuary's `VersionString` (`8.0.21-mysql`, `10.5.3-mariadb`; asked of the server when not set).
+
+The tables are made the first time the database is opened. The `characters.json` of before (next to `characters.db`) is imported
+into a new database once and renamed to `characters.json.imported`.
+
+The columns follow Sanctuary's `DbCharacter`, `DbItem` and `DbProfile`; the PS3 server also keeps the zone a position is in, the
+third rotation, whether the starting coins were given, the creator's request as it came (`CreateValues`, which the game server
+builds the character from), and in `ProfileItems` each worn item's slot and the order the slots were filled.
 
 Besides the creator's choices, each character keeps its **progress**, like the item, profile, coin and position columns of
 Sanctuary's `DbCharacter`: the items it owns, each job's equipment (slots in the order they were filled), the active job, the coins

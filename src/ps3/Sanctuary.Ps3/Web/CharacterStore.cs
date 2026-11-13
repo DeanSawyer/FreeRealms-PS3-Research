@@ -5,6 +5,8 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using Sanctuary.Ps3.Database;
+
 namespace Sanctuary.Ps3.Web;
 
 /// <summary>One item a character owns: its id in the character's inventory, its item definition and its tint.</summary>
@@ -44,13 +46,15 @@ public sealed record SavedCharacter(ulong Guid, IReadOnlyDictionary<string, stri
 }
 
 /// <summary>
-/// The account's characters, kept the way Sanctuary keeps them: up to <see cref="MaxCharacters"/>, names unique (ignoring case).
+/// The account's characters, kept the way Sanctuary keeps them: up to <see cref="MaxCharacters"/>, names unique (ignoring case), in a
+/// database laid out like Sanctuary's (<see cref="CharacterDatabase"/>: SQLite by default, or MySQL).
 /// <c>character/create</c> adds one, <c>account/info</c> lists them (so the client shows character select instead of the creator),
 /// <c>character/login</c> picks the one the game server sends and <c>character/delete</c> removes one. The PS3 client only ever
 /// shows the first character of the list and has no button to make another, so the list starts with <see cref="ShownNext"/> (the
 /// one made, played or picked in the manager last) and <see cref="CreatorNext"/> sends the next login to the creator instead.
-/// With a <see cref="Path"/> the list is saved to that JSON file after every change and read back when the server starts, so
-/// characters survive a restart; without one it lives only in memory (tests). Shared between the web front and the gateway.
+/// With a database the list is written to it after every change and read back when the server starts, so characters survive a
+/// restart; a <c>characters.json</c> from before the database is imported once. Without one it lives only in memory (tests).
+/// Shared between the web front and the gateway.
 /// </summary>
 public sealed class CharacterStore
 {
@@ -59,24 +63,71 @@ public sealed class CharacterStore
     private readonly object _gate = new();
     private readonly List<SavedCharacter> _characters = [];
     private readonly Func<DateTime> _now;
+    private readonly CharacterDatabase? _database;
     private ulong _nextGuid = 1;
     private ulong? _current;
     private ulong? _shownNext;
     private bool _creatorNext;
+    private bool _saving = true;
 
-    /// <param name="path">The JSON file the characters are kept in; null keeps them in memory only.</param>
+    /// <param name="path">
+    /// The SQLite file the characters are kept in (a <c>.json</c> name means the <c>.db</c> file next to it); null keeps them in memory
+    /// only. A <c>characters.json</c> next to a new database is imported into it.
+    /// </param>
     /// <param name="now">The clock (tests).</param>
     public CharacterStore(string? path = null, Func<DateTime>? now = null)
+        : this(path is null ? null : CharacterDatabase.Sqlite(DatabaseFile(path)), now)
     {
-        Path = path;
+    }
+
+    /// <param name="database">The database the characters are kept in; null keeps them in memory only.</param>
+    /// <param name="now">The clock (tests).</param>
+    public CharacterStore(CharacterDatabase? database, Func<DateTime>? now = null)
+    {
+        _database = database;
+        Path = database?.File;
         _now = now ?? (() => DateTime.UtcNow);
         LoadProblem = Load();
     }
 
-    /// <summary>The JSON file the characters are kept in; null when they are only in memory.</summary>
+    /// <summary>
+    /// The store the server uses: MySQL when <c>FR_MYSQL</c> holds a connection string (and <c>FR_MYSQL_VERSION</c>, if set, the
+    /// server's version, as Sanctuary's <c>VersionString</c>), else SQLite in <paramref name="file"/>. Null keeps them in memory only.
+    /// </summary>
+    public static CharacterStore ForServer(string? file)
+    {
+        if (file is null)
+            return new CharacterStore();
+
+        var mysql = Environment.GetEnvironmentVariable("FR_MYSQL");
+
+        if (!string.IsNullOrWhiteSpace(mysql))
+        {
+            return new CharacterStore(new CharacterDatabase(new DatabaseOptions
+            {
+                Provider = DatabaseProvider.MySql,
+                ConnectionString = mysql,
+                VersionString = Environment.GetEnvironmentVariable("FR_MYSQL_VERSION"),
+            }));
+        }
+
+        return new CharacterStore(file);
+    }
+
+    /// <summary>The SQLite file for <paramref name="path"/>: the path itself, or for a <c>.json</c> name (from before the database) the <c>.db</c> file next to it.</summary>
+    public static string DatabaseFile(string path) =>
+        path.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? System.IO.Path.ChangeExtension(path, ".db") : path;
+
+    /// <summary>The SQLite file the characters are kept in; null when they are only in memory or in MySQL.</summary>
     public string? Path { get; }
 
-    /// <summary>Why the file could not be read when the store was made (it was then set aside and the list started empty); null when it was fine.</summary>
+    /// <summary>Where the characters are kept, for the log; null when only in memory.</summary>
+    public string? Location => _database?.Description;
+
+    /// <summary>A note about <c>characters.json</c> being imported when the store was made; null when nothing was imported.</summary>
+    public string? Imported { get; private set; }
+
+    /// <summary>Why the database could not be read when the store was made (a SQLite file is then set aside and the list starts empty); null when it was fine.</summary>
     public string? LoadProblem { get; }
 
     /// <summary>Why the last save failed; null when it worked (or nothing was saved yet).</summary>
@@ -309,35 +360,26 @@ public sealed class CharacterStore
 
     private string? Load()
     {
-        if (Path is null || !File.Exists(Path))
+        if (_database is null)
             return null;
+
+        StoredAccount? account;
 
         try
         {
-            var file = JsonSerializer.Deserialize<StoreFile>(File.ReadAllText(Path), Json) ?? new StoreFile();
-
-            foreach (var entry in file.Characters ?? [])
+            account = _database.Load();
+        }
+        catch (Exception exception) when (IsDatabaseProblem(exception))
+        {
+            if (Path is null || !File.Exists(Path))
             {
-                if (entry.Guid == 0 || _characters.Exists(character => character.Guid == entry.Guid))
-                    continue;
+                // MySQL (or a file that cannot be made): keep the characters in memory and never write over what could not be read.
+                _saving = false;
 
-                _characters.Add(new SavedCharacter(
-                    entry.Guid,
-                    new Dictionary<string, string>(entry.Values ?? new Dictionary<string, string>(), StringComparer.Ordinal),
-                    entry.Created,
-                    entry.LastPlayed,
-                    entry.Progress?.ToProgress()));
+                return $"{Location} could not be opened ({exception.Message}); characters are not saved this time.";
             }
 
-            _nextGuid = Math.Max(file.NextGuid, _characters.Count == 0 ? 1 : _characters.Max(character => character.Guid) + 1);
-            _shownNext = file.ShowNext is { } shown && _characters.Exists(character => character.Guid == shown) ? shown : null;
-            _creatorNext = file.CreatorNext;
-
-            return null;
-        }
-        catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException or NotSupportedException)
-        {
-            // Never write over a file that could not be read: keep it next to the new one.
+            // Never write over a database that could not be read: keep it next to the new one.
             var aside = $"{Path}.unreadable-{_now():yyyyMMdd-HHmmss}";
 
             try
@@ -346,65 +388,112 @@ public sealed class CharacterStore
             }
             catch (Exception moveProblem) when (moveProblem is IOException or UnauthorizedAccessException)
             {
+                _saving = false;
+
                 return $"{Path} could not be read ({exception.Message}) or set aside ({moveProblem.Message}); characters are not saved this time.";
             }
 
             return $"{Path} could not be read ({exception.Message}); it was renamed to {aside} and the list starts empty.";
         }
+
+        if (account is not null)
+        {
+            Use(account);
+
+            return null;
+        }
+
+        // A new database: bring in the characters.json of before, once.
+        return Path is null ? null : Import(System.IO.Path.ChangeExtension(Path, ".json"));
     }
 
-    /// <summary>Writes the list (caller holds the lock): to a temporary file first, then over the old one, so a crash never leaves half a file.</summary>
-    private void Save()
+    private void Use(StoredAccount account)
     {
-        if (Path is null || (LoadProblem is not null && File.Exists(Path)))
-            return;
-
-        var file = new StoreFile
+        foreach (var character in account.Characters)
         {
-            NextGuid = _nextGuid,
-            ShowNext = _shownNext,
-            CreatorNext = _creatorNext,
-            Characters = [.. _characters.Select(character => new StoredCharacter
-            {
-                Guid = character.Guid,
-                Name = character.Name,
-                Created = character.Created,
-                LastPlayed = character.LastPlayed,
-                Values = Sorted(character.Values),
-                Progress = character.Progress is { } progress ? StoredProgress.From(progress) : null,
-            })],
-        };
+            if (character.Guid != 0 && !_characters.Exists(entry => entry.Guid == character.Guid))
+                _characters.Add(character);
+        }
+
+        _nextGuid = Math.Max(account.NextGuid, _characters.Count == 0 ? 1 : _characters.Max(character => character.Guid) + 1);
+        _shownNext = account.ShowNext is { } shown && _characters.Exists(character => character.Guid == shown) ? shown : null;
+        _creatorNext = account.CreatorNext;
+    }
+
+    /// <summary>Reads a <c>characters.json</c> (the store's file before the database), saves its characters in the database and renames it.</summary>
+    private string? Import(string json)
+    {
+        if (!File.Exists(json))
+            return null;
 
         try
         {
-            var folder = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(Path));
+            var file = JsonSerializer.Deserialize<StoreFile>(File.ReadAllText(json), Json) ?? new StoreFile();
+            var characters = new List<SavedCharacter>();
 
-            if (!string.IsNullOrEmpty(folder))
-                Directory.CreateDirectory(folder);
+            foreach (var entry in file.Characters ?? [])
+            {
+                if (entry.Guid == 0 || characters.Exists(character => character.Guid == entry.Guid))
+                    continue;
 
-            var temporary = Path + ".tmp";
+                characters.Add(new SavedCharacter(
+                    entry.Guid,
+                    new Dictionary<string, string>(entry.Values ?? new Dictionary<string, string>(), StringComparer.Ordinal),
+                    entry.Created,
+                    entry.LastPlayed,
+                    entry.Progress?.ToProgress()));
+            }
 
-            File.WriteAllText(temporary, JsonSerializer.Serialize(file, Json));
-            File.Move(temporary, Path, overwrite: true);
-            SaveProblem = null;
+            Use(new StoredAccount(file.NextGuid, file.ShowNext, file.CreatorNext, characters));
+        }
+        catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return $"{json} could not be imported ({exception.Message}); it was left as it is and the list starts empty.";
+        }
+
+        Save();
+
+        if (SaveProblem is not null)
+            return $"{json} was read but could not be saved in the database ({SaveProblem}); it was left as it is.";
+
+        var done = $"{json}.imported";
+
+        try
+        {
+            File.Move(json, done, overwrite: true);
+            Imported = $"{_characters.Count} character(s) imported from {json} (renamed to {done})";
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
+            Imported = $"{_characters.Count} character(s) imported from {json}, which could not be renamed ({exception.Message})";
+        }
+
+        return null;
+    }
+
+    /// <summary>Writes the list to the database (caller holds the lock).</summary>
+    private void Save()
+    {
+        if (_database is null || !_saving)
+            return;
+
+        try
+        {
+            _database.Save(new StoredAccount(_nextGuid, _shownNext, _creatorNext, [.. _characters]));
+            SaveProblem = null;
+        }
+        catch (Exception exception) when (IsDatabaseProblem(exception))
+        {
             // The game keeps working; the characters stay in memory until a save succeeds.
-            SaveProblem = $"{Path} could not be written: {exception.Message}";
+            SaveProblem = $"{Location} could not be written: {exception.Message}";
         }
     }
 
-    private static SortedDictionary<string, string> Sorted(IReadOnlyDictionary<string, string> values)
-    {
-        var sorted = new SortedDictionary<string, string>(StringComparer.Ordinal);
+    private static bool IsDatabaseProblem(Exception exception) =>
+        exception is System.Data.Common.DbException or Microsoft.EntityFrameworkCore.DbUpdateException or InvalidOperationException
+            or NotSupportedException or IOException or UnauthorizedAccessException or ArgumentException;
 
-        foreach (var (name, value) in values)
-            sorted[name] = value;
-
-        return sorted;
-    }
-
+    /// <summary>The <c>characters.json</c> of before the database, read once to import it.</summary>
     private sealed class StoreFile
     {
         public ulong NextGuid { get; set; } = 1;
@@ -452,18 +541,6 @@ public sealed class CharacterStore
 
         /// <summary>Whether the character has had its starting coins (missing in files written before the coin store: no).</summary>
         public bool GotStartingCoins { get; set; }
-
-        public static StoredProgress From(CharacterProgress progress) => new()
-        {
-            ActiveJob = progress.ActiveJob,
-            Coins = progress.Coins,
-            Items = [.. progress.Items],
-            Equipment = progress.Equipment.ToDictionary(
-                pair => pair.Key.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                pair => pair.Value.ToList()),
-            Position = progress.Position,
-            GotStartingCoins = progress.GotStartingCoins,
-        };
 
         public CharacterProgress ToProgress()
         {

@@ -108,10 +108,14 @@ public static partial class Reports
         return Zip(folder);
     }
 
-    /// <summary>The game's own Marketplace tables, read from its packs, so a report shows what the store screen expects.</summary>
+    /// <summary>
+    /// The game's own Marketplace tables and character select movies, read from its packs, so a report shows what the store screen
+    /// expects and how the select screens are built (characterCreateSelect is the select bar the PS3 never shows).
+    /// </summary>
     private static readonly string[] ClientDataFiles =
     [
         "ClientStorePortalCategories.txt", "ClientStoreBillboardPanels.txt", "ClientStoreBillboards.txt",
+        "characterCreateSelect.gfx", "characterNameScreen.gfx", "characterCreate.gfx", "characterCreateType.gfx",
     ];
 
     private static void WriteClientData(string folder, string clientFolder)
