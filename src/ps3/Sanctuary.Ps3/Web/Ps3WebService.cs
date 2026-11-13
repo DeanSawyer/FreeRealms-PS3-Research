@@ -280,7 +280,11 @@ public sealed class Ps3WebService
         return _replies[kind];
     }
 
-    /// <summary>The <c>Guid</c> of a character request; null when it has none or it is not a number.</summary>
+    /// <summary>
+    /// The <c>Guid</c> of a character request; null when it has none or it is not a number. Only the low 32 bits name the character:
+    /// the character wheel fix counts each turn in the high 32 bits of the shown record's guid, so the select screen's preview actor
+    /// gets an id of its own every time (the game refuses to make an actor whose id is still in use).
+    /// </summary>
     private static ulong? RequestGuid(byte[] body)
     {
         var pairs = FormBody.FirstValues(FormBody.Parse(Encoding.Latin1.GetString(body), keepBlank: true));
@@ -288,7 +292,7 @@ public sealed class Ps3WebService
         foreach (var (name, value) in pairs)
         {
             if (name == "Guid" && ulong.TryParse(value.Trim(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var guid))
-                return guid;
+                return guid & 0xFFFFFFFF;
         }
 
         return null;

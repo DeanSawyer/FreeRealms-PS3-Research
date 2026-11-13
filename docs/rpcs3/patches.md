@@ -59,9 +59,9 @@ on. RPCS3 keeps the lines in `TTY.log`, which the Server Manager's test report c
 - It also writes the name of each script event the Marketplace and the coin store raise, as *Script event Handler.Event*: the hooks
   at `0x87c14` (a `HandlerInGamePurchase` event, such as *OnMarketplaceReady*) and `0x133038` (a handler's event, such as
   *HandlerCoinStore.OnInitializeSearchEngine*).
-- **Version 1.3:** also the game's debug output (`0xc7134`, the client's slot 204), as *Debug: ...*: the store lists' jobs
-  (*InGamePurchaseDataSource finished job N*, N being the rows) and the Marketplace support data messages.
-- The code is in the zero padding at `0xe86e40`-`0xe87090` (nothing refers to it).
+- **Version 1.3** also wrote the game's debug output (`0xc7134`); **1.4** leaves it out again to make room for the character
+  wheel.
+- The code is in the zero padding at `0xe86e40`-`0xe87014` (nothing refers to it).
 - Versions 1.0 and 1.1 wrote the format text unformatted.
 
 ## Marketplace without PSN
@@ -86,8 +86,10 @@ manager + `0x10000` + 22964, its datasource at screen + 4). It builds its rows (
 (datasource + 100), filtered by the chosen category (`0x239f3c`). Only the item preview, search results, mannequin and minigame ad
 lists are filled (`0x2393b8`); nothing found so far fills it for the main store.
 
-**Test:** when a store's items are gone through (`0x95d70`, when the store arrives and when the Marketplace is ready), each item not
-already in the list is added with `0x2393b8`. The hook replaces `lwz r11, 12(r28)` at `0x95ef8`; the code is at `0xe87090`-`0xe87100`.
+**Test (1.0):** when a store's items are gone through (`0x95d70`, when the store arrives and when the Marketplace is ready), each item
+not already in the list was added with `0x2393b8`. It did not make the shop show items (13 November). **1.1 retires it:** it only
+puts back the game's own `lwz r11, 12(r28)` at `0x95ef8`, so an RPCS3 that had the test keeps nothing of it; its code area is the
+character wheel's now.
 
 ## Character wheel
 
@@ -123,3 +125,15 @@ select builds a preview of whatever it shows. Without the patch only the first c
 `0x78bf80`. The preview builder (`0x78bc88`) makes an actor with `0x1c1120`, keyed by the record's guid (`ld r0, 0(record)`), and
 writes field `+1164` of the result without checking it. `0x1c1120` returns null when an actor with that id already exists
 (`0x1c1384`) or the look cannot be set up (`0x1b05c4`); a stop with guid 0 and no head, hair or skin hit one of the two.
+
+**Version 1.2 (13 November):** version 1.1 crashed when turning the wheel (`fr_test_20261113_104830`: access violation writing `0x48c`
+at `0x78bf80`), for two reasons, both fixed:
+- **Shared code was overwritten.** The old delete path is only dead up to `0x791c14`: other states jump to `0x791c18`, `0x791c88`
+  and `0x791ca8` (from `0x7939e4`, `0x7937b8`, `0x7935e4` and `0x79360c`), which 1.1 had filled with the wheel. The wheel now keeps
+  to `0x791b94`-`0x791bf8` (the left/right check and *next*) and the zero padding at `0xe87014`-`0xe87104` (*previous*, the rebuild
+  and X), and leaves the game's code from `0x791c18` on as it is.
+- **The preview actor's id was still in use.** The preview of the shown character is an actor whose id is the character's guid.
+  Removing the old preview (`0x1bf598`) is put off while it is still loading, and the game makes no actor whose id is in use
+  (`0x1c1120` returns null), so turning back to a character crashed. Each turn now adds one to the high word of the new head's guid
+  (a new actor id every time); Start Game clears it again, and the server reads only the low 32 bits of a guid.
+
