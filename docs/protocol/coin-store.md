@@ -112,3 +112,29 @@ lists fewer items with their definitions sent ahead.
 - **Checking the item list entry's byte:** it could be *buy disabled* or *hidden*, and is sent as 0.
 - **Testing in RPCS3:** the whole store has only been checked by the tests so far. The PS3 might not have a model or icon for an
   item added to the PC game after the PS3 version.
+
+## The Marketplace (opcode 66) and Sanctuary's Station Cash shop
+
+The coin store is a tab of the Marketplace screen. The PS3 numbers the Marketplace sub-opcodes differently from the PC (receive
+dispatcher `0x9425c`, jump table at `0x94380`):
+- **Login replies:** EnableMarketplace is 28 and EnablePaymentSources is 43. The client's login requests are answered as Sanctuary
+  answers them ([`Gateway/Marketplace.cs`](../../src/ps3/Sanctuary.Ps3/Gateway/Marketplace.cs)): currency codes 15 → 16, state
+  codes 19 → 20, country codes 21 → 22, membership account info 29 → 30.
+- **The shop** ([`Gateway/Shop.cs`](../../src/ps3/Sanctuary.Ps3/Gateway/Shop.cs), Sanctuary's `Resources/Store*.json` in
+  `Data/shop`) goes out in the PS3's older layouts:
+
+| PS3 | PC | Layout |
+| ---: | ---: | :--- |
+| 42 | 6 | category groups: count, then per group key, id, category ids (as the PC) |
+| 14 | 7 | categories: count, then per category key and five ints (id, name, image, tint, parent: the fifth is a guess), then two bytes |
+| 5 type 2 | 5 type 1 | store id, the store (id, name, description, image, tint), then its items keyed by id |
+| 35 | 9 | item groups: id, name, a third int (description: a guess), image, tint, exclusive byte, (store item id, order) pairs |
+
+A PS3 **store item** (reader `0xa980e0`; names from its debug print, `0x8d4d40`) is:
+- **Ids:** store id, store item id, category group id, name id, description id, image set id and image tint.
+- **Prices:** price, sale price and members' price.
+- **Flags:** four bytes (new, view only, members only, rentable).
+- **More ints:** rental period, rental price, terms id, max per order, sort order, category sort order and limited edition id.
+- **Last:** an *is tintable* byte, then entries of three ints each. The entry order (quantity, item, tint) is a guess.
+
+Buying with Station Cash (place order) is not answered yet.
