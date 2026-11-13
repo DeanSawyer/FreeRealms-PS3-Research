@@ -89,7 +89,16 @@ set). Everything but `Session` is kept.
 
 `account/info` answers `Status` 1 with one `Character` per saved character, so the client goes to character select; with none it
 keeps `Status` 2 (see below). `character/login` sends `Guid`, `Server` and `Session`: the server then sends that character to the
-game. `character/delete` removes the character with the request's `Guid`. `MaxCharacters` is 3.
+game. `character/delete` removes the character with the request's `Guid`.
+
+The rules follow Sanctuary's login server (`CharacterCreateRequestHandler`, `CharacterSelectInfoRequestHandler`): up to 10
+characters (`MaxCharacters`), and a name already used by a saved character (ignoring case) is refused; here the name check
+answers `Status` 2, "Name already taken". **The PS3 client shows only the first character** of the list (the setup reads the
+first record only, and the select screen offers *Start Game* and *Delete*, with no way to page or to make another). So the list
+starts with the character to show next: the one picked in the Server Manager's **Characters** page, else the one made or played
+last. *New character next time* (also on that page) answers the next `account/info` with `Status` 2, so the game opens the
+creator; making the character turns it off. Separate accounts are not possible yet: the PS3 sends an empty `Session` to the web
+server, so every player shares one list.
 
 **Character select froze with the full record** (13 November test, `fr_test_20261113_012648`): the account reply with every
 field above arrived, the loading screen ended, and the main thread then waited on a lightweight mutex for good

@@ -191,9 +191,28 @@ public sealed class Ps3WebService
 
         switch (kind)
         {
+            case Ps3ReplyKind.AccountInfo when !_options.Replies.ExistingCharacter && _characters.Count > 0 && _characters.CreatorNext:
+                _logger?.LogInformation("account_info: {Count} saved character(s), but the manager asked for the creator this time", _characters.Count);
+
+                break;
+
+            case Ps3ReplyKind.CheckName:
+                {
+                    var pairs = FormBody.FirstValues(FormBody.Parse(new UTF8Encoding(false).GetString(body), keepBlank: true));
+                    var first = pairs.FirstOrDefault(pair => pair.Name == "FirstName").Value;
+                    var last = pairs.FirstOrDefault(pair => pair.Name == "LastName").Value;
+
+                    if (!_characters.IsNameTaken(first, last))
+                        return _replies[kind];
+
+                    _logger?.LogInformation("check_name: '{First} {Last}' is already taken by a saved character", first, last);
+
+                    return Ps3Replies.CheckName(taken: true, style);
+                }
+
             case Ps3ReplyKind.AccountInfo when !_options.Replies.ExistingCharacter && _characters.Count > 0:
                 {
-                    var characters = _characters.All();
+                    var characters = _characters.Ordered();
 
                     _logger?.LogInformation(
                         "account_info: {Count} saved character(s), detail {Detail}: {Names}",
@@ -209,6 +228,9 @@ public sealed class Ps3WebService
                     var values = FormBody.FirstValues(FormBody.Parse(new UTF8Encoding(false).GetString(body), keepBlank: true))
                         .Where(pair => pair.Name != "Session")
                         .ToList();
+
+                    if (_characters.Count >= CharacterStore.MaxCharacters)
+                        _logger?.LogWarning("character_create: the account already has {Count} characters (Sanctuary's limit is {Max}); saving it anyway", _characters.Count, CharacterStore.MaxCharacters);
 
                     var guid = _characters.Create(values);
 

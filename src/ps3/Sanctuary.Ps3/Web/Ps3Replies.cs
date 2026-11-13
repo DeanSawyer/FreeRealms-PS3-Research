@@ -141,7 +141,7 @@ public static partial class Ps3Replies
         if (options.ZoneField)
             server.Add(("Zone", 1));
 
-        var account = El("Account", [("Member", 1), ("MaxCharacters", MaxCharacters), ("Admin", 0)]);
+        var account = El("Account", [("Member", 1), ("MaxCharacters", 3), ("Admin", 0)]);
 
         // The sample character's layout is a guess, see the docs.
         var sample = El("Character", [("HeadshotUrl", "")], [El("Details", [("Guid", 1), ("Name", "NorthForge")])]);
@@ -232,8 +232,17 @@ public static partial class Ps3Replies
     public static byte[] CharacterCreate(ulong guid, XmlStyle style = XmlStyle.Attributes) =>
         Document("CharacterCreateReply", [("Guid", guid)], null, style);
 
-    /// <summary>How many characters an account may have (the <c>MaxCharacters</c> the client is told).</summary>
-    public const int MaxCharacters = 3;
+    /// <summary>How many characters an account may have (the <c>MaxCharacters</c> the client is told with saved characters): Sanctuary's default.</summary>
+    public const int MaxCharacters = CharacterStore.MaxCharacters;
+
+    /// <summary>
+    /// <c>character/checkName</c>: 1 when the name is free, 2 ("Name already taken", the creator shows <c>Char_Name_Taken_PS3</c>)
+    /// when a saved character has it, as Sanctuary refuses a duplicate name.
+    /// </summary>
+    public static byte[] CheckName(bool taken, XmlStyle style = XmlStyle.Attributes) =>
+        taken
+            ? Document("CheckNameReply", null, [Element("Suggestions", null, null, style)], style, status: 2, message: "Name already taken")
+            : Document("CheckNameReply", null, [Element("Suggestions", null, null, style)], style);
 
     private static byte[] Document(string root, (string, object)[]? fields, string[]? children, XmlStyle style, int status = 1, string message = "Success")
     {

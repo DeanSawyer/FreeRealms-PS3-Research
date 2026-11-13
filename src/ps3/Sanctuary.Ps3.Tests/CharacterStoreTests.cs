@@ -148,6 +148,81 @@ public sealed class CharacterStoreTests
     }
 
     [TestMethod]
+    public void TheListStartsWithTheCharacterThePs3ShowsNext()
+    {
+        var clock = Noon;
+        var store = new CharacterStore(now: () => clock);
+
+        store.Create(Character("Aedon", "Amberarm"));
+        clock = clock.AddHours(1);
+        store.Create(Character("Mira", "Moonpetal"));
+        clock = clock.AddHours(1);
+        store.Create(Character("Nox", "Nightbloom"));
+
+        // The one made last is shown next.
+        CollectionAssert.AreEqual(new[] { 3UL, 2UL, 1UL }, store.Ordered().Select(character => character.Guid).ToArray());
+
+        // Picked in the manager.
+        Assert.IsTrue(store.ShowNext(1));
+        Assert.AreEqual(1UL, store.ShownNext);
+        CollectionAssert.AreEqual(new[] { 1UL, 3UL, 2UL }, store.Ordered().Select(character => character.Guid).ToArray());
+
+        // Played: that one comes first.
+        clock = clock.AddHours(1);
+        store.Select(2);
+        Assert.AreEqual(2UL, store.ShownNext);
+        Assert.IsFalse(store.ShowNext(99));
+
+        // Deleting the one shown next falls back to the most recently played or made.
+        store.Delete(2);
+        Assert.AreEqual(3UL, store.ShownNext);
+    }
+
+    [TestMethod]
+    public void CreatorNextIsSavedAndEndsWithTheNextCharacter()
+    {
+        var file = TempFile();
+
+        try
+        {
+            var store = new CharacterStore(file);
+
+            store.Create(Character("Aedon", "Amberarm"));
+            store.SetCreatorNext(true);
+
+            Assert.IsTrue(new CharacterStore(file).CreatorNext, "kept in the file");
+
+            store.Create(Character("Mira", "Moonpetal"));
+
+            Assert.IsFalse(store.CreatorNext);
+            Assert.AreEqual(2UL, new CharacterStore(file).ShownNext);
+
+            store.SetCreatorNext(true);
+            store.ShowNext(1);
+
+            Assert.IsFalse(store.CreatorNext, "picking a character to show turns the creator off");
+        }
+        finally
+        {
+            Remove(file);
+        }
+    }
+
+    [TestMethod]
+    public void NamesAreUniqueIgnoringCase()
+    {
+        var store = new CharacterStore();
+
+        store.Create(Character("Aedon", "Amberarm"));
+        store.Create([("FirstName", "Solo"), ("LastName", "")]);
+
+        Assert.IsTrue(store.IsNameTaken("aedon", "AMBERARM"));
+        Assert.IsTrue(store.IsNameTaken(" Solo ", null));
+        Assert.IsFalse(store.IsNameTaken("Aedon", "Brightwing"));
+        Assert.IsFalse(store.IsNameTaken("", ""));
+    }
+
+    [TestMethod]
     public void WithoutAFileNothingIsWritten()
     {
         var store = new CharacterStore();

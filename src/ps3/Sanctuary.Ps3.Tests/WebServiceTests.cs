@@ -391,6 +391,36 @@ public sealed class WebServiceTests
     }
 
     [TestMethod]
+    public void ATakenNameIsRefusedAndTheCreatorCanBeAskedFor()
+    {
+        using var rig = new Rig();
+
+        rig.Post("/ps3ws/character/create.action", "Session=x&FirstName=Aedon&LastName=Amberarm");
+
+        // Sanctuary refuses a duplicate name; the name check says "Name already taken" (2).
+        var taken = rig.Post("/ps3ws/character/checkName.action", "FirstName=aedon&LastName=amberarm&Session=x").Body;
+
+        CollectionAssert.AreEqual(Ps3Replies.CheckName(taken: true), taken);
+        Assert.AreEqual("2", Ps3Replies.StatusOf(taken));
+        CollectionAssert.AreEqual(
+            Ps3Replies.Build()[Ps3ReplyKind.CheckName],
+            rig.Post("/ps3ws/character/checkName.action", "FirstName=Mira&LastName=Moonpetal&Session=x").Body);
+
+        // With the creator asked for, the account looks empty once, so the game opens the creator.
+        rig.Characters.SetCreatorNext(true);
+
+        CollectionAssert.AreEqual(Ps3Replies.Build()[Ps3ReplyKind.AccountInfo], rig.Post("/ps3ws/account/info.action", "Session=x").Body);
+
+        rig.Post("/ps3ws/character/create.action", "Session=x&FirstName=Mira&LastName=Moonpetal");
+
+        var account = System.Xml.Linq.XDocument.Parse(Encoding.UTF8.GetString(rig.Post("/ps3ws/account/info.action", "Session=x").Body)).Root!;
+        var names = account.Element("Characters")!.Elements("Character").Select(character => character.Element("Details")!.Attribute("Name")!.Value).ToArray();
+
+        CollectionAssert.AreEqual(new[] { "Mira Moonpetal", "Aedon Amberarm" }, names, "the new character first: the PS3 shows only the first");
+        Assert.AreEqual(CharacterStore.MaxCharacters.ToString(System.Globalization.CultureInfo.InvariantCulture), account.Element("Account")!.Attribute("MaxCharacters")!.Value);
+    }
+
+    [TestMethod]
     public void TheExistingCharacterSampleStillWinsOverSavedCharacters()
     {
         using var rig = new Rig(configure: options => options.Replies = new Ps3ReplyOptions(ExistingCharacter: true));

@@ -59,7 +59,7 @@ Last updated: **13 November 2026.** Everything marked working was observed in RP
 | Marketplace (Station Cash) | 🔶 Partly mapped | The PS3 build uses an older store protocol than Sanctuary; resumes after the coin store | — |
 | Other players, movement relay, chat | ⬜ Not started | Single player only | — |
 | Quests, combat, mini-games | ⬜ Not started | | — |
-| **Keeping characters** | 🔶 New, being tested | Characters are saved and listed in character select when the game starts; delete works too | [`ps3ws-replies.md`](docs/protocol/ps3ws-replies.md#saved-characters) |
+| **Keeping characters** | 🔶 New, being tested | Characters are saved (up to 10, unique names, as in Sanctuary). The PS3 shows one in character select; pick which, or make another, on the manager's Characters page | [`ps3ws-replies.md`](docs/protocol/ps3ws-replies.md#saved-characters) |
 | Saving items, jobs and progress; accounts | ⬜ Not started | Items, the current job and position start fresh each time you enter the world | — |
 
 ### What a session looks like today
@@ -135,6 +135,7 @@ it starts.
 | :--- | :--- |
 | **Dashboard** | Start and stop the server; the state of the DNS, web and game services with their ports; uptime, players, packets received, your character and how many are saved; recent activity. **Test run in RPCS3** adds the game fixes to RPCS3, starts everything and saves a report when RPCS3 closes. |
 | **Players** | Every connected PS3: online id and character, address, current job, state (connecting, logged in, in world), packets and timings, refreshed every second. |
+| **Characters** | Every saved character with when it was made and last played. The PS3 shows only one in character select, so pick the one it shows next, send the next login to the creator to make another, or delete one. |
 | **Gameplay** | The server's behaviour without environment variables: the Sanctuary flow, starter items, jobs, sky, spawn point and how the creator's clothes go on. **Save and restart server** applies them. |
 | **Settings** | Client folder, an optional second client folder and original digest, `rpcs3.exe` and `game.elf`, whether to add the game fixes to RPCS3, network addresses and ports, the DNS stand-in. Choosing `rpcs3.exe` fills in the game RPCS3 has installed. |
 | **Logs** | The live log of every service with search and filters by level and source; pause, copy, clear. |
