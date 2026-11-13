@@ -208,6 +208,7 @@ public static partial class Reports
         var applied = kept.Take(Math.Max(0, kept.Count - 1500)).Where(line => line.Contains("PAT: Applied", StringComparison.Ordinal));
 
         File.WriteAllLines(Path.Combine(folder, "rpcs3_log_filtered.txt"), applied.Concat(kept.TakeLast(1500)));
+        WriteCrash(folder, all);
 
         // The game's own log lines, written to the TTY by the "game log to TTY" fix (RPCS3 keeps them in TTY.log beside RPCS3.log).
         foreach (var tty in new[] { Path.Combine(rpcs3Folder, "log", "TTY.log"), Path.Combine(rpcs3Folder, "TTY.log") })
@@ -239,6 +240,23 @@ public static partial class Reports
             foreach (var file in Directory.EnumerateFiles(patches, "*.yml").Where(file => new FileInfo(file).Length < 400_000))
                 File.Copy(file, Path.Combine(folder, "patches_" + Path.GetFileName(file)), overwrite: true);
         }
+    }
+
+    /// <summary>
+    /// When the game crashed: what RPCS3 wrote about the crashed thread (its registers and call stack) up to the access violation, which
+    /// the filtered log leaves out and the tail is often too short to reach.
+    /// </summary>
+    private static void WriteCrash(string folder, List<string> all)
+    {
+        var fatal = all.FindIndex(line => line.Contains("Access violation", StringComparison.Ordinal));
+
+        if (fatal < 0)
+            return;
+
+        var context = all.FindLastIndex(fatal, Math.Min(fatal + 1, 600), line => line.Contains("thread context:", StringComparison.Ordinal));
+        var from = context >= 0 ? context : Math.Max(0, fatal - 200);
+
+        File.WriteAllLines(Path.Combine(folder, "rpcs3_crash.txt"), all.Skip(from).Take(fatal - from + 4));
     }
 
     private static void WriteTraces(string folder)

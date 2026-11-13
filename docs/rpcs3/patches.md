@@ -109,13 +109,13 @@ Manager's Characters page; the in-game delete is gone.
 | Start Game logs in as | the head record's `Guid` (state 39, `0x78ebb8`, `ld r27, 0(head)`) |
 | Remove a preview character | `0x1bf598(client->704, actor)`, as the creator does at `0x791940` |
 
-**The patch:** state 11's X branch goes to a check (`0x791c60`): a head record with guid `0x7FFF0000` hides the popup, goes to
+**The patch:** state 11's X branch goes to a check (`0x791f60`): a head record with guid `0x7FFF0000` hides the popup, goes to
 state 13 and moves the camera to the creator (as the game's own select → creator step does, state 9 at `0x793704`); any other guid
-starts the game as before. The Triangle branch and the
-fall-through check D-pad right and left (`0x791b94`): right or Triangle moves the head record to the tail, left the tail to the
-head; then the preview is removed and the state goes back to 5, which builds the new head's preview and presents it. The code
-uses the space of the old delete-warning path (`0x791b94`-`0x791cc8`, which stops short of state 10's handler at `0x791ce4`); the
-rest of that path, and the blocks it jumps out to (`0x7935c0`, `0x793600`, `0x793758`, `0x7939e0`), are no longer reached.
+starts the game as before. The Triangle branch turns to the next character; the fall-through (`0x791b94`) checks D-pad right and
+left: right moves the head record to the tail, left the tail to the head; then the preview is removed and the state goes back to 5,
+which builds the new head's preview and presents it. The code is in the dead part of the old delete-warning path
+(`0x791b94`-`0x791c10`), the old delete prompt (state 12, `0x791f50`-`0x791ff0`, which nothing sets any more) and the zero padding at
+`0xe87014`-`0xe87128`.
 
 The server adds the **New character** stop after the saved characters while the account has room (fewer than 10): guid
 `0x7FFF0000` (2147418112), name "New character", and a whole look (the creator's first choices and starter outfit), because
@@ -136,4 +136,17 @@ at `0x78bf80`), for two reasons, both fixed:
   Removing the old preview (`0x1bf598`) is put off while it is still loading, and the game makes no actor whose id is in use
   (`0x1c1120` returns null), so turning back to a character crashed. Each turn now adds one to the high word of the new head's guid
   (a new actor id every time); Start Game clears it again, and the server reads only the low 32 bits of a guid.
+
+**Version 1.3 (13 November):** 1.2 still crashed the same way, about four seconds after the select screen came up
+(`fr_test_20261113_105938`, `fr_test_20261113_110739`, with two saved characters and the stop). Two changes:
+- **One press, one turn.** D-pad left and right (`+10552`/`+10556`) are held states, not presses: the creator's turntable keeps the
+  last values (`this+4516`/`+4520`) and acts only on a change (`0x7917f0`). 1.2 read them as presses, so while a direction was held
+  every return to state 11 turned and rebuilt again. 1.3 keeps the last values in the same fields and turns only when one changes.
+- **The preview's actor is checked and logged.** The builder's `mr r26, r3` after `0x1c1120` (`0x78bf48`) calls a check that writes
+  `wheel <guid> made <actor> used <actor>` to the game log (when the game log to TTY fix is on). `0x1b05c4` can only fail when its model
+  pool (`0x865010`) returns nothing, and that pool grows instead, so a null actor means an actor with the id is already there: the
+  check then looks it up in the manager's table (`manager+16`, 128 buckets by `hi ^ lo`, chained at `+88`, id at `+112`) and uses it,
+  instead of writing to null. `made 0` in the log shows when that happened.
+
+Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops.
 
