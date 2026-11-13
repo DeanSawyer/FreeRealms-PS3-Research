@@ -105,6 +105,13 @@ public sealed class Ps3Gateway
 
     /// <summary>The saved character each peer plays, and whether it came back with saved progress (so it is dressed from it).</summary>
     private readonly Dictionary<IPEndPoint, (ulong Guid, bool Restored)> _playing = [];
+
+    /// <summary>Where each peer's character stands (its last position update), and when that was last saved.</summary>
+    private readonly Dictionary<IPEndPoint, Placement> _positions = [];
+    private readonly Dictionary<IPEndPoint, TimeSpan> _positionSavedAt = [];
+
+    /// <summary>How often a moving character's position is saved (Sanctuary saves it when the player leaves).</summary>
+    private static readonly TimeSpan PositionSaveInterval = TimeSpan.FromSeconds(15);
     private readonly Dictionary<IPEndPoint, TimeSpan> _connectedAt = [];
     private readonly Dictionary<IPEndPoint, TimeSpan> _lastPacketAt = [];
     private readonly Dictionary<IPEndPoint, int> _packetsFrom = [];
@@ -385,8 +392,11 @@ public sealed class Ps3Gateway
         }
         else if (kind == 5)
         {
-            // Stop keeping this peer alive.
+            // Stop keeping this peer alive, after saving where its character stands (Sanctuary saves the position when a player leaves).
             _sessions.Remove(peer);
+
+            if (_inventories.TryGetValue(peer, out var leaving))
+                SaveProgress(peer, leaving);
 
             var reason = data.Length >= 8 ? BinaryPrimitives.ReadUInt16BigEndian(data.AsSpan(6, 2)) : -1;
 
@@ -472,7 +482,16 @@ public sealed class Ps3Gateway
                 // A saved character comes back with what it had (Sanctuary loads its items and profiles from the database); a new one
                 // gets Sanctuary's starting items. Without items (FR_ITEMS=0) nothing is saved or restored.
                 var restored = options.Items && saved?.Progress is not null;
-                var loadout = restored ? SavedProgress.ToLoadout(saved!.Progress!) : Loadout.ForNewCharacter(character, options);
+                var loadout = restored ? SavedProgress.ToLoadout(saved!.Progress!, _world.Zone) : Loadout.ForNewCharacter(character, options);
+
+                _positions.Remove(peer);
+                _positionSavedAt[peer] = _now;
+
+                if (loadout.Position is { } place)
+                {
+                    _positions[peer] = place;
+                    _logger?.LogInformation("gateway: back where it stood: x={X:0.0} y={Y:0.0} z={Z:0.0}", place.X, place.Y, place.Z);
+                }
 
                 if (restored)
                 {
@@ -582,6 +601,20 @@ public sealed class Ps3Gateway
             return;
         }
 
+        if (innerOpcode == Placement.Opcode && Placement.FromUpdate(inner) is { } moved)
+        {
+            // The position update: remember where the character stands and save it now and then.
+            _positions[peer] = moved;
+
+            if (_now - _positionSavedAt.GetValueOrDefault(peer) >= PositionSaveInterval && _inventories.TryGetValue(peer, out var walking))
+            {
+                _positionSavedAt[peer] = _now;
+                SaveProgress(peer, walking);
+            }
+
+            return;
+        }
+
         if (opcode == 6 && innerOpcode == 102 && inner.Length >= 4 && inner[2] == 0x01 && inner[3] == 0x00)
             SendNamed(peer, channel, "lobby request", [new NamedPacket("LobbyGameDefinitions", SanctuaryFlow.LobbyDefinitionsReply())]);
 
@@ -612,21 +645,27 @@ public sealed class Ps3Gateway
             var spawn = _world.Spawn;
 
             var activeJob = _inventories.TryGetValue(peer, out var session) ? session.Active : Ps3Packets.ProfileId;
+            var (x, z) = _positions.TryGetValue(peer, out var standing) ? (standing.X, standing.Z) : (spawn.X, spawn.Z);
 
-            SendNamed(peer, channel, "ClientFinishedLoading", SanctuaryFlow.FinishedLoadingPackets(1, spawn.X, spawn.Z, activeJob, _today()));
+            SendNamed(peer, channel, "ClientFinishedLoading", SanctuaryFlow.FinishedLoadingPackets(1, x, z, activeJob, _today()));
 
             // The clothes are not Sanctuary's: its PC client reads them from the items in the player data.
             Schedule(SpawnDelay, () => SendEquipment(peer, channel));
         }
     }
 
-    /// <summary>Saves what the peer's character has now (after an equip, unequip or job switch), as Sanctuary writes its database.</summary>
+    /// <summary>
+    /// Saves what the peer's character has now, as Sanctuary writes its database: after an equip, unequip or job switch, every
+    /// <see cref="PositionSaveInterval"/> while it moves, and when the client leaves.
+    /// </summary>
     private void SaveProgress(IPEndPoint peer, Inventory inventory)
     {
         if (!_world.Options.Items || !_playing.TryGetValue(peer, out var playing))
             return;
 
-        if (!_characters.SaveProgress(playing.Guid, SavedProgress.ToProgress(inventory.Snapshot())))
+        var now = inventory.Snapshot() with { Position = _positions.GetValueOrDefault(peer) };
+
+        if (!_characters.SaveProgress(playing.Guid, SavedProgress.ToProgress(now, _world.Zone)))
             return;
 
         _trace.Write("progress", ("peer", peer.Address.ToString()), ("guid", playing.Guid), ("job", inventory.Active));

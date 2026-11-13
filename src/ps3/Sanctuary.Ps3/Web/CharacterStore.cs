@@ -13,11 +13,20 @@ public sealed record SavedItem(int Id, int Definition, int Tint);
 /// <summary>One filled equipment slot of a job: the slot number and the id of the item in it.</summary>
 public sealed record SavedSlot(int Slot, int Item);
 
+/// <summary>Where a character stood when it was last saved: the zone, the position and the rotation the client reported.</summary>
+public sealed record SavedPosition(string Zone, double X, double Y, double Z, double RotationX, double RotationY, double RotationZ);
+
 /// <summary>
-/// What a character has gained by playing, like the item, profile and coin columns of Sanctuary's <c>DbCharacter</c>: the active job,
-/// the items, each job's equipment (slots in the order they were filled) and the coins. Saved by the game server whenever it changes.
+/// What a character has gained by playing, like the item, profile, coin and position columns of Sanctuary's <c>DbCharacter</c>: the
+/// active job, the items, each job's equipment (slots in the order they were filled), the coins and where it stood. Saved by the game
+/// server whenever it changes.
 /// </summary>
-public sealed record CharacterProgress(int ActiveJob, int Coins, IReadOnlyList<SavedItem> Items, IReadOnlyDictionary<int, IReadOnlyList<SavedSlot>> Equipment);
+public sealed record CharacterProgress(
+    int ActiveJob,
+    int Coins,
+    IReadOnlyList<SavedItem> Items,
+    IReadOnlyDictionary<int, IReadOnlyList<SavedSlot>> Equipment,
+    SavedPosition? Position = null);
 
 /// <summary>
 /// A character made in the character creator: the guid the server gave it, the values of its <c>character/create</c> request
@@ -437,6 +446,9 @@ public sealed class CharacterStore
         /// <summary>Job id (as text, JSON keys being text) to its filled slots in order.</summary>
         public Dictionary<string, List<SavedSlot>>? Equipment { get; set; }
 
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public SavedPosition? Position { get; set; }
+
         public static StoredProgress From(CharacterProgress progress) => new()
         {
             ActiveJob = progress.ActiveJob,
@@ -445,6 +457,7 @@ public sealed class CharacterStore
             Equipment = progress.Equipment.ToDictionary(
                 pair => pair.Key.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 pair => pair.Value.ToList()),
+            Position = progress.Position,
         };
 
         public CharacterProgress ToProgress()
@@ -457,7 +470,7 @@ public sealed class CharacterStore
                     equipment[id] = [.. slots ?? []];
             }
 
-            return new CharacterProgress(ActiveJob, Coins, [.. Items ?? []], equipment);
+            return new CharacterProgress(ActiveJob, Coins, [.. Items ?? []], equipment, Position);
         }
     }
 }

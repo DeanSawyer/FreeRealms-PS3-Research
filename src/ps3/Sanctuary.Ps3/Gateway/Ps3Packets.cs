@@ -17,14 +17,47 @@ public sealed record LoginFields(string Ticket, ulong Guid, string Version, stri
 /// <see cref="Ps3Gateway"/>'s job, so another transport (Clover's UdpLibrary) can carry the same packets.
 /// </summary>
 /// <summary>
+/// A position and rotation as the client reports them in its position update (inner opcode 125, 40 bytes on the PS3: u16 opcode, u64
+/// guid, position x, y, z, rotation x, y, z as f32, a state byte, an unused byte, the speed as f32). The rotation's fourth component is
+/// not sent; the player data writes it as 0, as for the spawn rotation.
+/// </summary>
+public sealed record Placement(double X, double Y, double Z, double RotationX, double RotationY, double RotationZ)
+{
+    /// <summary>Sanctuary's PlayerUpdatePacketUpdatePosition opcode.</summary>
+    public const int Opcode = 125;
+
+    /// <summary>Coordinates further out than this are not believed (a zone is a few thousand units across).</summary>
+    public const double Limit = 100_000;
+
+    /// <summary>The position in a client position update, or null when it is not one or its numbers are not believable.</summary>
+    public static Placement? FromUpdate(ReadOnlySpan<byte> inner)
+    {
+        if (inner.Length < 34 || BinaryPrimitives.ReadUInt16LittleEndian(inner) != Opcode)
+            return null;
+
+        var placement = new Placement(Float(inner, 10), Float(inner, 14), Float(inner, 18), Float(inner, 22), Float(inner, 26), Float(inner, 30));
+
+        return placement.Believable ? placement : null;
+    }
+
+    private static double Float(ReadOnlySpan<byte> data, int offset) => BinaryPrimitives.ReadSingleLittleEndian(data[offset..]);
+
+    public bool Believable =>
+        new[] { X, Y, Z, RotationX, RotationY, RotationZ }.All(double.IsFinite)
+        && Math.Abs(X) < Limit && Math.Abs(Y) < Limit && Math.Abs(Z) < Limit
+        && Math.Abs(RotationX) <= 1.01 && Math.Abs(RotationY) <= 1.01 && Math.Abs(RotationZ) <= 1.01;
+}
+
+/// <summary>
 /// What a character carries into the world: its items, each job's equipment ({slot: item id}, in the order the slots were filled), the
-/// active job and the coins. A new character gets Sanctuary's (<see cref="ForNewCharacter"/>); a saved one gets what it had.
+/// active job, the coins and, for a saved character, where it stood (null: the spawn point). A new character gets Sanctuary's (<see cref="ForNewCharacter"/>); a saved one gets what it had.
 /// </summary>
 public sealed record Loadout(
     IReadOnlyList<OwnedItem> Items,
     IReadOnlyDictionary<int, IReadOnlyDictionary<int, int>> Equipment,
     int ActiveJob = Ps3Packets.ProfileId,
-    int Coins = 0)
+    int Coins = 0,
+    Placement? Position = null)
 {
     /// <summary>The items and equipment Sanctuary gives a new character (<see cref="Ps3Packets.CharacterItems"/>), on the first job, with no coins.</summary>
     public static Loadout ForNewCharacter(IReadOnlyDictionary<string, string> character, GatewayOptions options)
@@ -44,6 +77,14 @@ public static class Ps3Packets
     public const int ProfileSize = 179;
 
     public static readonly (double X, double Y, double Z, double W) SpawnRotation = (0.5531712, 0.0, 0.8330676, 0.0);
+
+    /// <summary>The position and rotation of the player data: where a saved character stood, else the spawn point.</summary>
+    private static byte[] Position(Placement? saved, (double X, double Y, double Z, double W) spawn) =>
+        saved is null
+            ? new PacketWriter().F32(spawn.X).F32(spawn.Y).F32(spawn.Z).F32(spawn.W)
+                .F32(SpawnRotation.X).F32(SpawnRotation.Y).F32(SpawnRotation.Z).F32(SpawnRotation.W).ToArray()
+            : new PacketWriter().F32(saved.X).F32(saved.Y).F32(saved.Z).F32(spawn.W)
+                .F32(saved.RotationX).F32(saved.RotationY).F32(saved.RotationZ).F32(SpawnRotation.W).ToArray();
 
     private static readonly Dictionary<int, string> HeadNames = new() { [1] = "caucasian", [2] = "african", [3] = "asian" };
 
@@ -180,8 +221,7 @@ public static class Ps3Packets
             .I32(Number(character, "HairColor", 0)).I32(Number(character, "EyeColor", 0))
             .Str(CharacterMappings.SkinTone(character)).Str(CharacterMappings.FacePaint(character))
             .Str(CharacterMappings.ModelCustomization(character)) // skin tone, face paint, model customization
-            .F32(spawn.X).F32(spawn.Y).F32(spawn.Z).F32(spawn.W) // position (the client's camera follows this player)
-            .F32(SpawnRotation.X).F32(SpawnRotation.Y).F32(SpawnRotation.Z).F32(SpawnRotation.W)
+            .Raw(Position(loadout.Position, spawn)) // position (the client's camera follows this player) and rotation
             .I32(0).I32(0).I32(0) // name ids
             .Str(Text(character, "FirstName", "Test")).Str(Text(character, "LastName", string.Empty))
             .I32(loadout.Coins).I64(unixTime).I32(0).I32(0) // coins, birthday, age, play time

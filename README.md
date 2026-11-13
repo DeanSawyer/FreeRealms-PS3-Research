@@ -60,7 +60,7 @@ Last updated: **13 November 2026.** Everything marked working was observed in RP
 | Other players, movement relay, chat | ⬜ Not started | Single player only | — |
 | Quests, combat, mini-games | ⬜ Not started | | — |
 | **Keeping characters** | 🔶 New, being tested | Characters are saved (up to 10, unique names, as in Sanctuary). The PS3 shows one in character select; pick which, or make another, on the manager's Characters page | [`ps3ws-replies.md`](docs/protocol/ps3ws-replies.md#saved-characters) |
-| **Saving progress** | 🔶 New, being tested | Like Sanctuary's database: items, each job's outfit, the active job and coins are saved and come back next time. Position is not saved yet | [`ps3ws-replies.md`](docs/protocol/ps3ws-replies.md#saved-characters) |
+| **Saving progress** | 🔶 New, being tested | Like Sanctuary's database: items, each job's outfit, the active job, coins and where you stood are saved and come back next time | [`ps3ws-replies.md`](docs/protocol/ps3ws-replies.md#saved-characters) |
 | Accounts | ⬜ Not started | The PS3 sends no session to the web server, so every player shares one list of characters | — |
 
 ### What a session looks like today
@@ -85,8 +85,8 @@ Last updated: **13 November 2026.** Everything marked working was observed in RP
   the server starts and warns in the log.
 * **The inventory is unfinished.** Equip (by item and by item record), unequip and job switch requests are handled with
   Sanctuary's checks. The action bar, style cards, combat abilities and the rest of the inventory screen are not answered yet.
-* **Position is not saved.** Characters, their items, outfits, active job and coins are kept in `characters.json`, but you
-  always enter the world at the spawn point: the PS3's position update has not been decoded yet.
+* **Saving is new.** Characters, their items, outfits, active job, coins and position are kept in `characters.json` and are
+  still being tested in RPCS3. Delete the file (or one character on the manager's Characters page) to start over.
 * **Single player only.** The client's movement updates arrive but are not relayed; there are no other players or chat.
 * **The character creator can be slow to appear** the first time it loads in RPCS3. Give it a minute before closing the game.
 * Keep the sky setting (`sky_wilds24.xml`): without it the game crashes as soon as you look up.
@@ -231,7 +231,7 @@ Start at the [documentation index](docs/README.md).
 - [ ] Keep characters between runs *(built, being tested)*
 - [ ] Marketplace: browse and buy with Station Cash
 - [ ] Movement, other players and chat
-- [ ] Save items, jobs and progress like Sanctuary's database *(built, being tested; position still to do)*
+- [ ] Save items, jobs, coins and position like Sanctuary's database *(built, being tested)*
 - [ ] Accounts linked to the Clover server
 - [ ] Offer the PS3 client as a second client option in Sanctuary / Clover
 

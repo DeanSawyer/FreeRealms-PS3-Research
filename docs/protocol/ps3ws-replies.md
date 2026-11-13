@@ -120,14 +120,19 @@ The list is kept in `characters.json` (`--characters`; by default in the Server 
 `%LOCALAPPDATA%\FreeRealmsPS3Server`), written after every change and read when the server starts. A file that cannot be read is
 renamed to `characters.json.unreadable-<time>` instead of being overwritten.
 
-Besides the creator's choices, each character keeps its **progress**, like the item, profile and coin columns of Sanctuary's
-`DbCharacter`: the items it owns, each job's equipment (slots in the order they were filled), the active job and the coins. The
-game server writes it after every equip, unequip and job switch, and a returning character logs in with it: the player data's
-item list, job list and active job come from it, and the character is dressed in its active job's equipment. A character that
-never changed anything starts as a new one (Sanctuary's starter items) until it does. Nothing changes coins yet; the coin store
-will. **Position is not saved yet:** the client's position update (inner opcode 125) is 40 bytes on the PS3, not the 44 of
-Sanctuary's `PlayerUpdatePacketUpdatePosition`, and its layout has not been read from the client, so a saved position could put
-the character outside the world.
+Besides the creator's choices, each character keeps its **progress**, like the item, profile, coin and position columns of
+Sanctuary's `DbCharacter`: the items it owns, each job's equipment (slots in the order they were filled), the active job, the coins
+and where it stood. The game server writes it after every equip, unequip and job switch, every 15 seconds while the character moves,
+and when the client leaves (Sanctuary saves the position then); a returning character logs in with it: the player data's item list,
+job list, active job and position come from it, and the character is dressed in its active job's equipment. A character that never
+changed anything starts as a new one (Sanctuary's starter items and spawn point) until it does. Nothing changes coins yet; the coin
+store will.
+
+The position comes from the client's position update, inner opcode 125. On the PS3 it is 40 bytes, not the 44 of Sanctuary's
+`PlayerUpdatePacketUpdatePosition`: `u16` opcode, `u64` guid, position x, y, z and rotation x, y, z as `f32`, a state byte, an
+unused byte and the speed as `f32` (the rotation has no fourth component). Read from a test run: the first update after loading
+reports Sanctuary's spawn point (-1904.88, -39.71, 412.60) and exactly the spawn rotation the server sent (0.5532, 0, 0.8331). A
+saved position is used only in the zone it was saved in, and only when its numbers are finite and within 100 000 units.
 
 ## The name check
 
