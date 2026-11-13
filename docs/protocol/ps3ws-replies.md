@@ -45,10 +45,82 @@ The field names below are the attributes (or child elements, in `elements` mode)
 | `character/friendsList` | `CharacterFriendsReply` | `Status`, `StatusMessage`, `Friends/Friend*` |
 
 An account with no `Character` entries makes the client log "No existing character found on the server"
-and continue to character creation. The inner layout of `Character` (Details/Guid/Name, Model, Head, Hair,
-ModelCustomization, FacePaint, SkinTone, EyeColor, HairColor, Attachments/Attachment with Model, Texture,
-Tint, TintOverrideId, EffectId, Slot, plus HeadshotUrl, LastPlayed, Server, Zone, Online, Locked) is taken
-from tag-name strings and has not been checked against the parser.
+and continue to character creation.
+
+### The `Character` element
+
+Read from the parser (`0xd9b6f8`, called for `Characters` by the `AccountInfoReply` reader at `0xa1f040`). Offsets are in the
+client's character record; strings are the client's 52-byte string objects.
+
+```xml
+<Character HeadshotUrl="">
+  <Details Guid="1" Name="Mentor Kenner" Model="1" Head="&lt;race&gt;_&lt;gender&gt;_head_african.adr"
+           Hair="&lt;race&gt;_m_hair_fauxhawk_&lt;hairtype&gt;.adr" ModelCustomization="" FacePaint="none"
+           SkinTone="skintone2" EyeColor="63" HairColor="10">
+    <Attachments>
+      <Attachment Model="freestyle_&lt;race&gt;_m_chest_rolledslvshirt.adr" Texture="freestyle-stitchup-L1"
+                  Tint="dyetint" TintOverrideId="234" EffectId="0" Slot="3"/>
+    </Attachments>
+  </Details>
+</Character>
+```
+
+| Element | Field | Read as | Record offset |
+| :--- | :--- | :--- | :--- |
+| `Character` | `HeadshotUrl` | string | `+352` |
+| `Details` | `Guid` | 64-bit (`0xd9b310`) | `+0` |
+| `Details` | `Name` | string | `+8` |
+| `Details` | `Model` | integer | `+60` |
+| `Details` | `Head`, `Hair`, `ModelCustomization`, `FacePaint`, `SkinTone` | strings (asset names) | `+64`, `+116`, `+168`, `+220`, `+272` |
+| `Details` | `EyeColor`, `HairColor` | integers | `+324`, `+328` |
+| `Details/Attachments/Attachment` | `Model`, `Texture`, `Tint` (strings), `TintOverrideId`, `EffectId`, `Slot` | read by `0xd9ad74` | |
+
+The appearance fields are asset names, not the creator's numbers: the server sends the same names as the game server's
+SendSelfToClient (`CharacterMappings`), and one `Attachment` per piece of clothing the creator picked (`Clothing.Attachments`).
+Character select (`0x78bc88`, login state 5) builds the model from the first entry. The other tag names in the client
+(`LastPlayed`, `Server`, `Zone`, `Online`, `Locked`) are not read by this parser.
+
+### Saved characters
+
+`character/create` adds a character to the server's list and answers with its new `Guid` (1, 2, 3, ... never reused). Its
+request carries `FirstName`, `LastName`, the appearance numbers, the six `Item*`/`Item*Tint` pairs, `Location`, and for a custom
+name also `TemporaryFirstName`/`TemporaryLastName` (the request builder at `0xd9ec78` adds them when the record's `+80` string is
+set). Everything but `Session` is kept.
+
+`account/info` answers `Status` 1 with one `Character` per saved character, so the client goes to character select; with none it
+keeps `Status` 2 (see below). `character/login` sends `Guid`, `Server` and `Session`: the server then sends that character to the
+game. `character/delete` removes the character with the request's `Guid`. `MaxCharacters` is 3.
+
+The list is kept in `characters.json` (`--characters`; by default in the Server Manager's folder,
+`%LOCALAPPDATA%\FreeRealmsPS3Server`), written after every change and read when the server starts. A file that cannot be read is
+renamed to `characters.json.unreadable-<time>` instead of being overwritten. Only the creator's choices are kept; items, jobs and
+position are not saved yet.
+
+## The name check
+
+`character/checkName` sends `FirstName`, `LastName` and `Session`; the reply's `Status` is the result code the creator's handler
+(`OnRequestCheckName`, `0x789a40`) acts on. Its names come from the table at `0xeb6f50` (indexed by `Status + 1`):
+
+| `Status` | Meaning | The creator shows |
+| ---: | :--- | :--- |
+| -1 | Unknown error | |
+| 0 | None | |
+| 1 | Success | goes on to create the character |
+| 2 | Name already taken | `Char_Name_Taken_PS3` |
+| 3 | Name is profane | `Char_Name_Profane_PS3` |
+| 4 | Name is invalid | `Char_Name_Invalid_PS3` |
+| 5 | Name has an incorrect length | `Char_Name_Incorrect_Length_PS3` |
+| 6 | Server failure | `Char_Server_Failure_PS3` |
+| 7 | First name is too short | `First_Name_Short_PS3` |
+| 8 | Last name is too short | `Last_Name_Short_PS3` |
+| 9 | First name is too long | `First_Name_Long_PS3` |
+| 10 | Last name is too long | `Last_Name_Long_PS3` |
+
+On a failure the creator shows `'<first> <last>' <message>` and the `Suggestions/Suggestion` entries (`Name`, `LastPrefix`,
+`LastSuffix`, which only the log prints). The server always answers 1.
+
+A custom name comes from the system keyboard. The creator's keyboard handler (`0x78ae60`) splits the text at the first space into
+first and last name. In RPCS3 it only gets the text with the keyboard close fix ([`docs/rpcs3/patches.md`](../rpcs3/patches.md)).
 
 ## Result codes the client names
 
@@ -66,7 +138,7 @@ reported with `Status` 2 (`--account-status 2`, the default); `Status` 1 needs a
 
 ## Not known yet
 
-- What `Status` values other than 1 mean for `checkName` (the client has separate messages for taken,
-  profane, invalid and wrong-length names).
+- What `character/delete` sends. The server takes its `Guid` as login's is sent; no delete has been seen in a test run yet.
+- Whether character select lists more than the first saved character, and what it does with three.
 - Whether `Key` is used to encrypt the game connection. `GatewayAddress` is `host:port` and `GatewayTicket` comes back
   as the ticket in the client's first gateway packet; see `docs/protocol/gateway.md`.

@@ -50,6 +50,7 @@ dotnet run --project src\ps3\Sanctuary.Ps3.Server -- --client "C:\Path\To\NPUA30
 | `--extra-client DIR` | Another `NPUA30048` folder searched for a file whose CRC32 matches (repeatable) |
 | `--bind IP`, `--advertise IP` | Listen address (`127.0.0.1`, or `0.0.0.0` for the network) and the address the PS3 connects to |
 | `--port N`, `--gateway-port N`, `--no-dns` | Web server port (80), game server port (20260, `0` turns it off), no DNS stand-in |
+| `--characters FILE`, `--no-save` | Where the characters are saved (default `%LOCALAPPDATA%\FreeRealmsPS3Server\characters.json`, the Server Manager's file), or keep them in memory only |
 
 A self-contained `Sanctuary.Ps3.Server.exe` is attached to each release and to each successful
 [Windows build](../../.github/workflows/windows-build.yml).

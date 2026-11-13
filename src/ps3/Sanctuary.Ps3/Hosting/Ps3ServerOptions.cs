@@ -69,6 +69,16 @@ public sealed record Ps3ServerOptions
     /// <summary>Experiment: send local files whose CRC32 does not match (<c>--serve-mismatch</c>).</summary>
     public bool ServeMismatch { get; init; }
 
+    /// <summary>
+    /// The JSON file the account's characters are saved in (<c>--characters</c>), so they are still there after a restart; null keeps
+    /// them in memory only (<c>--no-save</c>, and the tests).
+    /// </summary>
+    public string? CharacterFile { get; init; }
+
+    /// <summary>Where the characters are saved when nothing else is said: <c>FreeRealmsPS3Server\characters.json</c> in the local application data folder (the manager's folder).</summary>
+    public static string DefaultCharacterFile =>
+        System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FreeRealmsPS3Server", "characters.json");
+
     /// <summary>The <c>FR_*</c> switches of the game-server stand-in.</summary>
     public GatewayOptions Gateway { get; init; } = new();
 

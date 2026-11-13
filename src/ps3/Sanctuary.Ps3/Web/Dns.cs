@@ -134,7 +134,14 @@ public sealed class DnsServer : IDisposable
     public void Start()
     {
         _socket = new UdpClient(AddressFamily.InterNetwork);
-        _socket.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+
+        // On Windows a second program may share a port opened with ReuseAddress, and then gets the queries instead of this one with
+        // no error anywhere; take the port for this socket alone so a leftover server makes this start fail with "in use".
+        if (OperatingSystem.IsWindows())
+            _socket.Client.ExclusiveAddressUse = true;
+        else
+            _socket.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+
         _socket.Client.Bind(_bind);
 
         // A reply to a closed port makes UdpClient.ReceiveAsync throw on Windows; ignore ICMP errors from clients that went away.

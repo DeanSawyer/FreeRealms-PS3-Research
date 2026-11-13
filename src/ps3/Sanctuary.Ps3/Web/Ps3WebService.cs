@@ -148,15 +148,16 @@ public sealed class Ps3WebService
             return WebResponse.Text(501, "Not implemented");
 
         var kind = Ps3Replies.KindOf(route);
-        var reply = _replies[kind];
 
-        // Only field names are logged here. The values of a character_create request are logged below (never the Session); the
+        // Only field names are logged here; the values of the character requests are handled below (never the Session). The
         // session and account values are never logged.
         var fields = FormBody.Parse(Encoding.Latin1.GetString(body), keepBlank: true)
             .Select(pair => pair.Name)
             .Distinct()
             .Order(StringComparer.Ordinal)
             .ToList();
+
+        var reply = Reply(kind, body);
 
         _trace.Write(
             "ps3_reply",
@@ -168,19 +169,6 @@ public sealed class Ps3WebService
             ("server_list_variant", kind == Ps3ReplyKind.ServerList ? ServerListVariant : null),
             ("xml_style", _options.Replies.Style == XmlStyle.Attributes ? "attributes" : "elements"));
 
-        if (kind == Ps3ReplyKind.CharacterCreate)
-        {
-            var values = FormBody.FirstValues(FormBody.Parse(new UTF8Encoding(false).GetString(body), keepBlank: true))
-                .Where(pair => pair.Name != "Session")
-                .ToList();
-
-            _characters.Replace(values);
-
-            _logger?.LogInformation(
-                "character_create values (kept for the game-server probe): {Values}",
-                string.Join(", ", values.OrderBy(pair => pair.Name, StringComparer.Ordinal).Select(pair => $"{pair.Name}={pair.Value}")));
-        }
-
         _logger?.LogInformation(
             "{Kind} request fields: {Fields} -> replying Status={Status}",
             KindName(kind),
@@ -190,6 +178,103 @@ public sealed class Ps3WebService
         _logger?.LogInformation("200 test reply for {Route} ({Bytes} bytes)", route, reply.Length);
 
         return WebResponse.Data("text/xml; charset=utf-8", reply);
+    }
+
+    /// <summary>
+    /// The reply for <paramref name="kind"/>. Most are fixed; the character routes use and change the saved characters: create adds
+    /// one and answers with its guid, login picks the one the game server sends, delete removes one, and account info lists them
+    /// (an account without characters keeps the fixed "no characters" reply, which sends the client to the creator).
+    /// </summary>
+    private byte[] Reply(Ps3ReplyKind kind, byte[] body)
+    {
+        var style = _options.Replies.Style;
+
+        switch (kind)
+        {
+            case Ps3ReplyKind.AccountInfo when !_options.Replies.ExistingCharacter && _characters.Count > 0:
+                {
+                    var characters = _characters.All();
+
+                    _logger?.LogInformation(
+                        "account_info: {Count} saved character(s): {Names}",
+                        characters.Count,
+                        string.Join(", ", characters.Select(character => $"{character.Name} (guid {character.Guid})")));
+
+                    return Ps3Replies.AccountInfo(characters, style);
+                }
+
+            case Ps3ReplyKind.CharacterCreate:
+                {
+                    var values = FormBody.FirstValues(FormBody.Parse(new UTF8Encoding(false).GetString(body), keepBlank: true))
+                        .Where(pair => pair.Name != "Session")
+                        .ToList();
+
+                    var guid = _characters.Create(values);
+
+                    _logger?.LogInformation(
+                        "character_create values (saved as guid {Guid}): {Values}",
+                        guid,
+                        string.Join(", ", values.OrderBy(pair => pair.Name, StringComparer.Ordinal).Select(pair => $"{pair.Name}={pair.Value}")));
+
+                    WarnIfNotSaved();
+
+                    return Ps3Replies.CharacterCreate(guid, style);
+                }
+
+            case Ps3ReplyKind.CharacterLogin:
+                {
+                    if (RequestGuid(body) is { } guid)
+                    {
+                        if (_characters.Select(guid))
+                            _logger?.LogInformation("character_login: playing {Name} (guid {Guid})", _characters.Find(guid)?.Name, guid);
+                        else
+                            _logger?.LogWarning("character_login: no saved character has guid {Guid}; the newest one is sent", guid);
+
+                        WarnIfNotSaved();
+                    }
+
+                    break;
+                }
+
+            case Ps3ReplyKind.CharacterDelete:
+                {
+                    if (RequestGuid(body) is { } guid)
+                    {
+                        var name = _characters.Find(guid)?.Name;
+
+                        if (_characters.Delete(guid))
+                            _logger?.LogInformation("character_delete: deleted {Name} (guid {Guid})", name, guid);
+                        else
+                            _logger?.LogWarning("character_delete: no saved character has guid {Guid}", guid);
+
+                        WarnIfNotSaved();
+                    }
+
+                    break;
+                }
+        }
+
+        return _replies[kind];
+    }
+
+    /// <summary>The <c>Guid</c> of a character request; null when it has none or it is not a number.</summary>
+    private static ulong? RequestGuid(byte[] body)
+    {
+        var pairs = FormBody.FirstValues(FormBody.Parse(Encoding.Latin1.GetString(body), keepBlank: true));
+
+        foreach (var (name, value) in pairs)
+        {
+            if (name == "Guid" && ulong.TryParse(value.Trim(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var guid))
+                return guid;
+        }
+
+        return null;
+    }
+
+    private void WarnIfNotSaved()
+    {
+        if (_characters.SaveProblem is { } problem)
+            _logger?.LogWarning("characters not saved: {Problem}", problem);
     }
 
     private static string Sha256(byte[] data) => Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant();

@@ -14,12 +14,13 @@ New to the project? Read these in order: the [README](../README.md) for the curr
 | Folder | Document | What it covers |
 | :--- | :--- | :--- |
 | `install/` | [`digest-format.md`](install/digest-format.md) | The patch digest (`.soe`), the `.zs` container, the installer's checks, the test runs that established them, and how the digest is edited |
-| `protocol/` | [`ps3ws-replies.md`](protocol/ps3ws-replies.md) | HTTP web-service replies recovered from the client (success rule, attributes, result codes) |
+| `protocol/` | [`ps3ws-replies.md`](protocol/ps3ws-replies.md) | HTTP web-service replies recovered from the client (success rule, attributes, result codes, the character list, saved characters, the name check) |
 | `protocol/` | [`gateway.md`](protocol/gateway.md) | The UDP game-server connection: transport, packets, player data, `AddPc`, and a dated log of what each test showed |
 | `re/` | [`README.md`](re/README.md) | Index and conventions for the reverse-engineering notes (addresses, workspace) |
 | `re/` | [`assets.md`](re/assets.md) | Pack files, the asset manifest, the name hash, why an unknown name fails silently |
 | `re/` | [`zone-loading.md`](re/zone-loading.md) | `ZoneDetails` → terrain → tiles → the per-frame loading check; test results so far |
 | `re/` | [`addresses.csv`](re/addresses.csv) | Every function and data address the notes rely on, each with a text check (verified by `tools/re/verify_addresses.py` on the archive branch) |
+| `rpcs3/` | [`patches.md`](rpcs3/patches.md) | The two RPCS3 game fixes custom names need (keyboard close, renderer null state) and how they are added |
 | `history/` | [`installer-baseline.md`](history/installer-baseline.md) | The first measured installer result (error 1004), kept for the record |
 
 ## Implementation

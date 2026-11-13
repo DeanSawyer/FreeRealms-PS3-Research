@@ -56,6 +56,19 @@ public static partial class Reports
         if (settings.RestoreScripts)
             RestoreScripts(Path.GetDirectoryName(settings.ClientFolder.TrimEnd('\\', '/')) ?? settings.ClientFolder, Step);
 
+        if (settings.InstallPatches)
+        {
+            try
+            {
+                foreach (var line in Rpcs3Patches.Install(settings.Rpcs3Executable))
+                    Step(line);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                Step($"RPCS3 patches: could not be added ({exception.Message})");
+            }
+        }
+
         if (!server.IsRunning)
         {
             Step("starting the server");

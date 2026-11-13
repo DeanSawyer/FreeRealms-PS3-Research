@@ -304,6 +304,73 @@ public sealed class WebServiceTests
         Assert.AreEqual("Next", rig.Characters.Snapshot()["Name"]);
     }
 
+    [TestMethod]
+    public void SavedCharactersAreListedPickedAtLoginAndDeleted()
+    {
+        using var rig = new Rig();
+
+        // No characters yet: the fixed "no characters" reply, which sends the client to the creator.
+        CollectionAssert.AreEqual(Ps3Replies.Build()[Ps3ReplyKind.AccountInfo], rig.Post("/ps3ws/account/info.action", "Session=x").Body);
+
+        var first = rig.Post("/ps3ws/character/create.action", "Session=x&FirstName=Mentor&LastName=Kenner&Model=1&Head=2&Hair=4&HairColor=10&EyeColor=63&SkinTone=2&ItemChest=28216&ItemChestTint=234");
+        var second = rig.Post("/ps3ws/character/create.action", "Session=x&FirstName=Aedon&LastName=Amberarm");
+
+        CollectionAssert.AreEqual(Ps3Replies.CharacterCreate(1), first.Body);
+        CollectionAssert.AreEqual(Ps3Replies.CharacterCreate(2), second.Body);
+
+        var account = System.Xml.Linq.XDocument.Parse(Encoding.UTF8.GetString(rig.Post("/ps3ws/account/info.action", "Session=x").Body)).Root!;
+
+        Assert.AreEqual("1", account.Attribute("Status")!.Value);
+
+        var characters = account.Element("Characters")!.Elements("Character").ToList();
+
+        Assert.AreEqual(2, characters.Count);
+
+        var details = characters[0].Element("Details")!;
+
+        Assert.AreEqual("1", details.Attribute("Guid")!.Value);
+        Assert.AreEqual("Mentor Kenner", details.Attribute("Name")!.Value);
+        Assert.AreEqual("<race>_<gender>_head_african.adr", details.Attribute("Head")!.Value);
+        Assert.AreEqual("skintone2", details.Attribute("SkinTone")!.Value);
+        Assert.AreEqual("63", details.Attribute("EyeColor")!.Value);
+        Assert.AreEqual("10", details.Attribute("HairColor")!.Value);
+        Assert.IsNotNull(characters[0].Attribute("HeadshotUrl"));
+
+        var attachment = details.Element("Attachments")!.Elements("Attachment").Single();
+
+        Assert.AreEqual("234", attachment.Attribute("TintOverrideId")!.Value);
+        Assert.IsFalse(string.IsNullOrEmpty(attachment.Attribute("Model")!.Value));
+
+        // Login picks the character the game server sends; delete removes one.
+        rig.Post("/ps3ws/character/login.action", "Guid=1&Server=1&Session=x");
+
+        Assert.AreEqual("Mentor", rig.Characters.Snapshot()["FirstName"]);
+
+        rig.Post("/ps3ws/character/delete.action", "Guid=2&Session=x");
+
+        Assert.AreEqual(1, rig.Characters.Count);
+        Assert.AreEqual("Mentor Kenner", rig.Characters.All().Single().Name);
+
+        // An unknown or missing guid changes nothing.
+        rig.Post("/ps3ws/character/login.action", "Guid=99&Session=x");
+        rig.Post("/ps3ws/character/delete.action", "Guid=abc&Session=x");
+
+        Assert.AreEqual(1, rig.Characters.Count);
+        Assert.AreEqual("Mentor", rig.Characters.Snapshot()["FirstName"]);
+    }
+
+    [TestMethod]
+    public void TheExistingCharacterSampleStillWinsOverSavedCharacters()
+    {
+        using var rig = new Rig(configure: options => options.Replies = new Ps3ReplyOptions(ExistingCharacter: true));
+
+        rig.Post("/ps3ws/character/create.action", "Session=x&FirstName=Mentor");
+
+        CollectionAssert.AreEqual(
+            Ps3Replies.Build(new Ps3ReplyOptions(ExistingCharacter: true))[Ps3ReplyKind.AccountInfo],
+            rig.Post("/ps3ws/account/info.action", "Session=x").Body);
+    }
+
     // ----------------------------------------------------------------------------------------- .zs downloads
 
     [TestMethod]

@@ -11,6 +11,9 @@ public sealed class ManagerSettings
 
     public static readonly string TraceFolder = Path.Combine(DataFolder, "traces");
 
+    /// <summary>The characters made in the game, kept between runs (the console server's default file too).</summary>
+    public static readonly string CharacterFile = Path.Combine(DataFolder, "characters.json");
+
     private static readonly string SettingsPath = Path.Combine(DataFolder, "settings.json");
 
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
@@ -35,6 +38,9 @@ public sealed class ManagerSettings
 
     /// <summary>Put the original ui\scriptsbase.bin.sdat back before a test run when a patched copy is live.</summary>
     public bool RestoreScripts { get; set; } = true;
+
+    /// <summary>Add the game fixes (Rpcs3\FreeRealms_PS3_fixes.yml) to RPCS3 and turn them on before a test run.</summary>
+    public bool InstallPatches { get; set; } = true;
 
     // --- Network ------------------------------------------------------------------------------------------------------
 

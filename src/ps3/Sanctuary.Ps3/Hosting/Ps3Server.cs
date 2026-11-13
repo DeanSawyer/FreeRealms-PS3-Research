@@ -111,7 +111,14 @@ public static class Ps3Server
                 log.LogInformation("DNS listening on {Bind}:{Port}; hosts -> {Advertise}; upstream={Upstream}", options.Bind, dns.Port, options.Advertise, options.Upstream);
             }
 
-            var characters = new CharacterStore();
+            var characters = new CharacterStore(options.CharacterFile);
+
+            if (characters.LoadProblem is { } problem)
+                log.LogWarning("characters: {Problem}", problem);
+            else if (options.CharacterFile is { } file)
+                log.LogInformation("characters: {Count} saved in {File}", characters.Count, file);
+            else
+                log.LogInformation("characters: kept in memory only (not saved)");
             var gatewayPort = options.GatewayPort;
 
             if (options.EnableGateway)

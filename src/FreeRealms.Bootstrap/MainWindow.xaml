@@ -132,6 +132,7 @@
               <StackPanel>
                 <TextBlock Text="CHARACTER" Style="{StaticResource CardTitle}"/>
                 <TextBlock x:Name="CharacterText" Text="—" Style="{StaticResource StatValue}" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="SavedCharactersText" Text="" Style="{StaticResource Hint}" TextTrimming="CharacterEllipsis"/>
               </StackPanel>
             </Border>
           </UniformGrid>
@@ -368,6 +369,13 @@
                 <StackPanel>
                   <TextBlock Text="Restore the original game scripts before a test run" FontWeight="SemiBold"/>
                   <TextBlock Text="Puts ui\scriptsbase.bin.sdat back from its .orig copy when a patched one is in place." Style="{StaticResource Hint}"/>
+                </StackPanel>
+              </CheckBox>
+
+              <CheckBox x:Name="InstallPatchesSwitch" Style="{StaticResource Switch}" Margin="0,12,0,0">
+                <StackPanel>
+                  <TextBlock Text="Add the game fixes to RPCS3 before a test run" FontWeight="SemiBold"/>
+                  <TextBlock Text="Adds and turns on the keyboard fix (custom names) and the renderer crash guard in RPCS3's game patches. Patches you turned off stay off." Style="{StaticResource Hint}" TextWrapping="Wrap"/>
                 </StackPanel>
               </CheckBox>
             </StackPanel>

@@ -348,6 +348,7 @@ public partial class MainWindow : Window
             UptimeText.Text = "—";
             PlayersText.Text = "0";
             PacketsText.Text = "0";
+            SavedCharactersText.Text = string.Empty;
             players.Clear();
             NoPlayers.Visibility = Visibility.Visible;
 
@@ -380,6 +381,12 @@ public partial class MainWindow : Window
         PlayersText.Text = sessions.Count.ToString(CultureInfo.InvariantCulture);
         PacketsText.Text = (running.Gateway?.PacketCount ?? 0).ToString("N0", CultureInfo.InvariantCulture);
         CharacterText.Text = name.Length > 0 ? name : "—";
+        SavedCharactersText.Text = running.Characters.Count switch
+        {
+            0 => "none saved yet",
+            1 => "1 saved character",
+            var count => $"{count} saved characters",
+        };
 
         players.Clear();
 
@@ -434,6 +441,7 @@ public partial class MainWindow : Window
         Rpcs3Box.Text = settings.Rpcs3Executable;
         ElfBox.Text = settings.GameElf;
         RestoreScriptsSwitch.IsChecked = settings.RestoreScripts;
+        InstallPatchesSwitch.IsChecked = settings.InstallPatches;
         BindBox.Text = settings.Bind;
         AdvertiseBox.Text = settings.Advertise;
         HttpPortBox.Text = settings.HttpPort.ToString(CultureInfo.InvariantCulture);
@@ -470,6 +478,7 @@ public partial class MainWindow : Window
             Rpcs3Executable = Rpcs3Box.Text.Trim(),
             GameElf = ElfBox.Text.Trim(),
             RestoreScripts = RestoreScriptsSwitch.IsChecked == true,
+            InstallPatches = InstallPatchesSwitch.IsChecked == true,
             Bind = BindBox.Text.Trim(),
             Advertise = AdvertiseBox.Text.Trim(),
             HttpPort = httpPort,

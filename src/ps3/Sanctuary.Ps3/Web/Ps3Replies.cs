@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -122,7 +123,7 @@ public static partial class Ps3Replies
         if (options.ZoneField)
             server.Add(("Zone", 1));
 
-        var account = El("Account", [("Member", 1), ("MaxCharacters", 3), ("Admin", 0)]);
+        var account = El("Account", [("Member", 1), ("MaxCharacters", MaxCharacters), ("Admin", 0)]);
 
         // The sample character's layout is a guess, see the docs.
         var sample = El("Character", [("HeadshotUrl", "")], [El("Details", [("Guid", 1), ("Name", "NorthForge")])]);
@@ -149,6 +150,69 @@ public static partial class Ps3Replies
             [Ps3ReplyKind.FriendsList] = Reply("CharacterFriendsReply", children: [El("Friends")]),
             [Ps3ReplyKind.Generic] = Reply("Response"),
         };
+    }
+
+    /// <summary>
+    /// <c>account/info</c> for an account with <paramref name="characters"/> (at least one): <c>Status</c> 1 and a <c>Character</c>
+    /// for each, so the client goes to character select. The layout is the one the client's reader takes (<c>0xd9b6f8</c>):
+    /// <c>HeadshotUrl</c> on <c>Character</c>; <c>Guid</c>, <c>Name</c>, <c>Model</c>, the appearance asset names (as the game
+    /// server's SendSelfToClient sends them), <c>EyeColor</c>, <c>HairColor</c> and <c>Attachments/Attachment</c> (Model, Texture,
+    /// Tint, TintOverrideId, EffectId, Slot) on <c>Details</c>.
+    /// </summary>
+    public static byte[] AccountInfo(IReadOnlyList<SavedCharacter> characters, XmlStyle style = XmlStyle.Attributes, int maxCharacters = MaxCharacters)
+    {
+        string El(string tag, (string, object)[]? fields = null, string[]? children = null) => Element(tag, fields, children, style);
+
+        var list = new List<string>(characters.Count);
+
+        foreach (var character in characters)
+        {
+            var values = character.Values;
+            var attachments = Gateway.Clothing.Attachments(values)
+                .Select(piece => El("Attachment", [
+                    ("Model", piece.Model), ("Texture", piece.TextureAlias), ("Tint", piece.TintAlias),
+                    ("TintOverrideId", piece.Tint), ("EffectId", piece.CompositeEffect), ("Slot", piece.Slot)]))
+                .ToArray();
+
+            var details = El(
+                "Details",
+                [
+                    ("Guid", character.Guid),
+                    ("Name", character.Name),
+                    ("Model", Gateway.CharacterMappings.Number(values, "Model", 1)),
+                    ("Head", Gateway.CharacterMappings.Head(values)),
+                    ("Hair", Gateway.CharacterMappings.Hair(values)),
+                    ("ModelCustomization", Gateway.CharacterMappings.ModelCustomization(values)),
+                    ("FacePaint", Gateway.CharacterMappings.FacePaint(values)),
+                    ("SkinTone", Gateway.CharacterMappings.SkinTone(values)),
+                    ("EyeColor", Gateway.CharacterMappings.Number(values, "EyeColor", 0)),
+                    ("HairColor", Gateway.CharacterMappings.Number(values, "HairColor", 0)),
+                ],
+                [El("Attachments", children: attachments)]);
+
+            list.Add(El("Character", [("HeadshotUrl", string.Empty)], [details]));
+        }
+
+        var account = El("Account", [("Member", 1), ("MaxCharacters", maxCharacters), ("Admin", 0)]);
+
+        return Document("AccountInfoReply", null, [account, El("Characters", children: [.. list])], style);
+    }
+
+    /// <summary><c>character/create</c> answered with the guid the server gave the new character.</summary>
+    public static byte[] CharacterCreate(ulong guid, XmlStyle style = XmlStyle.Attributes) =>
+        Document("CharacterCreateReply", [("Guid", guid)], null, style);
+
+    /// <summary>How many characters an account may have (the <c>MaxCharacters</c> the client is told).</summary>
+    public const int MaxCharacters = 3;
+
+    private static byte[] Document(string root, (string, object)[]? fields, string[]? children, XmlStyle style, int status = 1, string message = "Success")
+    {
+        var head = new List<(string, object)> { ("Status", status), ("StatusMessage", message) };
+
+        if (fields is not null)
+            head.AddRange(fields);
+
+        return new UTF8Encoding(false).GetBytes(XmlDeclaration + Element(root, head, children, style) + "\r\n");
     }
 
     /// <summary>The <c>Status</c> value in a reply, for the log line; null when there is none.</summary>
