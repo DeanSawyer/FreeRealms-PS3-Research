@@ -59,7 +59,9 @@ on. RPCS3 keeps the lines in `TTY.log`, which the Server Manager's test report c
 - It also writes the name of each script event the Marketplace and the coin store raise, as *Script event Handler.Event*: the hooks
   at `0x87c14` (a `HandlerInGamePurchase` event, such as *OnMarketplaceReady*) and `0x133038` (a handler's event, such as
   *HandlerCoinStore.OnInitializeSearchEngine*).
-- The code is in the zero padding at `0xe86e40`-`0xe87014` (nothing refers to it).
+- **Version 1.3:** also the game's debug output (`0xc7134`, the client's slot 204), as *Debug: ...*: the store lists' jobs
+  (*InGamePurchaseDataSource finished job N*, N being the rows) and the Marketplace support data messages.
+- The code is in the zero padding at `0xe86e40`-`0xe87090` (nothing refers to it).
 - Versions 1.0 and 1.1 wrote the format text unformatted.
 
 ## Marketplace without PSN
@@ -73,3 +75,17 @@ processor (`0x42ae60`) reports to its listener when it is done, `ready(true)` (`
 true checks the portal categories against the server's store (`0x96088`) and tells the screen it may show the store.
 
 **Fix:** the failure path reports `ready(true)` too (`li r4, 0` → `li r4, 1` at `0x42aed8`). Not checked in RPCS3 yet.
+
+## Marketplace store list (test)
+
+**Symptom:** the Station Cash shop opens with only *All Items* and *Hot New Items*, and no items, although the game took the store
+(*Added/Updated new store successfully - Store: 1, Count: 3461*), the Marketplace was ready and its search setup finished.
+
+**What the game does:** the shop's list is the *BaseClient.InGamePurchase.StoreItems* datasource (the screen at
+manager + `0x10000` + 22964, its datasource at screen + 4). It builds its rows (`0x23d778`) from a list of store item ids it keeps
+(datasource + 100), filtered by the chosen category (`0x239f3c`). Only the item preview, search results, mannequin and minigame ad
+lists are filled (`0x2393b8`); nothing found so far fills it for the main store.
+
+**Test:** when a store's items are gone through (`0x95d70`, when the store arrives and when the Marketplace is ready), each item not
+already in the list is added with `0x2393b8`. The hook replaces `lwz r11, 12(r28)` at `0x95ef8`; the code is at `0xe87090`-`0xe87100`.
+
