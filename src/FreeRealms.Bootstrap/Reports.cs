@@ -138,6 +138,65 @@ public static partial class Reports
         {
             File.WriteAllText(Path.Combine(folder, "client_data_error.txt"), exception.Message);
         }
+
+        try
+        {
+            WriteUiTextures(folder, clientFolder);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            File.WriteAllText(Path.Combine(folder, "ui_textures_error.txt"), exception.Message);
+        }
+    }
+
+    /// <summary>The start of the names of the select screen's movies, whose textures a report carries.</summary>
+    private static readonly string[] UiTexturePrefixes = ["characterCreatePopUps_", "characterNameScreen_", "characterCreate_", "characterCreateType_"];
+
+    /// <summary>
+    /// The name of every asset in the packs (pack_names.txt), and the select screen's UI textures and any texture named like a
+    /// button (ui_textures/*.gtf), to choose textures for the select panel from what the PS3 has.
+    /// </summary>
+    private static void WriteUiTextures(string folder, string clientFolder)
+    {
+        var usrDir = new[] { Path.Combine(clientFolder, "USRDIR"), clientFolder }
+            .FirstOrDefault(candidate => Directory.Exists(candidate) && Directory.GetFiles(candidate, "assets_ps3_*.pack").Length > 0);
+
+        if (usrDir is null)
+            return;
+
+        var packs = Sanctuary.Ps3.Assets.PackIndex.Load(usrDir);
+        var names = packs.Entries.Select(entry => entry.Name).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToList();
+
+        File.WriteAllLines(Path.Combine(folder, "pack_names.txt"), names);
+
+        var wanted = packs.Entries
+            .Where(entry => entry.Name.EndsWith(".gtf", StringComparison.OrdinalIgnoreCase)
+                && (UiTexturePrefixes.Any(prefix => entry.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    || entry.Name.Contains("button", StringComparison.OrdinalIgnoreCase)
+                    || entry.Name.Contains("btn", StringComparison.OrdinalIgnoreCase)))
+            .DistinctBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+            .Take(400)
+            .ToList();
+
+        var textures = Path.Combine(folder, "ui_textures");
+        long total = 0;
+
+        Directory.CreateDirectory(textures);
+
+        foreach (var entry in wanted)
+        {
+            total += entry.Length;
+
+            if (total > 40_000_000)
+                break;
+
+            using var stream = new FileStream(Path.Combine(usrDir, entry.Pack), FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            var data = new byte[entry.Length];
+
+            stream.Seek(entry.Offset, SeekOrigin.Begin);
+            stream.ReadAtLeast(data, data.Length, throwOnEndOfStream: false);
+            File.WriteAllBytes(Path.Combine(textures, Path.GetFileName(entry.Name)), data);
+        }
     }
 
     /// <summary>Logs and traces as they are now, without RPCS3: for a report at any time. Returns the zip's path.</summary>
