@@ -55,7 +55,7 @@ Last updated: **13 November 2026.** Everything marked working was observed in RP
 | Starter items | ✅ Working | Every job's outfit and weapon, equipped on that job, listed in the equipment screen | [`gateway.md`](docs/protocol/gateway.md) |
 | **Job switching** | ✅ Working | Your character re-dresses in the new job's outfit | [`gateway.md`](docs/protocol/gateway.md) |
 | **Inventory** | 🔶 In progress | Equip and unequip are answered as Sanctuary does; the rest of the inventory is being worked on | [`gateway.md`](docs/protocol/gateway.md) |
-| **Coin store** (buy and sell for coins) | ⏭ Next | Comes after the inventory | — |
+| **Coin store** (buy and sell for coins) | 🔶 New, being tested | Sanctuary's 13,096 store items, its prices, buying and selling; every character starts with Sanctuary's 999,999,999 coins | [`coin-store.md`](docs/protocol/coin-store.md) |
 | Marketplace (Station Cash) | 🔶 Partly mapped | The PS3 build uses an older store protocol than Sanctuary; resumes after the coin store | — |
 | Other players, movement relay, chat | ⬜ Not started | Single player only | — |
 | Quests, combat, mini-games | ⬜ Not started | | — |
@@ -226,7 +226,7 @@ Start at the [documentation index](docs/README.md).
 - [x] Give every job Sanctuary's starter items; equip and switch jobs
 - [x] One C# server with a Windows Server Manager
 - [ ] **Inventory**: the rest of the inventory screen, the action bar and style cards *(in progress)*
-- [ ] **Coin store**: buy and sell for coins *(next)*
+- [ ] **Coin store**: buy and sell for coins *(built, being tested)*
 - [x] Custom character names (with two RPCS3 game fixes)
 - [ ] Keep characters between runs *(built, being tested)*
 - [ ] Marketplace: browse and buy with Station Cash

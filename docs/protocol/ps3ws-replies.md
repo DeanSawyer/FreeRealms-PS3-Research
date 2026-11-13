@@ -129,8 +129,9 @@ Sanctuary's `DbCharacter`: the items it owns, each job's equipment (slots in the
 and where it stood. The game server writes it after every equip, unequip and job switch, every 15 seconds while the character moves,
 and when the client leaves (Sanctuary saves the position then); a returning character logs in with it: the player data's item list,
 job list, active job and position come from it, and the character is dressed in its active job's equipment. A character that never
-changed anything starts as a new one (Sanctuary's starter items and spawn point) until it does. Nothing changes coins yet; the coin
-store will.
+changed anything starts as a new one (Sanctuary's starter items and spawn point) until it does. The [coin store](coin-store.md)
+changes the coins and the items' counts (each saved item has a count, 1 when missing), and the progress records whether the character
+has had its starting coins.
 
 The position comes from the client's position update, inner opcode 125. On the PS3 it is 40 bytes, not the 44 of Sanctuary's
 `PlayerUpdatePacketUpdatePosition`: `u16` opcode, `u64` guid, position x, y, z and rotation x, y, z as `f32`, a state byte, an
