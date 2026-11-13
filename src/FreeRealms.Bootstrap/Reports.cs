@@ -100,8 +100,37 @@ public static partial class Reports
         WriteServerLog(folder, log().Where(entry => entry.Time >= started));
         WriteRpcs3(folder, rpcs3Folder);
         WriteTraces(folder);
+        WriteClientData(folder, settings.ClientFolder);
 
         return Zip(folder);
+    }
+
+    /// <summary>The game's own Marketplace tables, read from its packs, so a report shows what the store screen expects.</summary>
+    private static readonly string[] ClientDataFiles =
+    [
+        "ClientStorePortalCategories.txt", "ClientStoreBillboardPanels.txt", "ClientStoreBillboards.txt",
+    ];
+
+    private static void WriteClientData(string folder, string clientFolder)
+    {
+        try
+        {
+            foreach (var name in ClientDataFiles)
+            {
+                foreach (var usrDir in new[] { Path.Combine(clientFolder, "USRDIR"), clientFolder })
+                {
+                    if (Sanctuary.Ps3.Assets.PackIndex.ReadAsset(usrDir, name) is { } asset)
+                    {
+                        File.WriteAllBytes(Path.Combine(folder, "client_" + name), asset.Data);
+                        break;
+                    }
+                }
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            File.WriteAllText(Path.Combine(folder, "client_data_error.txt"), exception.Message);
+        }
     }
 
     /// <summary>Logs and traces as they are now, without RPCS3: for a report at any time. Returns the zip's path.</summary>
@@ -120,6 +149,7 @@ public static partial class Reports
             WriteRpcs3(folder, Path.GetDirectoryName(settings.Rpcs3Executable)!);
 
         WriteTraces(folder);
+        WriteClientData(folder, settings.ClientFolder);
 
         return Zip(folder);
     }
