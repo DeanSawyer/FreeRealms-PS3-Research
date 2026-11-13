@@ -36,6 +36,12 @@ public sealed class MarketplaceTests
     public void TheRepliesCarrySanctuarysValues()
     {
         CollectionAssert.AreEqual(new byte[] { 0x42, 0, 28, 0, 1 }, Marketplace.EnableMarketplace());
+        CollectionAssert.AreEqual(new PacketWriter().U16(66).U16(43).I32(1).I32(1).ToArray(), Marketplace.EnablePaymentSources());
+
+        // Categories: a count, then a key and five ints each, and nothing more.
+        var categories = Shop.CategoriesPacket();
+
+        Assert.AreEqual(4 + 4 + (24 * BinaryPrimitives.ReadInt32LittleEndian(categories.AsSpan(4))), categories.Length);
         CollectionAssert.AreEqual(new PacketWriter().U16(66).U16(30).I32(1).Str("US").Str("USD").U8(0).ToArray(), Marketplace.AccountInfo());
 
         // The currency map's key: Sanctuary's JenkinsHelper.OneAtATimeHash("USD").

@@ -126,7 +126,7 @@ dispatcher `0x9425c`, jump table at `0x94380`):
 | PS3 | PC | Layout |
 | ---: | ---: | :--- |
 | 42 | 6 | category groups: count, then per group key, id, category ids (as the PC) |
-| 14 | 7 | categories: count, then per category key and five ints (id, name, image, tint, parent: the fifth is a guess), then two bytes |
+| 14 | 7 | categories: count, then per category key and five ints (id, name, image, tint, parent); nothing after (the PC's *sorted* byte made the client refuse it) |
 | 5 type 2 | 5 type 1 | store id, the store (id, name, description, image, tint), then its items keyed by id |
 | 35 | 9 | item groups: id, name, a third int (description: a guess), image, tint, exclusive byte, (store item id, order) pairs |
 
@@ -136,5 +136,14 @@ A PS3 **store item** (reader `0xa980e0`; names from its debug print, `0x8d4d40`)
 - **Flags:** four bytes (new, view only, members only, rentable).
 - **More ints:** rental period, rental price, terms id, max per order, sort order, category sort order and limited edition id.
 - **Last:** an *is tintable* byte, then entries of three ints each. The entry order (quantity, item, tint) is a guess.
+
+EnablePaymentSources (43) is two ints on the PS3 (reader `0x83190`), not the PC's two bytes.
+
+**What the game's log showed** (13 November, `fr_test_20261113_051855`, with the *game log to TTY* fix):
+- The coin store list was read: *Received %d static items, %d dynamic items.*
+- The store was read: *Added/Updated new store successfully*.
+- The categories were refused: *Failed to serialize InGamePurchaseStoreItemsCategoriesResponsePacket*, then *Store data was loaded
+  before the store categories.*
+- The payment sources were refused.
 
 Buying with Station Cash (place order) is not answered yet.

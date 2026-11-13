@@ -15,7 +15,7 @@ namespace Sanctuary.Ps3.Gateway;
 /// a store bundle is a PS3 "store item" (reader <c>0xa980e0</c>, field names from its debug print at <c>0x8d4d40</c>).
 /// <list type="bullet">
 /// <item>Category groups: PS3 42 (PC 6), as the PC: id, then the category ids.</item>
-/// <item>Categories: PS3 14 (PC 7): id, name, image, tint, parent; then two bytes.</item>
+/// <item>Categories: PS3 14 (PC 7): id, name, image, tint, parent (the client files children under the fifth int).</item>
 /// <item>The store and its items: PS3 5 type 2 (PC 5 type 1): store id, the store, then each item.</item>
 /// <item>Item groups: PS3 35 (PC 9): id, name, description, image, tint, exclusive, then (store item id, order) pairs.</item>
 /// </list>
@@ -80,7 +80,8 @@ public static class Shop
                 .I32(Image(category)).I32(Tint(category)).I32(Int(category, "ParentId"));
         }
 
-        return writer.U8(1).U8(0).ToArray();
+        // The PS3 reads nothing after the categories (0xa97f80); the PC's "sorted" byte made the client refuse the packet.
+        return writer.ToArray();
     }
 
     public static byte[] StoreItemsPacket()

@@ -41,8 +41,8 @@ public static class Marketplace
     /// <summary>EnableMarketplace (PS3 28): on.</summary>
     public static byte[] EnableMarketplace(bool enabled = true) => new PacketWriter().U16(Opcode).U16(EnableMarketplaceSub).U8(enabled ? 1 : 0).ToArray();
 
-    /// <summary>EnablePaymentSources (PS3 43): SMS and PayPal, both on as Sanctuary sends them.</summary>
-    public static byte[] EnablePaymentSources() => new PacketWriter().U16(Opcode).U16(EnablePaymentSourcesSub).U8(1).U8(1).ToArray();
+    /// <summary>EnablePaymentSources (PS3 43): SMS and PayPal, both on as Sanctuary sends them; the PS3 reads two ints (0x83190), the PC two bytes.</summary>
+    public static byte[] EnablePaymentSources() => new PacketWriter().U16(Opcode).U16(EnablePaymentSourcesSub).I32(1).I32(1).ToArray();
 
     /// <summary>CurrencyCodes reply: error code, locale, then a map of one currency (key: the Jenkins hash of its code) as Sanctuary sends it.</summary>
     public static byte[] CurrencyCodes(string locale) =>
