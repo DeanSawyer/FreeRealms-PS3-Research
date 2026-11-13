@@ -215,7 +215,9 @@ public static partial class Reports
         {
             if (File.Exists(tty))
             {
-                var game = ReadLines(tty);
+                // Without the terrain's "Tile::CreateAll: Failed on Texture" lines, which the select screen repeats every frame and
+                // which would push everything else out of the tail.
+                var game = ReadLines(tty).Where(line => !line.StartsWith("Tile::CreateAll: Failed on Texture", StringComparison.Ordinal)).ToList();
 
                 File.WriteAllLines(Path.Combine(folder, "game_log_tail.txt"), game.TakeLast(20000));
 
