@@ -196,11 +196,12 @@ public sealed class Ps3WebService
                     var characters = _characters.All();
 
                     _logger?.LogInformation(
-                        "account_info: {Count} saved character(s): {Names}",
+                        "account_info: {Count} saved character(s), detail {Detail}: {Names}",
                         characters.Count,
+                        _options.Replies.Detail,
                         string.Join(", ", characters.Select(character => $"{character.Name} (guid {character.Guid})")));
 
-                    return Ps3Replies.AccountInfo(characters, style);
+                    return Ps3Replies.AccountInfo(characters, style, _options.Replies.Detail);
                 }
 
             case Ps3ReplyKind.CharacterCreate:

@@ -91,6 +91,22 @@ set). Everything but `Session` is kept.
 keeps `Status` 2 (see below). `character/login` sends `Guid`, `Server` and `Session`: the server then sends that character to the
 game. `character/delete` removes the character with the request's `Guid`. `MaxCharacters` is 3.
 
+**Character select froze with the full record** (13 November test, `fr_test_20261113_012648`): the account reply with every
+field above arrived, the loading screen ended, and the main thread then waited on a lightweight mutex for good
+(`_sys_lwmutex_lock`, 94 s, every other thread idle); no `character/login` followed. Login state 5 calls the setup `0x78bc88`
+with `r7 = 1`, which builds the select actor from the first saved record; the creator calls the same function with `r7 = 0` and
+an empty default record (`0x78c6f4`: empty strings, `Model` 0, colours 0), which works. So one of the fields sent hangs it. The
+server therefore sends less by default, chosen with `FR_SELECT_DETAIL`:
+
+| `FR_SELECT_DETAIL` | `Details` carries |
+| :--- | :--- |
+| `minimal` | `Guid`, `Name` |
+| `basic` (default) | plus `Model` |
+| `looks` | plus `Head`, `Hair`, `ModelCustomization`, `FacePaint`, `SkinTone`, `EyeColor`, `HairColor` |
+| `full` | plus `Attachments` |
+
+Whatever character select shows, the game server sends the saved character's full appearance and clothes in the world.
+
 The list is kept in `characters.json` (`--characters`; by default in the Server Manager's folder,
 `%LOCALAPPDATA%\FreeRealmsPS3Server`), written after every change and read when the server starts. A file that cannot be read is
 renamed to `characters.json.unreadable-<time>` instead of being overwritten. Only the creator's choices are kept; items, jobs and
@@ -139,6 +155,7 @@ reported with `Status` 2 (`--account-status 2`, the default); `Status` 1 needs a
 ## Not known yet
 
 - What `character/delete` sends. The server takes its `Guid` as login's is sent; no delete has been seen in a test run yet.
+- Which field of the full record freezes character select (try `looks`, then `full`).
 - Whether character select lists more than the first saved character, and what it does with three.
 - Whether `Key` is used to encrypt the game connection. `GatewayAddress` is `host:port` and `GatewayTicket` comes back
   as the ticket in the client's first gateway packet; see `docs/protocol/gateway.md`.

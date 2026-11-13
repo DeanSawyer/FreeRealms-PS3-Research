@@ -307,7 +307,7 @@ public sealed class WebServiceTests
     [TestMethod]
     public void SavedCharactersAreListedPickedAtLoginAndDeleted()
     {
-        using var rig = new Rig();
+        using var rig = new Rig(configure: options => options.Replies = new Ps3ReplyOptions(Detail: CharacterDetail.Full));
 
         // No characters yet: the fixed "no characters" reply, which sends the client to the creator.
         CollectionAssert.AreEqual(Ps3Replies.Build()[Ps3ReplyKind.AccountInfo], rig.Post("/ps3ws/account/info.action", "Session=x").Body);
@@ -357,6 +357,37 @@ public sealed class WebServiceTests
 
         Assert.AreEqual(1, rig.Characters.Count);
         Assert.AreEqual("Mentor", rig.Characters.Snapshot()["FirstName"]);
+    }
+
+    [TestMethod]
+    public void TheDetailLevelDecidesWhatEachCharacterCarries()
+    {
+        var store = new CharacterStore();
+
+        store.Create([("FirstName", "Mentor"), ("LastName", "Kenner"), ("Model", "1"), ("Head", "2"), ("ItemChest", "28216")]);
+
+        System.Xml.Linq.XElement Details(CharacterDetail detail) =>
+            System.Xml.Linq.XDocument.Parse(Encoding.UTF8.GetString(Ps3Replies.AccountInfo(store.All(), XmlStyle.Attributes, detail)))
+                .Root!.Element("Characters")!.Element("Character")!.Element("Details")!;
+
+        string Names(System.Xml.Linq.XElement element) => string.Join(",", element.Attributes().Select(attribute => attribute.Name.LocalName));
+
+        Assert.AreEqual("Guid,Name", Names(Details(CharacterDetail.Minimal)));
+        Assert.AreEqual("Guid,Name,Model", Names(Details(CharacterDetail.Basic)));
+        Assert.AreEqual("Guid,Name,Model,Head,Hair,ModelCustomization,FacePaint,SkinTone,EyeColor,HairColor", Names(Details(CharacterDetail.Looks)));
+        Assert.IsNull(Details(CharacterDetail.Looks).Element("Attachments"));
+        Assert.AreEqual(1, Details(CharacterDetail.Full).Element("Attachments")!.Elements("Attachment").Count());
+
+        // The server's default is Basic: the full record froze the game in character select.
+        Assert.AreEqual(CharacterDetail.Basic, new Ps3ReplyOptions().Detail);
+
+        using var rig = new Rig();
+
+        rig.Post("/ps3ws/character/create.action", "Session=x&FirstName=Mentor&Head=2");
+
+        var listed = System.Xml.Linq.XDocument.Parse(Encoding.UTF8.GetString(rig.Post("/ps3ws/account/info.action", "Session=x").Body)).Root!;
+
+        Assert.AreEqual("Guid,Name,Model", Names(listed.Element("Characters")!.Element("Character")!.Element("Details")!));
     }
 
     [TestMethod]

@@ -112,11 +112,15 @@ public static class Ps3Server
             }
 
             var characters = new CharacterStore(options.CharacterFile);
+            var detail = options.SelectDetail
+                ?? (Enum.TryParse<CharacterDetail>(Environment.GetEnvironmentVariable("FR_SELECT_DETAIL"), ignoreCase: true, out var chosen) && Enum.IsDefined(chosen)
+                    ? chosen
+                    : CharacterDetail.Basic);
 
             if (characters.LoadProblem is { } problem)
                 log.LogWarning("characters: {Problem}", problem);
             else if (options.CharacterFile is { } file)
-                log.LogInformation("characters: {Count} saved in {File}", characters.Count, file);
+                log.LogInformation("characters: {Count} saved in {File}; character select gets detail {Detail}", characters.Count, file, detail);
             else
                 log.LogInformation("characters: kept in memory only (not saved)");
             var gatewayPort = options.GatewayPort;
@@ -134,7 +138,7 @@ public static class Ps3Server
                     ExtraClients = options.ExtraClients,
                     Digest = digest.Digest,
                     Advertise = options.Advertise.ToString(),
-                    Replies = new Ps3ReplyOptions(options.XmlStyle, options.AccountStatus, options.ExistingCharacter, options.ZoneField, $"{options.Advertise}:{gatewayPort}"),
+                    Replies = new Ps3ReplyOptions(options.XmlStyle, options.AccountStatus, options.ExistingCharacter, options.ZoneField, $"{options.Advertise}:{gatewayPort}", detail),
                     Container = container,
                     ServeMismatch = options.ServeMismatch,
                 },
