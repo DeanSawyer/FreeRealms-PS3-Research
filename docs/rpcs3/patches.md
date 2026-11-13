@@ -89,3 +89,37 @@ lists are filled (`0x2393b8`); nothing found so far fills it for the main store.
 **Test:** when a store's items are gone through (`0x95d70`, when the store arrives and when the Marketplace is ready), each item not
 already in the list is added with `0x2393b8`. The hook replaces `lwz r11, 12(r28)` at `0x95ef8`; the code is at `0xe87090`-`0xe87100`.
 
+## Character wheel
+
+**What it does:** with saved characters, character select shows one character with *Start Game* (X) and *Delete* (Triangle). With
+the patch, **D-pad right** and **Triangle** turn to the next saved character and **D-pad left** to the previous one; after the last
+character comes **New character**, where X opens the creator instead of logging in. Characters are deleted in the Server
+Manager's Characters page; the in-game delete is gone.
+
+**How the game does select (read from `game.elf`):**
+
+| What | Where |
+| :--- | :--- |
+| The character list from `account/info` | `this+4188`: head `+4`, tail `+8`, count `+12`; each record (408 bytes) links next `+408`, previous `+412` (append at `0xd98828`) |
+| Login state 5: build the preview from the head record | `0x78ea48`: `0x78bc88(this, 0, 0, 0, 1, 0)`, kept in `this+4548` and `client+712`; then state 8 → 9 (place it, show the popup) → 10 (`S##PS3_Start_w/Character`) → 11 |
+| State 11: wait for a button | `0x791b68`: pad counters at `client+0x10000+10488` (X: start, to state 39 at `0x792768`) and `+10496` (Triangle: delete warning, state 12) |
+| D-pad left / right | `+10552` / `+10556`, as the creator's turntable (state 15, `0x7913d4`) reads them |
+| Start Game logs in as | the head record's `Guid` (state 39, `0x78ebb8`, `ld r27, 0(head)`) |
+| Remove a preview character | `0x1bf598(client->704, actor)`, as the creator does at `0x791940` |
+
+**The patch:** state 11's X branch goes to a check (`0x791c60`): a head record with guid `0x7FFF0000` hides the popup, goes to
+state 13 and moves the camera to the creator (as the game's own select → creator step does, state 9 at `0x793704`); any other guid
+starts the game as before. The Triangle branch and the
+fall-through check D-pad right and left (`0x791b94`): right or Triangle moves the head record to the tail, left the tail to the
+head; then the preview is removed and the state goes back to 5, which builds the new head's preview and presents it. The code
+uses the space of the old delete-warning path (`0x791b94`-`0x791cc8`, which stops short of state 10's handler at `0x791ce4`); the
+rest of that path, and the blocks it jumps out to (`0x7935c0`, `0x793600`, `0x793758`, `0x7939e0`), are no longer reached.
+
+The server adds the **New character** stop after the saved characters while the account has room (fewer than 10): guid
+`0x7FFF0000` (2147418112), name "New character", and a whole look (the creator's first choices and starter outfit), because
+select builds a preview of whatever it shows. Without the patch only the first character is ever shown, so it is never reached.
+
+**Why not guid 0 and no look (version 1.0):** turning to the stop crashed with `VM: Access violation writing location 0x48c` at
+`0x78bf80`. The preview builder (`0x78bc88`) makes an actor with `0x1c1120`, keyed by the record's guid (`ld r0, 0(record)`), and
+writes field `+1164` of the result without checking it. `0x1c1120` returns null when an actor with that id already exists
+(`0x1c1384`) or the look cannot be set up (`0x1b05c4`); a stop with guid 0 and no head, hair or skin hit one of the two.

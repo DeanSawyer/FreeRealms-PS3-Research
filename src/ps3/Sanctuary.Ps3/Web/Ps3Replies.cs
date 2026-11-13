@@ -181,12 +181,19 @@ public static partial class Ps3Replies
     {
         string El(string tag, (string, object)[]? fields = null, string[]? children = null) => Element(tag, fields, children, style);
 
-        var list = new List<string>(characters.Count);
+        var list = new List<string>(characters.Count + 1);
+        var entries = characters.Select(character => (character.Guid, character.Name, character.Values)).ToList();
 
-        foreach (var character in characters)
+        // The character wheel's last stop (the RPCS3 patch "character wheel"): guid NewCharacterGuid, which the patched select
+        // screen turns into "go to the creator" instead of a login. Select builds a preview of whatever it shows, so the stop has a
+        // whole default look and a guid of its own (a guid 0 or an empty look gives no preview, and the game stops). Without the
+        // patch only the first character is ever shown, so it is never reached.
+        if (newCharacterStop && characters.Count < maxCharacters)
+            entries.Add((NewCharacterGuid, NewCharacterName, NewCharacterLook));
+
+        foreach (var (guid, name, values) in entries)
         {
-            var values = character.Values;
-            var fields = new List<(string, object)> { ("Guid", character.Guid), ("Name", character.Name) };
+            var fields = new List<(string, object)> { ("Guid", guid), ("Name", name) };
 
             if (detail >= CharacterDetail.Basic)
                 fields.Add(("Model", Gateway.CharacterMappings.Number(values, "Model", 1)));
@@ -223,11 +230,6 @@ public static partial class Ps3Replies
             list.Add(El("Character", [("HeadshotUrl", string.Empty)], [details]));
         }
 
-        // The character wheel's last stop (the RPCS3 patch "character wheel"): guid 0, which the patched select screen turns into
-        // "go to the creator" instead of a login. Without the patch only the first character is ever shown, so it is never reached.
-        if (newCharacterStop && characters.Count < maxCharacters)
-            list.Add(El("Character", [("HeadshotUrl", string.Empty)], [El("Details", [("Guid", 0), ("Name", NewCharacterName), ("Model", 1)])]));
-
         var account = El("Account", [("Member", 1), ("MaxCharacters", maxCharacters), ("Admin", 0)]);
 
         return Document("AccountInfoReply", null, [account, El("Characters", children: [.. list])], style);
@@ -235,6 +237,21 @@ public static partial class Ps3Replies
 
     /// <summary>The name of the character wheel's "make a new character" stop.</summary>
     public const string NewCharacterName = "New character";
+
+    /// <summary>
+    /// The guid of the character wheel's "make a new character" stop; the patch (<c>0x791c60</c>) compares the shown character's
+    /// guid with it. Saved characters count up from 1 and never get near it. It is not 0: the preview of the shown character is
+    /// an actor with the character's guid as its id, and the game already has an actor with id 0.
+    /// </summary>
+    public const ulong NewCharacterGuid = 0x7FFF0000;
+
+    /// <summary>What the "make a new character" stop looks like on the select screen: the creator's first choices and its starter outfit.</summary>
+    public static readonly IReadOnlyDictionary<string, string> NewCharacterLook = new Dictionary<string, string>
+    {
+        ["Model"] = "1", ["Head"] = "1", ["Hair"] = "1", ["SkinTone"] = "1", ["EyeColor"] = "0", ["HairColor"] = "0",
+        ["ItemChest"] = "28216", ["ItemChestTint"] = "234", ["ItemLegs"] = "392", ["ItemLegsTint"] = "262",
+        ["ItemFeet"] = "17397", ["ItemFeetTint"] = "234",
+    };
 
     /// <summary><c>character/create</c> answered with the guid the server gave the new character.</summary>
     public static byte[] CharacterCreate(ulong guid, XmlStyle style = XmlStyle.Attributes) =>

@@ -324,10 +324,15 @@ public sealed class WebServiceTests
 
         var listed = account.Element("Characters")!.Elements("Character").ToList();
 
-        // The two characters, then the character wheel's "New character" stop (guid 0).
+        // The two characters, then the character wheel's "New character" stop, with a look of its own: select builds a preview of it.
         Assert.AreEqual(3, listed.Count);
-        Assert.AreEqual("0", listed[2].Element("Details")!.Attribute("Guid")!.Value);
-        Assert.AreEqual(Ps3Replies.NewCharacterName, listed[2].Element("Details")!.Attribute("Name")!.Value);
+
+        var stop = listed[2].Element("Details")!;
+
+        Assert.AreEqual(Ps3Replies.NewCharacterGuid.ToString(System.Globalization.CultureInfo.InvariantCulture), stop.Attribute("Guid")!.Value);
+        Assert.AreEqual(Ps3Replies.NewCharacterName, stop.Attribute("Name")!.Value);
+        Assert.IsFalse(string.IsNullOrEmpty(stop.Attribute("Head")?.Value), "the stop needs a head to be drawn");
+        Assert.AreEqual(3, stop.Element("Attachments")!.Elements("Attachment").Count(), "the starter outfit");
 
         var characters = listed.Take(2).ToList();
 
@@ -446,7 +451,7 @@ public sealed class WebServiceTests
         var room = System.Xml.Linq.XDocument.Parse(Encoding.UTF8.GetString(Ps3Replies.AccountInfo(store.All(), newCharacterStop: true))).Root!;
 
         Assert.AreEqual(CharacterStore.MaxCharacters, room.Element("Characters")!.Elements("Character").Count());
-        Assert.AreEqual("0", room.Element("Characters")!.Elements("Character").Last().Element("Details")!.Attribute("Guid")!.Value);
+        Assert.AreEqual(Ps3Replies.NewCharacterGuid.ToString(System.Globalization.CultureInfo.InvariantCulture), room.Element("Characters")!.Elements("Character").Last().Element("Details")!.Attribute("Guid")!.Value);
     }
 
     [TestMethod]
