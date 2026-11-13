@@ -326,15 +326,18 @@ public sealed class WebServiceTests
 
         Assert.AreEqual(2, characters.Count);
 
-        var details = characters[0].Element("Details")!;
+        // The newest character comes first (the PS3 shows only the first); Mentor Kenner was made first.
+        Assert.AreEqual("2", characters[0].Element("Details")!.Attribute("Guid")!.Value);
 
-        Assert.AreEqual("1", details.Attribute("Guid")!.Value);
+        var mentor = characters.Single(character => character.Element("Details")!.Attribute("Guid")!.Value == "1");
+        var details = mentor.Element("Details")!;
+
         Assert.AreEqual("Mentor Kenner", details.Attribute("Name")!.Value);
         Assert.AreEqual("<race>_<gender>_head_african.adr", details.Attribute("Head")!.Value);
         Assert.AreEqual("skintone2", details.Attribute("SkinTone")!.Value);
         Assert.AreEqual("63", details.Attribute("EyeColor")!.Value);
         Assert.AreEqual("10", details.Attribute("HairColor")!.Value);
-        Assert.IsNotNull(characters[0].Attribute("HeadshotUrl"));
+        Assert.IsNotNull(mentor.Attribute("HeadshotUrl"));
 
         var attachment = details.Element("Attachments")!.Elements("Attachment").Single();
 
