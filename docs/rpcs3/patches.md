@@ -46,3 +46,11 @@ when they differ, binds the wanted one through `0x91d2ac` with fields `+256` and
 **Fix:** both paths that load the wanted state (`0x7845b8` and `0x785170`) jump to a check in the unused padding at
 `0xea0a5c`–`0xea0a7c` (before the constructor list at `0xea0a80`): an empty state skips the bind and goes on at `0x7845e0`, as if
 it had been applied. The padding `0xea0a20`–`0xea0a58` is left for the *select exceptfds* patch.
+
+## Game log to TTY
+
+**What it does:** the game logs its own messages (for example *Failed to serialize InGamePurchaseStoreItemsResponsePacket packet.*)
+through one routine, `0x163a8` (level, logger, format, arguments), which drops them unless a debug level is set. The fix hooks its
+first instruction: the code in the zero padding at `0xe86e40`-`0xe86ec8` (nothing refers to it) writes the message's format text, up
+to 400 characters and unformatted, with `sys_tty_write` (syscall 403, channel 0), then runs the replaced instruction and goes on. RPCS3
+keeps the lines in `TTY.log`, which the Server Manager's test report copies as `game_log_tail.txt`.

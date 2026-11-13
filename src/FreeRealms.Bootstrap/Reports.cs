@@ -172,6 +172,16 @@ public static partial class Reports
 
         File.WriteAllLines(Path.Combine(folder, "rpcs3_log_filtered.txt"), applied.Concat(kept.TakeLast(1500)));
 
+        // The game's own log lines, written to the TTY by the "game log to TTY" fix (RPCS3 keeps them in TTY.log beside RPCS3.log).
+        foreach (var tty in new[] { Path.Combine(rpcs3Folder, "log", "TTY.log"), Path.Combine(rpcs3Folder, "TTY.log") })
+        {
+            if (File.Exists(tty))
+            {
+                File.WriteAllLines(Path.Combine(folder, "game_log_tail.txt"), ReadLines(tty).TakeLast(4000));
+                break;
+            }
+        }
+
         foreach (var name in new[] { "patch_config.yml", "log.yml", "config.yml" })
         {
             var source = Path.Combine(rpcs3Folder, "config", name);
