@@ -249,6 +249,8 @@ from the creator moves it again.
 
 **Version 4.4:** deleting the character the 3D preview shows hides the preview. The preview actor (`this+4548`) has the character's guid as its id (`+112`, as `0x1c1120` keys actors), and `actor+615` is the flag state 5 clears while it builds the preview and state 9 sets once it is placed (`0x78f73c`). The delete reply compares the deleted guid with the preview's id and clears the flag; the actor itself is left alone (it is also the client's actor at `client+712`, so removing it is not safe here). The room comes from the reply's two log lines (`OnRequestCharacterDelete`), which are gone; the reply's code now starts at `0x7889d4`.
 
+**Version 4.5:** clearing `actor+615` did not hide the preview (`fr_test_20261113_233824`: the delete went through and the name left the panel, the model stayed). The reply now shrinks it instead, with the node calls the wheel already uses: the node (the actor's vtable+16) gets scale 0.001 at `+436` and `0x837254` rebuilds its matrix (`0x837520`, the game's scale setter, keeps the scale at 0.1 or more). To make room the whole reply function (`0x78898c`-`0x788a10`) is rewritten.
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
