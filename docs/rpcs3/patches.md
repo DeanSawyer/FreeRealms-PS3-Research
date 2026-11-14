@@ -233,6 +233,8 @@ from the creator moves it again.
 
 **Version 3.7:** scale 1.6 (1.25 was not big enough).
 
+**Version 3.8:** the character comes forward, past the carpet: after the shift along x it moves 0.2 of the way to the camera's eye (0x1080e70+352; 0x343914 aims the camera from its second argument to its third), along the floor only (x and z). Room for it: the turns are no longer logged, D-pad left is no longer read, and the window placement moved into the old delete path.
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
