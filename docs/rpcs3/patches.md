@@ -191,6 +191,8 @@ The New character line has a green Create button (the panel's add button with th
 window 550 wide at y 75 (`wndCharacterCreatePopups`) x becomes 2x - 40, which puts its right edge 40 from the screen's. The
 creator's popups use the same window, so they are on the right too.
 
+**Version 2.2:** the left side was meant: the panel's window now goes to x = 40.
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
