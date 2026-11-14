@@ -167,6 +167,14 @@ key up in the same frame, so when the listener runs `Key.getAscii()` is already 
 when the ASCII value is 0 (and counts arrow codes 37 to 40 as L, U, R, D), and also treats a key up as a press when its key down
 did not come through as that key. The presses line shows the key it used and the raw values ("press 7: 82 (0/82)").
 
+**Version 1.7 (13 November):** the D-pad still reached the panel only now and then, so the panel no longer reads it: the
+game's list tells it. After each turn the fix sends `CharacterCreatePopups:DisplayText` (`0x1f282c`, string at `0xe35ca0`) with no
+argument list; the popups script (`CharacterCreatePopups.DisplayText`) passes it on as `Invoke("DisplayText", nil)` (and
+`SetButtonVisibility`), and the panel block's `DisplayText(t)` takes an undefined `t` as one step forward. A step back is
+count - 1 steps forward. The game's own DisplayText calls always carry a text and are left alone. The code for it went into the
+padding the game log fix freed (1.5 drops its HandlerInGamePurchase event hook, `0x87c14`, kept for the store work before):
+`0xe86f80`-`0xe86fec`. The log fix still writes each script handler event ("Script event CharacterCreatePopups.DisplayText").
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 

@@ -13,7 +13,8 @@ public sealed record PanelEntry(string Id, string Name, bool IsNew);
 /// <summary>
 /// Fills the PC client's character select movie (<c>characterSelectV2.gfx</c>) for the PS3: adds an ActionScript block to the end of
 /// its first frame that calls the movie's own <c>addCharacter(index, id, name, state)</c> for each character (state "character", or
-/// "add" for the new character line), selects the first one, turns the selection with D-pad left and right, and asks on Triangle
+/// "add" for the new character line), selects the first one, follows the game's list as the character wheel fix turns it (each
+/// turn sends the popups' DisplayText event with no text, one per step forward), and asks on Triangle
 /// whether to delete the selected character (X deletes, Circle keeps it). The PS3 game sends the pad to a movie as key presses with
 /// the ASCII codes of L, R, U, D, X, O, S and T (as its own <c>characterNameScreen</c> reads them). The character wheel fix turns the
 /// game's own list with the same presses and opens the game's own delete prompt on Triangle, so the line the panel shows selected
@@ -212,18 +213,6 @@ public static class SelectPanelMovie
             text.Push(" (").Op(Avm1.Add2).Push("frAscii").Op(Avm1.GetVariable).Op(Avm1.Add2).Push("/").Op(Avm1.Add2).Push("frCode").Op(Avm1.GetVariable).Op(Avm1.Add2).Push(")").Op(Avm1.Add2);
         });
 
-        // R (D-pad right) selects the next line, L (left) the previous one, wrapping around as the game's list does.
-        foreach (var (code, step) in new[] { ('R', 1), ('L', -1) })
-        {
-            var skip = IfNotKey(keys, code);
-
-            // frSel = (frSel + frCount + step) % frCount
-            keys.Push("frSel", "frSel").Op(Avm1.GetVariable).Push("frCount").Op(Avm1.GetVariable).Op(Avm1.Add2).Push(step).Op(Avm1.Add2);
-            keys.Push("frCount").Op(Avm1.GetVariable).Op(Avm1.Modulo).Op(Avm1.SetVariable);
-            keys.Push("frSel").Op(Avm1.GetVariable).Push(1, "frShow").Op(Avm1.CallFunction).Op(Avm1.Pop);
-            keys.Land(skip);
-        }
-
         // T (Triangle) on a saved character: ask.
         var notTriangle = IfNotKey(keys, 'T');
         keys.Push("characterData").Op(Avm1.GetVariable).Push("frSel").Op(Avm1.GetVariable).Op(Avm1.GetMember).Push("state").Op(Avm1.GetMember);
@@ -248,6 +237,19 @@ public static class SelectPanelMovie
         up.Push("frUp").Op(Avm1.GetVariable).Push(1, "frPress").Op(Avm1.CallFunction).Op(Avm1.Pop);
         up.Land(seen);
         up.Push("frDown", 0).Op(Avm1.SetVariable);
+
+        // DisplayText(text): the game's popups script passes the popups' DisplayText event on to this movie. The character wheel fix
+        // sends it with no text once for each step its list turns forward (a step back is count - 1 steps forward), so the selection
+        // follows the game's list whatever key presses reach the movie; the game's own DisplayText always has a text, and is left alone
+        // (no text, from the script, is nil: undefined or null here).
+        var step = new Avm1();
+        step.Push("t").Op(Avm1.GetVariable).PushUndefined().Op(Avm1.Equals2).Op(Avm1.Not);
+        var hasText = step.If();
+        step.Push("frSel", "frSel").Op(Avm1.GetVariable).Push(1).Op(Avm1.Add2).Push("frCount").Op(Avm1.GetVariable).Op(Avm1.Modulo).Op(Avm1.SetVariable);
+        step.Push("frSel").Op(Avm1.GetVariable).Push(1, "frShow").Op(Avm1.CallFunction).Op(Avm1.Pop);
+        step.Land(hasText);
+        main.DefineFunction("DisplayText", ["t"], step);
+        main.DefineFunction("SetButtonVisibility", ["v"], new Avm1());
 
         main.Push("frDown", 0).Op(Avm1.SetVariable);
         main.Push("frKeys", 0, "Object").Op(Avm1.NewObject).Op(Avm1.SetVariable);
@@ -337,6 +339,9 @@ public static class SelectPanelMovie
 
             return Action(0x96, payload);
         }
+
+        /// <summary>Pushes undefined (equal to null and undefined with Equals2).</summary>
+        public Avm1 PushUndefined() => Action(0x96, [3]);
 
         /// <summary>An If whose target is set by <see cref="Land"/>; returns where its offset is.</summary>
         public int If()
