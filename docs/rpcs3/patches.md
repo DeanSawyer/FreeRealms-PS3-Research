@@ -217,6 +217,8 @@ from the creator moves it again.
 `0x836c94(node, 0x1080e70+368)` (`0x78f728`): Euler angles in radians, stored at node+448 and built z, y, x into the node's matrix by
 `0xadb574`. The call now adds 0.35 to the y angle first, to face the camera (the sign is a guess).
 
+**Version 3.0:** +0.35 turned the character further away from the camera; 3.0 turns it by -0.35.
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
