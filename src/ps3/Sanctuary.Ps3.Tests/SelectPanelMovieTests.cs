@@ -86,7 +86,7 @@ public sealed class SelectPanelMovieTests
         }
 
         Assert.AreEqual(code.Length, position);
-        Assert.AreEqual(7, functions, "frShow, frKey, frPress, DisplayText, SetButtonVisibility, and the listener's onKeyDown and onKeyUp");
+        Assert.AreEqual(8, functions, "frShow, the list's handleInput, frKey, frPress, DisplayText, SetButtonVisibility, and the listener's onKeyDown and onKeyUp");
     }
 
     [TestMethod]

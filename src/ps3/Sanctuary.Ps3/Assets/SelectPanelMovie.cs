@@ -137,8 +137,18 @@ public static class SelectPanelMovie
 
         // frShow(i): select line i of the list and set the buttons for it (Play and Delete, or New character); the Triangle hint
         // above Delete (frTri, in the PS3 version of the movie) only shows for a saved character.
+        //
+        // The list only shows which line is selected by focus ("over"), which the list's own key handling used to give it: the line
+        // shown before loses displayFocus, the new one gets it.
         var show = new Avm1();
+        show.PushBool(false).Push(1);
+        PushRenderer(show, "frShown");
+        show.Push("__set__displayFocus").Op(Avm1.CallMethod).Op(Avm1.Pop);
         show.Push("i").Op(Avm1.GetVariable).Push(1, "characterList").Op(Avm1.GetVariable).Push("__set__selectedIndex").Op(Avm1.CallMethod).Op(Avm1.Pop);
+        show.PushBool(true).Push(1);
+        PushRenderer(show, "i");
+        show.Push("__set__displayFocus").Op(Avm1.CallMethod).Op(Avm1.Pop);
+        show.Push("frShown", "i").Op(Avm1.GetVariable).Op(Avm1.SetVariable);
 
         foreach (var (field, function) in new[] { ("id", "setCharacterId"), ("state", "setButtonState") })
         {
@@ -151,6 +161,12 @@ public static class SelectPanelMovie
         show.Push("character").Op(Avm1.Equals2).Op(Avm1.SetMember);
 
         main.DefineFunction("frShow", ["i"], show);
+        main.Push("frShown", 0).Op(Avm1.SetVariable);
+
+        // The list must not move by itself on the pad (it did on long presses): only the game's list turns it.
+        main.Push("characterList").Op(Avm1.GetVariable).Push("handleInput");
+        main.DefineFunction(string.Empty, ["details", "pathToFocus"], new Avm1());
+        main.Op(Avm1.SetMember);
 
         if (entries.Count > 0)
             main.Push(0, 1, "frShow").Op(Avm1.CallFunction).Op(Avm1.Pop);
@@ -289,6 +305,10 @@ public static class SelectPanelMovie
         code.Op(Avm1.Add2).Push("</p>").Op(Avm1.Add2).Op(Avm1.SetMember);
     }
 
+    /// <summary>Pushes the list's renderer for the line in the variable <paramref name="index"/>.</summary>
+    private static void PushRenderer(Avm1 code, string index) =>
+        code.Push(index).Op(Avm1.GetVariable).Push(1, "characterList").Op(Avm1.GetVariable).Push("getRendererAt").Op(Avm1.CallMethod);
+
     /// <summary>Pushes the selected line's name.</summary>
     private static void PushSelectedName(Avm1 code) =>
         code.Push("characterData").Op(Avm1.GetVariable).Push("frSel").Op(Avm1.GetVariable).Op(Avm1.GetMember).Push("name").Op(Avm1.GetMember);
@@ -347,6 +367,9 @@ public static class SelectPanelMovie
 
             return Action(0x96, payload);
         }
+
+        /// <summary>Pushes a Boolean.</summary>
+        public Avm1 PushBool(bool value) => Action(0x96, [5, value ? (byte)1 : (byte)0]);
 
         /// <summary>Pushes undefined (equal to null and undefined with Equals2).</summary>
         public Avm1 PushUndefined() => Action(0x96, [3]);
