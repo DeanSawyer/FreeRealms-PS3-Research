@@ -185,6 +185,7 @@ public static class SelectPanelMovie
         var keys = new Avm1();
         keys.Push("frK", "k").Op(Avm1.GetVariable).Op(Avm1.SetVariable);
         keys.Push("frPresses", "frPresses").Op(Avm1.GetVariable).Op(Avm1.Increment).Op(Avm1.SetVariable);
+        keys.Push("panel key ").Push("frK").Op(Avm1.GetVariable).Op(Avm1.Add2).Op(Avm1.Trace);
 
         // Deleting: nothing more until the game moves on.
         keys.Push("frDeleting").Op(Avm1.GetVariable).Op(Avm1.Not);
@@ -243,6 +244,11 @@ public static class SelectPanelMovie
         // follows the game's list whatever key presses reach the movie; the game's own DisplayText always has a text, and is left alone
         // (no text, from the script, is nil: undefined or null here).
         var step = new Avm1();
+
+        // For now: count the calls and show them ("DisplayText 3: undefined"), also with trace, to see whether they come through.
+        step.Push("frTurns", "frTurns").Op(Avm1.GetVariable).Op(Avm1.Increment).Op(Avm1.SetVariable);
+        step.Push("DisplayText ").Push("frTurns").Op(Avm1.GetVariable).Op(Avm1.Add2).Push(": ").Op(Avm1.Add2).Push("t").Op(Avm1.GetVariable).Op(Avm1.Add2).Op(Avm1.Trace);
+        Say(step, text => text.Push("DisplayText ").Push("frTurns").Op(Avm1.GetVariable).Op(Avm1.Add2).Push(": ").Op(Avm1.Add2).Push("t").Op(Avm1.GetVariable).Op(Avm1.Add2));
         step.Push("t").Op(Avm1.GetVariable).PushUndefined().Op(Avm1.Equals2).Op(Avm1.Not);
         var hasText = step.If();
         step.Push("frSel", "frSel").Op(Avm1.GetVariable).Push(1).Op(Avm1.Add2).Push("frCount").Op(Avm1.GetVariable).Op(Avm1.Modulo).Op(Avm1.SetVariable);
@@ -252,6 +258,7 @@ public static class SelectPanelMovie
         main.DefineFunction("SetButtonVisibility", ["v"], new Avm1());
 
         main.Push("frDown", 0).Op(Avm1.SetVariable);
+        main.Push("frTurns", 0).Op(Avm1.SetVariable);
         main.Push("frKeys", 0, "Object").Op(Avm1.NewObject).Op(Avm1.SetVariable);
         main.Push("frKeys").Op(Avm1.GetVariable).Push("onKeyDown");
         main.DefineFunction(string.Empty, [], down);
@@ -303,6 +310,7 @@ public static class SelectPanelMovie
         public const byte Return = 0x3E;
         public const byte SetMember = 0x4F;
         public const byte SetVariable = 0x1D;
+        public const byte Trace = 0x26;
 
         private readonly List<byte> _code = [];
 
