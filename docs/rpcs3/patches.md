@@ -221,6 +221,8 @@ from the creator moves it again.
 
 **Version 3.1:** -0.35 turned a little past facing the camera and the character stood a little left of the logo's centre: -0.22 and -3.8 along x.
 
+**Version 3.2:** still turned a little right and a little left of centre: -0.12 and -4.2.
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
