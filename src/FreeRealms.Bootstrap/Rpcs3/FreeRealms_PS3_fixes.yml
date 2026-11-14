@@ -161,8 +161,8 @@ PPU-5425f6d47ba410afbcbc7ce77f87f2ffcde68798:
       All:
         All: [ All ]
     Author: "DeanSawyer"
-    Patch Version: 2.7
-    Notes: "Character select for several characters, with the select panel (the Server Manager's Characters page puts the PC client's panel in place of the select prompt and fills it with the characters). D-pad right turns the game's character list one step per press (the D-pad values are held states, so the last ones are kept in 4516/4520 as the creator does); left does nothing. Each turn sends \"CharacterCreatePopups:DisplayText\" with no text, which the panel takes as one step, so it follows the list, and writes \"wheel turn <steps>\" to the game log. The 3D preview is not rebuilt (rebuilding it crashed). X plays the first character of the list, or opens the creator on the server's New character entry (guid 0x7FFF0000). Triangle opens the game's own delete prompt (state 12: X deletes the first character of the list, Circle goes back) for a saved character. The popups window (the panel) goes to the left of the screen: Window:SetPosition (0x21b8b8) puts a 550-wide window at y 75 at x = 40 instead of centred. The select preview stands 1.7 back along x (+x took it left and toward the camera) (state 9, 0x78f6fc: the position at 0x1080e70+384 before 0x836f48 sets it; a test of which way x is on screen). The code is in the select prompt's old delete path (0x791b94-0x791c14) and the zero padding at 0xe86f80-0xe86ffc and 0xe87014-0xe870ec."
+    Patch Version: 2.8
+    Notes: "Character select for several characters, with the select panel (the Server Manager's Characters page puts the PC client's panel in place of the select prompt and fills it with the characters). D-pad right turns the game's character list one step per press (the D-pad values are held states, so the last ones are kept in 4516/4520 as the creator does); left does nothing. Each turn sends \"CharacterCreatePopups:DisplayText\" with no text, which the panel takes as one step, so it follows the list, and writes \"wheel turn <steps>\" to the game log. The 3D preview is not rebuilt (rebuilding it crashed). X plays the first character of the list, or opens the creator on the server's New character entry (guid 0x7FFF0000). Triangle opens the game's own delete prompt (state 12: X deletes the first character of the list, Circle goes back) for a saved character. The popups window (the panel) goes to the left of the screen: Window:SetPosition (0x21b8b8) puts a 550-wide window at y 75 at x = 40 instead of centred. The select preview stands 3.4 back along x (-x takes it right and away from the camera, to stand over the Welcome to Free Realms logo) (state 9, 0x78f6fc: the position at 0x1080e70+384 before 0x836f48 sets it). The code is in the select prompt's old delete path (0x791b94-0x791c14) and the zero padding at 0xe86f80-0xe86ffc and 0xe87014-0xe870ec."
     Patch:
       - [ be32, 0x0021b8b8, 0x48c6b789 ]
       - [ be32, 0x0078f6fc, 0x486f7961 ]
@@ -258,7 +258,7 @@ PPU-5425f6d47ba410afbcbc7ce77f87f2ffcde68798:
       - [ be32, 0x00e8706c, 0xec00682a ]
       - [ be32, 0x00e87070, 0xd0040000 ]
       - [ be32, 0x00e87074, 0x4b9afed4 ]
-      - [ be32, 0x00e87078, 0xbfd9999a ]
+      - [ be32, 0x00e87078, 0xc059999a ]
       - [ be32, 0x00e8707c, 0x817f1060 ]
       - [ be32, 0x00e87080, 0x2f8b0000 ]
       - [ be32, 0x00e87084, 0x419e0068 ]

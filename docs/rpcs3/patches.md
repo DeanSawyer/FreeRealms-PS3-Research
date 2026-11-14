@@ -209,6 +209,10 @@ way x goes on the screen.
 **Version 2.6:** the vector at +448 is the creator's preview position (2.5 moved the creator's character). The select preview is
 placed again by state 9, after its camera move: `0x836f48(node, 0x1080e70+384)` at `0x78f6fc`. 2.6 adds 1.7 to that x instead.
 
+**Versions 2.7 and 2.8:** +x took the select character left and toward the camera (behind the panel), -1.7 right and a little
+away, about half way to the Welcome to Free Realms logo; 2.8 uses -3.4. The position is changed in place, so coming back to select
+from the creator moves it again.
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
