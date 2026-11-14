@@ -185,6 +185,12 @@ does nothing (it moved the selection by itself on long presses). A step back sen
 the panel says "Press RIGHT on the D-pad to scroll" (above the list). Up and down do nothing either: nothing in the panel takes focus.
 The New character line has a green Create button (the panel's add button with the Play button's box), and the member icon stays hidden.
 
+**Version 2.1 (13 November):** the panel goes to the right of the screen. The popups script centres its window
+(`CharacterCreatePopups.OnResize`: x = (canvas width - window width) / 2, y = 75), and `Window:SetPosition` (the binding at
+`0x21b7c0`) sets the rectangle with `0x3dcf0c(window, x, y, w, h, 6)`. The call at `0x21b8b8` now goes through a check: for a
+window 550 wide at y 75 (`wndCharacterCreatePopups`) x becomes 2x - 40, which puts its right edge 40 from the screen's. The
+creator's popups use the same window, so they are on the right too.
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
