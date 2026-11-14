@@ -13,10 +13,12 @@ public sealed record PanelEntry(string Id, string Name, bool IsNew);
 /// <summary>
 /// Fills the PC client's character select movie (<c>characterSelectV2.gfx</c>) for the PS3: adds an ActionScript block to the end of
 /// its first frame that calls the movie's own <c>addCharacter(index, id, name, state)</c> for each character (state "character", or
-/// "add" for the new character line), selects the first one, and turns the selection with D-pad left and right. The PS3 game sends
-/// the pad to a movie as key presses with the ASCII codes of L, R, U, D, X, O, S and T (as its own <c>characterNameScreen</c>
-/// reads them). The character wheel fix turns the game's own list with the same presses, so the line the panel shows selected is
-/// the character X plays.
+/// "add" for the new character line), selects the first one, turns the selection with D-pad left and right, and asks on Triangle
+/// whether to delete the selected character (X deletes, Circle keeps it). The PS3 game sends the pad to a movie as key presses with
+/// the ASCII codes of L, R, U, D, X, O, S and T (as its own <c>characterNameScreen</c> reads them). The character wheel fix turns the
+/// game's own list with the same presses and opens the game's own delete prompt on Triangle, so the line the panel shows selected
+/// is the character X plays or deletes. The PS3 version of the movie also has the Triangle hint <c>frTri</c> and the message line
+/// <c>frMsg</c>, which the block uses when they are there.
 /// </summary>
 public static class SelectPanelMovie
 {
@@ -128,8 +130,12 @@ public static class SelectPanelMovie
 
         main.Push("frCount", Math.Max(1, entries.Count)).Op(Avm1.SetVariable);
         main.Push("frSel", 0).Op(Avm1.SetVariable);
+        main.Push("frPresses", 0).Op(Avm1.SetVariable);
+        main.Push("frAsking", 0).Op(Avm1.SetVariable);
+        main.Push("frDeleting", 0).Op(Avm1.SetVariable);
 
-        // frShow(i): select line i of the list and set the buttons for it (Play and Delete, or New character).
+        // frShow(i): select line i of the list and set the buttons for it (Play and Delete, or New character); the Triangle hint
+        // above Delete (frTri, in the PS3 version of the movie) only shows for a saved character.
         var show = new Avm1();
         show.Push("i").Op(Avm1.GetVariable).Push(1, "characterList").Op(Avm1.GetVariable).Push("__set__selectedIndex").Op(Avm1.CallMethod).Op(Avm1.Pop);
 
@@ -139,19 +145,48 @@ public static class SelectPanelMovie
             show.Push(1, function).Op(Avm1.CallFunction).Op(Avm1.Pop);
         }
 
+        show.Push("frTri").Op(Avm1.GetVariable).Push("_visible");
+        show.Push("characterData").Op(Avm1.GetVariable).Push("i").Op(Avm1.GetVariable).Op(Avm1.GetMember).Push("state").Op(Avm1.GetMember);
+        show.Push("character").Op(Avm1.Equals2).Op(Avm1.SetMember);
+
         main.DefineFunction("frShow", ["i"], show);
 
         if (entries.Count > 0)
             main.Push(0, 1, "frShow").Op(Avm1.CallFunction).Op(Avm1.Pop);
 
-        // A key listener: R (D-pad right) selects the next line, L (left) the previous one, wrapping around as the game's list does.
+        // The key listener. The game's own select prompt reads the same presses: left and right turn its list, Triangle opens its
+        // delete prompt (X deletes, Circle keeps) for a saved character, X plays. The panel follows them.
         var keys = new Avm1();
         keys.Push("frK", 0, "Key").Op(Avm1.GetVariable).Push("getAscii").Op(Avm1.CallMethod).Op(Avm1.SetVariable);
+        keys.Push("frPresses", "frPresses").Op(Avm1.GetVariable).Op(Avm1.Increment).Op(Avm1.SetVariable);
 
-        foreach (var (code, step) in new[] { ((int)'R', 1), ((int)'L', -1) })
+        // Deleting: nothing more until the game moves on.
+        keys.Push("frDeleting").Op(Avm1.GetVariable).Op(Avm1.Not);
+        var notDeleting = keys.If();
+        keys.Push(0).Op(Avm1.Return);
+        keys.Land(notDeleting);
+
+        // Asked whether to delete: X deletes, Circle keeps the character.
+        keys.Push("frAsking").Op(Avm1.GetVariable).Op(Avm1.Not);
+        var notAsking = keys.If();
+        var notCross = IfNotKey(keys, 'X');
+        keys.Push("frDeleting", 1).Op(Avm1.SetVariable);
+        Say(keys, text => { text.Push("Deleting "); PushSelectedName(text); text.Op(Avm1.Add2).Push("...").Op(Avm1.Add2); });
+        keys.Land(notCross);
+        var notCircle = IfNotKey(keys, 'O');
+        keys.Push("frAsking", 0).Op(Avm1.SetVariable);
+        Say(keys, text => text.Push(string.Empty));
+        keys.Land(notCircle);
+        keys.Push(0).Op(Avm1.Return);
+        keys.Land(notAsking);
+
+        // Which presses arrive (for now, to see whether the panel misses any): "press 7: R".
+        Say(keys, text => text.Push("press ").Push("frPresses").Op(Avm1.GetVariable).Op(Avm1.Add2).Push(": ").Op(Avm1.Add2).Push("frK").Op(Avm1.GetVariable).Op(Avm1.Add2));
+
+        // R (D-pad right) selects the next line, L (left) the previous one, wrapping around as the game's list does.
+        foreach (var (code, step) in new[] { ('R', 1), ('L', -1) })
         {
-            keys.Push("frK").Op(Avm1.GetVariable).Push(code).Op(Avm1.Equals2).Op(Avm1.Not);
-            var skip = keys.If();
+            var skip = IfNotKey(keys, code);
 
             // frSel = (frSel + frCount + step) % frCount
             keys.Push("frSel", "frSel").Op(Avm1.GetVariable).Push("frCount").Op(Avm1.GetVariable).Op(Avm1.Add2).Push(step).Op(Avm1.Add2);
@@ -159,6 +194,16 @@ public static class SelectPanelMovie
             keys.Push("frSel").Op(Avm1.GetVariable).Push(1, "frShow").Op(Avm1.CallFunction).Op(Avm1.Pop);
             keys.Land(skip);
         }
+
+        // T (Triangle) on a saved character: ask.
+        var notTriangle = IfNotKey(keys, 'T');
+        keys.Push("characterData").Op(Avm1.GetVariable).Push("frSel").Op(Avm1.GetVariable).Op(Avm1.GetMember).Push("state").Op(Avm1.GetMember);
+        keys.Push("character").Op(Avm1.Equals2).Op(Avm1.Not);
+        var notSaved = keys.If();
+        keys.Push("frAsking", 1).Op(Avm1.SetVariable);
+        Say(keys, text => { text.Push("Delete "); PushSelectedName(text); text.Op(Avm1.Add2).Push("?  X: delete   O: keep").Op(Avm1.Add2); });
+        keys.Land(notSaved);
+        keys.Land(notTriangle);
 
         main.Push("frKeys", 0, "Object").Op(Avm1.NewObject).Op(Avm1.SetVariable);
         main.Push("frKeys").Op(Avm1.GetVariable).Push("onKeyDown");
@@ -171,6 +216,26 @@ public static class SelectPanelMovie
         return main.ToArray();
     }
 
+    /// <summary>Compares the key of the press with <paramref name="key"/>; returns the If that skips what follows when it is another key.</summary>
+    private static int IfNotKey(Avm1 code, char key)
+    {
+        code.Push("frK").Op(Avm1.GetVariable).Push((int)key).Op(Avm1.Equals2).Op(Avm1.Not);
+
+        return code.If();
+    }
+
+    /// <summary>Puts a line of text in the panel's message field (frMsg, in the PS3 version of the movie), centred.</summary>
+    private static void Say(Avm1 code, Action<Avm1> text)
+    {
+        code.Push("frMsg").Op(Avm1.GetVariable).Push("htmlText").Push("<p align=\"center\">");
+        text(code);
+        code.Op(Avm1.Add2).Push("</p>").Op(Avm1.Add2).Op(Avm1.SetMember);
+    }
+
+    /// <summary>Pushes the selected line's name.</summary>
+    private static void PushSelectedName(Avm1 code) =>
+        code.Push("characterData").Op(Avm1.GetVariable).Push("frSel").Op(Avm1.GetVariable).Op(Avm1.GetMember).Push("name").Op(Avm1.GetMember);
+
     /// <summary>A small AVM1 (ActionScript 2 bytecode) writer: the actions this block needs, pushes of strings and integers, If, and functions.</summary>
     internal sealed class Avm1
     {
@@ -180,10 +245,12 @@ public static class SelectPanelMovie
         public const byte Equals2 = 0x49;
         public const byte GetMember = 0x4E;
         public const byte GetVariable = 0x1C;
+        public const byte Increment = 0x50;
         public const byte Modulo = 0x3F;
         public const byte NewObject = 0x40;
         public const byte Not = 0x12;
         public const byte Pop = 0x17;
+        public const byte Return = 0x3E;
         public const byte SetMember = 0x4F;
         public const byte SetVariable = 0x1D;
 

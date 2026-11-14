@@ -156,6 +156,12 @@ in the order the server sends them, then a key listener that moves the selection
 sends a movie for the D-pad (its own `characterNameScreen.gfx` reads `U`, `D`, `L`, `R`, `X`, `O`, `S`, `T`). The 3D preview stays the
 first character the game was given. The D-pad's left is `+10552` (the creator's turntable steps back on it, `0x7914dc`), right `+10556`.
 
+**Version 1.6 (13 November):** Triangle on a saved character goes to the game's own delete prompt, state 12 (`0x791f50`): X
+sends the delete for the first character of the list (`0xa20f48`, state 46) and hides the prompt, Circle goes back to state 10. The
+popup the game used to build for it is skipped; the select panel asks instead ("Delete <name>?  X: delete   O: keep"), with an X
+and a Triangle hint above Play and Delete. The panel also shows which presses reach it ("press 7: 82"), to see whether it misses
+any: the selection sometimes took more than one press to move.
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
