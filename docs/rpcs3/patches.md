@@ -245,6 +245,8 @@ from the creator moves it again.
 
 **Version 4.3:** the delete worked, but the deleted name stayed in the panel: the panel dropped it on X, and key presses reach the movie only now and then. The delete reply now sends the panel a step signal (SIGNAL, as a turn does), and the panel takes a step while it is asking or deleting as the delete: it drops the line and selects the next one. A real text from the game (its own prompt, state 10, also after Circle) ends the asking. The reply no longer checks for an empty list (only saved characters are deleted), which made room for the call.
 
+**Panel, after 4.3:** the name still stayed: CLIK's `dataProvider` setter returns at once when it is given the array it already has (`if (_dataProvider == value) return`), so setting the spliced `characterData` again did not redraw the list. The panel now gives it a copy (`characterData.slice()`).
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 

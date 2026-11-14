@@ -314,6 +314,9 @@ public static class SelectPanelMovie
         step.Push("frAsking").Op(Avm1.GetVariable).Push("frDeleting").Op(Avm1.GetVariable).Op(Avm1.Add2).Op(Avm1.Not);
         var notDeleted = step.If();
         step.Push(1).Push("frSel").Op(Avm1.GetVariable).Push(2, "characterData").Op(Avm1.GetVariable).Push("splice").Op(Avm1.CallMethod).Op(Avm1.Pop);
+
+        // The list's dataProvider setter does nothing when given the array it already has, so it gets a copy (a new array).
+        step.Push("characterData", 0, "characterData").Op(Avm1.GetVariable).Push("slice").Op(Avm1.CallMethod).Op(Avm1.SetVariable);
         step.Push("characterData").Op(Avm1.GetVariable).Push(1, "characterList").Op(Avm1.GetVariable).Push("__set__dataProvider").Op(Avm1.CallMethod).Op(Avm1.Pop);
         step.Push("frCount", "frCount").Op(Avm1.GetVariable).Op(Avm1.Decrement).Op(Avm1.SetVariable);
         step.Push("frCount").Op(Avm1.GetVariable).Push(1).Op(Avm1.Less2).Op(Avm1.Not);
