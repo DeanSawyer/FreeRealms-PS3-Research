@@ -213,6 +213,10 @@ placed again by state 9, after its camera move: `0x836f48(node, 0x1080e70+384)` 
 away, about half way to the Welcome to Free Realms logo; 2.8 uses -3.4. The position is changed in place, so coming back to select
 from the creator moves it again.
 
+**Version 2.9:** standing right of centre the character is seen a little from the side. State 9 sets its rotation with
+`0x836c94(node, 0x1080e70+368)` (`0x78f728`): Euler angles in radians, stored at node+448 and built z, y, x into the node's matrix by
+`0xadb574`. The call now adds 0.35 to the y angle first, to face the camera (the sign is a guess).
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
