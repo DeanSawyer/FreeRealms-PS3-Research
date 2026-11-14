@@ -247,6 +247,8 @@ from the creator moves it again.
 
 **Panel, after 4.3:** the name still stayed: CLIK's `dataProvider` setter returns at once when it is given the array it already has (`if (_dataProvider == value) return`), so setting the spliced `characterData` again did not redraw the list. The panel now gives it a copy (`characterData.slice()`).
 
+**Version 4.4:** deleting the character the 3D preview shows hides the preview. The preview actor (`this+4548`) has the character's guid as its id (`+112`, as `0x1c1120` keys actors), and `actor+615` is the flag state 5 clears while it builds the preview and state 9 sets once it is placed (`0x78f73c`). The delete reply compares the deleted guid with the preview's id and clears the flag; the actor itself is left alone (it is also the client's actor at `client+712`, so removing it is not safe here). The room comes from the reply's two log lines (`OnRequestCharacterDelete`), which are gone; the reply's code now starts at `0x7889d4`.
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
