@@ -223,13 +223,6 @@ public static class SelectPanelMovie
         keys.Push(0).Op(Avm1.Return);
         keys.Land(notAsking);
 
-        // Which presses arrive (for now, to see whether the panel misses any): "press 7: R".
-        Say(keys, text =>
-        {
-            text.Push("press ").Push("frPresses").Op(Avm1.GetVariable).Op(Avm1.Add2).Push(": ").Op(Avm1.Add2).Push("frK").Op(Avm1.GetVariable).Op(Avm1.Add2);
-            text.Push(" (").Op(Avm1.Add2).Push("frAscii").Op(Avm1.GetVariable).Op(Avm1.Add2).Push("/").Op(Avm1.Add2).Push("frCode").Op(Avm1.GetVariable).Op(Avm1.Add2).Push(")").Op(Avm1.Add2);
-        });
-
         // T (Triangle) on a saved character: ask.
         var notTriangle = IfNotKey(keys, 'T');
         keys.Push("characterData").Op(Avm1.GetVariable).Push("frSel").Op(Avm1.GetVariable).Op(Avm1.GetMember).Push("state").Op(Avm1.GetMember);
@@ -261,7 +254,7 @@ public static class SelectPanelMovie
         // (no text, from the script, is nil: undefined or null here).
         var step = new Avm1();
 
-        // For now: count the calls and show them ("DisplayText 3: undefined"), also with trace, to see whether they come through.
+        // Each call is counted and traced ("turn 3: string []").
         step.Push("frTurns", "frTurns").Op(Avm1.GetVariable).Op(Avm1.Increment).Op(Avm1.SetVariable);
         void Described(Avm1 text) =>
             text.Push("turn ").Push("frTurns").Op(Avm1.GetVariable).Op(Avm1.Add2).Push(": ").Op(Avm1.Add2)
@@ -269,7 +262,6 @@ public static class SelectPanelMovie
 
         Described(step);
         step.Op(Avm1.Trace);
-        Say(step, Described);
 
         // A turn is any call without a real text: undefined, null, an empty string or anything that is not a string.
         step.Push("t").Op(Avm1.GetVariable).Op(Avm1.TypeOf).Push("string").Op(Avm1.Equals2).Op(Avm1.Not);

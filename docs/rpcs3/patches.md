@@ -175,6 +175,12 @@ count - 1 steps forward. The game's own DisplayText calls always carry a text an
 padding the game log fix freed (1.5 drops its HandlerInGamePurchase event hook, `0x87c14`, kept for the store work before):
 `0xe86f80`-`0xe86fec`. The log fix still writes each script handler event ("Script event CharacterCreatePopups.DisplayText").
 
+**Versions 1.8 and 1.9 (13 November):** with the turns logged ("wheel turn <steps>") and shown on the panel, the turns reached
+the panel, but not as undefined: a turn is now any DisplayText whose argument is not a non-empty string. The list's highlight is
+its renderers' focus, so the line shown before loses `displayFocus` and the new one gets it, and the list's own `handleInput`
+does nothing (it moved the selection by itself on long presses). A step back sent `+12` of the list minus one steps (6, in
+`fr_test_20261113_202014`, with 3 lines): `+12` is not the list's length, so 1.9 counts the list by walking it.
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
