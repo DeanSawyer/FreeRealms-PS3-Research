@@ -46,7 +46,7 @@ public sealed class SelectPanelMovieTests
         StringAssert.Contains(text, "addCharacter");
         StringAssert.Contains(text, "character\0");
         StringAssert.Contains(text, "add\0");
-        StringAssert.Contains(text, "?  X: delete   O: keep");
+        StringAssert.Contains(text, "? X: yes, O: no");
         Assert.AreEqual(0, added[^1], "the block ends with ActionEnd");
 
         // The bytes, for reading them with an AVM1 disassembler.

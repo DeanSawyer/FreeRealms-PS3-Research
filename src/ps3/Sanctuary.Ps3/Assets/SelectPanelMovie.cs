@@ -26,7 +26,7 @@ public static class SelectPanelMovie
     private const ushort ShowFrame = 1;
 
     /// <summary>The panel's message line when it has nothing else to say.</summary>
-    public const string Hint = "Press RIGHT on the D-pad to choose a character";
+    public const string Hint = "Press RIGHT on the D-pad to scroll";
     private const ushort DoAction = 12;
 
     /// <summary>The movie with the block added (same header kind; a compressed movie stays compressed).</summary>
@@ -243,7 +243,7 @@ public static class SelectPanelMovie
         keys.Push("character").Op(Avm1.Equals2).Op(Avm1.Not);
         var notSaved = keys.If();
         keys.Push("frAsking", 1).Op(Avm1.SetVariable);
-        Say(keys, text => { text.Push("Delete "); PushSelectedName(text); text.Op(Avm1.Add2).Push("?  X: delete   O: keep").Op(Avm1.Add2); });
+        Say(keys, text => { text.Push("Delete "); PushSelectedName(text); text.Op(Avm1.Add2).Push("? X: yes, O: no").Op(Avm1.Add2); });
         keys.Land(notSaved);
         keys.Land(notTriangle);
 

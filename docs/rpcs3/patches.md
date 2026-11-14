@@ -182,7 +182,7 @@ does nothing (it moved the selection by itself on long presses). A step back sen
 `fr_test_20261113_202014`, with 3 lines): `+12` is not the list's length, so 1.9 counts the list by walking it.
 
 **Version 2.0 (13 November):** right is the only direction: left does nothing (it could go out of step with the panel), and
-the panel says "Press RIGHT on the D-pad to choose a character". Up and down do nothing either: nothing in the panel takes focus.
+the panel says "Press RIGHT on the D-pad to scroll" (above the list). Up and down do nothing either: nothing in the panel takes focus.
 The New character line has a green Create button (the panel's add button with the Play button's box), and the member icon stays hidden.
 
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
