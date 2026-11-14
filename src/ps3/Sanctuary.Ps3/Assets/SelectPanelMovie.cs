@@ -263,10 +263,20 @@ public static class SelectPanelMovie
 
         // For now: count the calls and show them ("DisplayText 3: undefined"), also with trace, to see whether they come through.
         step.Push("frTurns", "frTurns").Op(Avm1.GetVariable).Op(Avm1.Increment).Op(Avm1.SetVariable);
-        step.Push("DisplayText ").Push("frTurns").Op(Avm1.GetVariable).Op(Avm1.Add2).Push(": ").Op(Avm1.Add2).Push("t").Op(Avm1.GetVariable).Op(Avm1.Add2).Op(Avm1.Trace);
-        Say(step, text => text.Push("DisplayText ").Push("frTurns").Op(Avm1.GetVariable).Op(Avm1.Add2).Push(": ").Op(Avm1.Add2).Push("t").Op(Avm1.GetVariable).Op(Avm1.Add2));
-        step.Push("t").Op(Avm1.GetVariable).PushUndefined().Op(Avm1.Equals2).Op(Avm1.Not);
+        void Described(Avm1 text) =>
+            text.Push("turn ").Push("frTurns").Op(Avm1.GetVariable).Op(Avm1.Add2).Push(": ").Op(Avm1.Add2)
+                .Push("t").Op(Avm1.GetVariable).Op(Avm1.TypeOf).Op(Avm1.Add2).Push(" [").Op(Avm1.Add2).Push("t").Op(Avm1.GetVariable).Op(Avm1.Add2).Push("]").Op(Avm1.Add2);
+
+        Described(step);
+        step.Op(Avm1.Trace);
+        Say(step, Described);
+
+        // A turn is any call without a real text: undefined, null, an empty string or anything that is not a string.
+        step.Push("t").Op(Avm1.GetVariable).Op(Avm1.TypeOf).Push("string").Op(Avm1.Equals2).Op(Avm1.Not);
+        var notString = step.If();
+        step.Push("t").Op(Avm1.GetVariable).Push(string.Empty).Op(Avm1.Equals2).Op(Avm1.Not);
         var hasText = step.If();
+        step.Land(notString);
         step.Push("frSel", "frSel").Op(Avm1.GetVariable).Push(1).Op(Avm1.Add2).Push("frCount").Op(Avm1.GetVariable).Op(Avm1.Modulo).Op(Avm1.SetVariable);
         step.Push("frSel").Op(Avm1.GetVariable).Push(1, "frShow").Op(Avm1.CallFunction).Op(Avm1.Pop);
         step.Land(hasText);
@@ -300,9 +310,9 @@ public static class SelectPanelMovie
     /// <summary>Puts a line of text in the panel's message field (frMsg, in the PS3 version of the movie), centred.</summary>
     private static void Say(Avm1 code, Action<Avm1> text)
     {
-        code.Push("frMsg").Op(Avm1.GetVariable).Push("htmlText").Push("<p align=\"center\">");
+        code.Push("frMsg").Op(Avm1.GetVariable).Push("htmlText").Push("<p align=\"center\"><font face=\"$MainFont\">");
         text(code);
-        code.Op(Avm1.Add2).Push("</p>").Op(Avm1.Add2).Op(Avm1.SetMember);
+        code.Op(Avm1.Add2).Push("</font></p>").Op(Avm1.Add2).Op(Avm1.SetMember);
     }
 
     /// <summary>Pushes the list's renderer for the line in the variable <paramref name="index"/>.</summary>
@@ -331,6 +341,7 @@ public static class SelectPanelMovie
         public const byte SetMember = 0x4F;
         public const byte SetVariable = 0x1D;
         public const byte Trace = 0x26;
+        public const byte TypeOf = 0x44;
 
         private readonly List<byte> _code = [];
 
