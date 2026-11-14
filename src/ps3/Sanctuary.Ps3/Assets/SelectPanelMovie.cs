@@ -159,11 +159,24 @@ public static class SelectPanelMovie
             show.Push(1, function).Op(Avm1.CallFunction).Op(Avm1.Pop);
         }
 
-        // The member icon setButtonState shows on the new character line stays hidden.
-        show.Push("memberIcon_mc").Op(Avm1.GetVariable).Push("_visible").PushBool(false).Op(Avm1.SetMember);
-        show.Push("frTri").Op(Avm1.GetVariable).Push("_visible");
+        // The buttons are set here too, not only by the movie's setButtonState: on the new character line only the add button
+        // (Create, in the PS3 version of the movie), on a saved character Play and Delete with the Triangle hint. The member icon
+        // setButtonState shows on the new character line stays hidden.
+        show.Push("frNew");
         show.Push("characterData").Op(Avm1.GetVariable).Push("i").Op(Avm1.GetVariable).Op(Avm1.GetMember).Push("state").Op(Avm1.GetMember);
-        show.Push("character").Op(Avm1.Equals2).Op(Avm1.SetMember);
+        show.Push("add").Op(Avm1.Equals2).Op(Avm1.SetVariable);
+
+        foreach (var (name, onNewLine) in new[] { ("addButton", true), ("goButton", false), ("deleteButton", false), ("frTri", false) })
+        {
+            show.Push(name).Op(Avm1.GetVariable).Push("_visible").Push("frNew").Op(Avm1.GetVariable);
+
+            if (!onNewLine)
+                show.Op(Avm1.Not);
+
+            show.Op(Avm1.SetMember);
+        }
+
+        show.Push("memberIcon_mc").Op(Avm1.GetVariable).Push("_visible").PushBool(false).Op(Avm1.SetMember);
 
         main.DefineFunction("frShow", ["i"], show);
         main.Push("frShown", 0).Op(Avm1.SetVariable);
