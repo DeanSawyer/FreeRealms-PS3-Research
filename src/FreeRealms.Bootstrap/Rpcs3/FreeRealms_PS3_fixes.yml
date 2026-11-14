@@ -161,8 +161,8 @@ PPU-5425f6d47ba410afbcbc7ce77f87f2ffcde68798:
       All:
         All: [ All ]
     Author: "DeanSawyer"
-    Patch Version: 1.9
-    Notes: "Character select for several characters, with the select panel (the Server Manager's Characters page puts the PC client's panel in place of the select prompt and fills it with the characters). D-pad left and right turn the game's character list, one step per press (the D-pad values are held states, so the last ones are kept in 4516/4520 as the creator does); each turn sends \"CharacterCreatePopups:DisplayText\" with no text, which the panel takes as one step forward (a step back is one fewer than the characters in the list, counted by walking it), so the panel follows the list (each turn also writes \"wheel turn <steps>\" to the game log). The 3D preview is not rebuilt (rebuilding it crashed). X plays the first character of the list, or opens the creator on the server's New character entry (guid 0x7FFF0000). Triangle opens the game's own delete prompt (state 12: X deletes the first character of the list, Circle goes back) for a saved character. The code is in the select prompt's old delete path (0x791b94-0x791c14) and the zero padding at 0xe86f80-0xe87008 and 0xe87014-0xe87114."
+    Patch Version: 2.0
+    Notes: "Character select for several characters, with the select panel (the Server Manager's Characters page puts the PC client's panel in place of the select prompt and fills it with the characters). D-pad right turns the game's character list one step per press (the D-pad values are held states, so the last ones are kept in 4516/4520 as the creator does); left does nothing. Each turn sends \"CharacterCreatePopups:DisplayText\" with no text, which the panel takes as one step, so it follows the list, and writes \"wheel turn <steps>\" to the game log. The 3D preview is not rebuilt (rebuilding it crashed). X plays the first character of the list, or opens the creator on the server's New character entry (guid 0x7FFF0000). Triangle opens the game's own delete prompt (state 12: X deletes the first character of the list, Circle goes back) for a saved character. The code is in the select prompt's old delete path (0x791b94-0x791c14) and the zero padding at 0xe86f80-0xe87008 and 0xe87014-0xe87114."
     Patch:
       - [ be32, 0x00791b84, 0x409e008c ]
       - [ be32, 0x00791b90, 0x409e0084 ]
@@ -180,7 +180,7 @@ PPU-5425f6d47ba410afbcbc7ce77f87f2ffcde68798:
       - [ be32, 0x00791bc0, 0x419ec948 ]
       - [ be32, 0x00791bc4, 0x2f860000 ]
       - [ be32, 0x00791bc8, 0x409ec940 ]
-      - [ be32, 0x00791bcc, 0x486f5448 ]
+      - [ be32, 0x00791bcc, 0x4bffc93c ]
       - [ be32, 0x00791bd0, 0x387f105c ]
       - [ be32, 0x00791bd4, 0x80830004 ]
       - [ be32, 0x00791bd8, 0x80a30008 ]

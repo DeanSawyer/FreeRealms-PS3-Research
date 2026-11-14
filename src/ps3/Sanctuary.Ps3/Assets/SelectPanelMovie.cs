@@ -24,6 +24,9 @@ public sealed record PanelEntry(string Id, string Name, bool IsNew);
 public static class SelectPanelMovie
 {
     private const ushort ShowFrame = 1;
+
+    /// <summary>The panel's message line when it has nothing else to say.</summary>
+    public const string Hint = "Press RIGHT on the D-pad to choose a character";
     private const ushort DoAction = 12;
 
     /// <summary>The movie with the block added (same header kind; a compressed movie stays compressed).</summary>
@@ -156,12 +159,21 @@ public static class SelectPanelMovie
             show.Push(1, function).Op(Avm1.CallFunction).Op(Avm1.Pop);
         }
 
+        // The member icon setButtonState shows on the new character line stays hidden.
+        show.Push("memberIcon_mc").Op(Avm1.GetVariable).Push("_visible").PushBool(false).Op(Avm1.SetMember);
         show.Push("frTri").Op(Avm1.GetVariable).Push("_visible");
         show.Push("characterData").Op(Avm1.GetVariable).Push("i").Op(Avm1.GetVariable).Op(Avm1.GetMember).Push("state").Op(Avm1.GetMember);
         show.Push("character").Op(Avm1.Equals2).Op(Avm1.SetMember);
 
         main.DefineFunction("frShow", ["i"], show);
         main.Push("frShown", 0).Op(Avm1.SetVariable);
+
+        // Nothing in the panel takes focus, so up and down (the list's and buttons' focus moves) do nothing.
+        foreach (var name in new[] { "characterList", "goButton", "deleteButton", "addButton" })
+        {
+            foreach (var property in new[] { "tabEnabled", "focusEnabled", "tabChildren" })
+                main.Push(name).Op(Avm1.GetVariable).Push(property).PushBool(false).Op(Avm1.SetMember);
+        }
 
         // The list must not move by itself on the pad (it did on long presses): only the game's list turns it.
         main.Push("characterList").Op(Avm1.GetVariable).Push("handleInput");
@@ -170,6 +182,8 @@ public static class SelectPanelMovie
 
         if (entries.Count > 0)
             main.Push(0, 1, "frShow").Op(Avm1.CallFunction).Op(Avm1.Pop);
+
+        Say(main, text => text.Push(Hint));
 
         // The key listener. The game's own select prompt reads the same presses: left and right turn its list, Triangle opens its
         // delete prompt (X deletes, Circle keeps) for a saved character, X plays. The panel follows them.
@@ -218,7 +232,7 @@ public static class SelectPanelMovie
         keys.Land(notCross);
         var notCircle = IfNotKey(keys, 'O');
         keys.Push("frAsking", 0).Op(Avm1.SetVariable);
-        Say(keys, text => text.Push(string.Empty));
+        Say(keys, text => text.Push(Hint));
         keys.Land(notCircle);
         keys.Push(0).Op(Avm1.Return);
         keys.Land(notAsking);
