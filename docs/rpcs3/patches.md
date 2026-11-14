@@ -206,6 +206,9 @@ preview with `0x836f48(node, position)` (`0x78eb38`; it compares the position wi
 being the vector at `0x1080e70`+448, then passes the same vector to the actor. The call now adds 1.7 to its x first, to see which
 way x goes on the screen.
 
+**Version 2.6:** the vector at +448 is the creator's preview position (2.5 moved the creator's character). The select preview is
+placed again by state 9, after its camera move: `0x836f48(node, 0x1080e70+384)` at `0x78f6fc`. 2.6 adds 1.7 to that x instead.
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
