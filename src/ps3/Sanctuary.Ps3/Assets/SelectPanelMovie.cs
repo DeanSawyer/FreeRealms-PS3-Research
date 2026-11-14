@@ -236,28 +236,14 @@ public static class SelectPanelMovie
         keys.Push(0).Op(Avm1.Return);
         keys.Land(notDeleting);
 
-        // Asked whether to delete: X deletes, Circle keeps the character. The game deletes the first character of its list (the
-        // selected line) and stays on the select screen with the rest of the list (the character wheel fix), so the panel drops the
-        // line too and selects the one after it, which is the game's new first character.
+        // Asked whether to delete: X deletes, Circle keeps the character. The line goes when the game says the delete is done (a
+        // step signal while asking or deleting, see DisplayText): key presses reach the movie only now and then, so X may not come
+        // through here at all.
         keys.Push("frAsking").Op(Avm1.GetVariable).Op(Avm1.Not);
         var notAsking = keys.If();
         var notCross = IfNotKey(keys, 'X');
-        keys.Push(1).Push("frSel").Op(Avm1.GetVariable).Push(2, "characterData").Op(Avm1.GetVariable).Push("splice").Op(Avm1.CallMethod).Op(Avm1.Pop);
-        keys.Push("characterData").Op(Avm1.GetVariable).Push(1, "characterList").Op(Avm1.GetVariable).Push("__set__dataProvider").Op(Avm1.CallMethod).Op(Avm1.Pop);
-        keys.Push("frCount", "frCount").Op(Avm1.GetVariable).Op(Avm1.Decrement).Op(Avm1.SetVariable);
-        keys.Push("frCount").Op(Avm1.GetVariable).Push(1).Op(Avm1.Less2).Op(Avm1.Not);
-        var notEmpty = keys.If();
-        keys.Push("frCount", 1).Op(Avm1.SetVariable);
-        keys.Land(notEmpty);
-        keys.Push("frSel").Op(Avm1.GetVariable).Push("frCount").Op(Avm1.GetVariable).Op(Avm1.Less2);
-        var inRange = keys.If();
-        keys.Push("frSel", 0).Op(Avm1.SetVariable);
-        keys.Land(inRange);
-        keys.Push("frAsking", 0).Op(Avm1.SetVariable);
-        keys.Push("frShown", "frSel").Op(Avm1.GetVariable).Op(Avm1.SetVariable);
-        keys.Push("frSel").Op(Avm1.GetVariable).Push(1, "frShow").Op(Avm1.CallFunction).Op(Avm1.Pop);
-        Say(keys, text => text.Push(Hint));
-        keys.Push(0).Op(Avm1.Return);
+        keys.Push("frDeleting", 1).Op(Avm1.SetVariable);
+        Say(keys, text => { text.Push("Deleting "); PushSelectedName(text); text.Op(Avm1.Add2).Push("...").Op(Avm1.Add2); });
         keys.Land(notCross);
         var notCircle = IfNotKey(keys, 'O');
         keys.Push("frAsking", 0).Op(Avm1.SetVariable);
@@ -306,15 +292,49 @@ public static class SelectPanelMovie
         Described(step);
         step.Op(Avm1.Trace);
 
-        // A turn is any call without a real text: undefined, null, an empty string or anything that is not a string.
-        step.Push("t").Op(Avm1.GetVariable).Op(Avm1.TypeOf).Push("string").Op(Avm1.Equals2).Op(Avm1.Not);
+        // A real text is a non-empty string; anything else (undefined, null, an empty string, not a string) is the fix's signal.
+        step.Push("frReal", "t").Op(Avm1.GetVariable).Op(Avm1.TypeOf).Push("string").Op(Avm1.Equals2).Op(Avm1.SetVariable);
+        step.Push("frReal").Op(Avm1.GetVariable).Op(Avm1.Not);
         var notString = step.If();
-        step.Push("t").Op(Avm1.GetVariable).Push(string.Empty).Op(Avm1.Equals2).Op(Avm1.Not);
-        var hasText = step.If();
+        step.Push("frReal", "t").Op(Avm1.GetVariable).Push(string.Empty).Op(Avm1.Equals2).Op(Avm1.Not).Op(Avm1.SetVariable);
         step.Land(notString);
+
+        // A real text is the game's own prompt (state 10, also after Circle in its delete prompt): no longer asking.
+        step.Push("frReal").Op(Avm1.GetVariable).Op(Avm1.Not);
+        var signal = step.If();
+        step.Push("frAsking", 0).Op(Avm1.SetVariable);
+        step.Push("frDeleting", 0).Op(Avm1.SetVariable);
+        Say(step, text => text.Push(Hint));
+        step.Push(0).Op(Avm1.Return);
+        step.Land(signal);
+
+        // The signal while asking or deleting: the game deleted the first character of its list (the selected line) and stays on
+        // the select screen with the rest (the character wheel fix sends it after the delete reply). The line goes and the one after
+        // it, the game's new first character, is selected.
+        step.Push("frAsking").Op(Avm1.GetVariable).Push("frDeleting").Op(Avm1.GetVariable).Op(Avm1.Add2).Op(Avm1.Not);
+        var notDeleted = step.If();
+        step.Push(1).Push("frSel").Op(Avm1.GetVariable).Push(2, "characterData").Op(Avm1.GetVariable).Push("splice").Op(Avm1.CallMethod).Op(Avm1.Pop);
+        step.Push("characterData").Op(Avm1.GetVariable).Push(1, "characterList").Op(Avm1.GetVariable).Push("__set__dataProvider").Op(Avm1.CallMethod).Op(Avm1.Pop);
+        step.Push("frCount", "frCount").Op(Avm1.GetVariable).Op(Avm1.Decrement).Op(Avm1.SetVariable);
+        step.Push("frCount").Op(Avm1.GetVariable).Push(1).Op(Avm1.Less2).Op(Avm1.Not);
+        var notEmpty = step.If();
+        step.Push("frCount", 1).Op(Avm1.SetVariable);
+        step.Land(notEmpty);
+        step.Push("frSel").Op(Avm1.GetVariable).Push("frCount").Op(Avm1.GetVariable).Op(Avm1.Less2);
+        var inRange = step.If();
+        step.Push("frSel", 0).Op(Avm1.SetVariable);
+        step.Land(inRange);
+        step.Push("frAsking", 0).Op(Avm1.SetVariable);
+        step.Push("frDeleting", 0).Op(Avm1.SetVariable);
+        step.Push("frShown", "frSel").Op(Avm1.GetVariable).Op(Avm1.SetVariable);
+        step.Push("frSel").Op(Avm1.GetVariable).Push(1, "frShow").Op(Avm1.CallFunction).Op(Avm1.Pop);
+        Say(step, text => text.Push(Hint));
+        step.Push(0).Op(Avm1.Return);
+        step.Land(notDeleted);
+
+        // Otherwise one step forward.
         step.Push("frSel", "frSel").Op(Avm1.GetVariable).Push(1).Op(Avm1.Add2).Push("frCount").Op(Avm1.GetVariable).Op(Avm1.Modulo).Op(Avm1.SetVariable);
         step.Push("frSel").Op(Avm1.GetVariable).Push(1, "frShow").Op(Avm1.CallFunction).Op(Avm1.Pop);
-        step.Land(hasText);
         main.DefineFunction("DisplayText", ["t"], step);
         main.DefineFunction("SetButtonVisibility", ["v"], new Avm1());
 

@@ -243,6 +243,8 @@ from the creator moves it again.
 
 **Version 4.2:** Triangle never reached the game's delete prompt (`fr_test_20261113_230411`: the panel asked, but no `character/delete` was sent, and X logged in). The pad counters are X, Circle, Square, Triangle (`+10488`, `+10492`, `+10496`, `+10500`; the last frame's values are 80 lower, as the creator's edge checks read them, e.g. `0x790550`/`0x79055c`): the select prompt's delete check at `0x791b88` read Square. It reads Triangle (`+10500`) now.
 
+**Version 4.3:** the delete worked, but the deleted name stayed in the panel: the panel dropped it on X, and key presses reach the movie only now and then. The delete reply now sends the panel a step signal (SIGNAL, as a turn does), and the panel takes a step while it is asking or deleting as the delete: it drops the line and selects the next one. A real text from the game (its own prompt, state 10, also after Circle) ends the asking. The reply no longer checks for an empty list (only saved characters are deleted), which made room for the call.
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
