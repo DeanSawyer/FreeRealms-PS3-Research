@@ -231,6 +231,8 @@ from the creator moves it again.
 
 **Version 3.6:** +0.25 turned him the wrong way: -0.25. The character is also 1.25 times bigger (the node's scale at node+436, set just before 0x836c94 builds the matrix).
 
+**Version 3.7:** scale 1.6 (1.25 was not big enough).
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
