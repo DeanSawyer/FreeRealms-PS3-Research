@@ -200,6 +200,12 @@ the camera's left by 0.38 of its horizontal distance to the target (left = -(dz,
 The points are changed in place, so coming back to select from the creator shifts them again. The left-turn code (no longer
 reached) is gone to make room.
 
+**Versions 2.4 and 2.5 (13 November):** the camera shift made no difference even at 0.6 of the distance (so the select view's
+camera is not the one state 9 moves, or state 9 is not reached), and is gone. 2.5 moves the character instead: state 5 places the
+preview with `0x836f48(node, position)` (`0x78eb38`; it compares the position with the node's at +144 and sets it), the position
+being the vector at `0x1080e70`+448, then passes the same vector to the actor. The call now adds 1.7 to its x first, to see which
+way x goes on the screen.
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
