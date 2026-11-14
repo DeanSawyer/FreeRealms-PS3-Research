@@ -156,8 +156,33 @@ public static class SelectPanelMovie
 
         // The key listener. The game's own select prompt reads the same presses: left and right turn its list, Triangle opens its
         // delete prompt (X deletes, Circle keeps) for a saved character, X plays. The panel follows them.
+        //
+        // frKey(): the key of the last key event. A short press reaches the movie as a key down and a key up in the same frame, and
+        // by the time the listeners run Key.getAscii() is the key up's (0): then Key.getCode() is used, and arrow codes count as the
+        // letters the game sends (37 L, 38 U, 39 R, 40 D). frAscii and frCode keep the raw values for the presses line.
+        var key = new Avm1();
+        key.Push("frAscii", 0, "Key").Op(Avm1.GetVariable).Push("getAscii").Op(Avm1.CallMethod).Op(Avm1.SetVariable);
+        key.Push("frCode", 0, "Key").Op(Avm1.GetVariable).Push("getCode").Op(Avm1.CallMethod).Op(Avm1.SetVariable);
+        key.Push("frA", "frAscii").Op(Avm1.GetVariable).Op(Avm1.SetVariable);
+        key.Push("frA").Op(Avm1.GetVariable).Push(0).Op(Avm1.Equals2).Op(Avm1.Not);
+        var hasAscii = key.If();
+        key.Push("frA", "frCode").Op(Avm1.GetVariable).Op(Avm1.SetVariable);
+        key.Land(hasAscii);
+
+        foreach (var (arrow, letter) in new[] { (37, 'L'), (38, 'U'), (39, 'R'), (40, 'D') })
+        {
+            key.Push("frA").Op(Avm1.GetVariable).Push(arrow).Op(Avm1.Equals2).Op(Avm1.Not);
+            var other = key.If();
+            key.Push("frA", (int)letter).Op(Avm1.SetVariable);
+            key.Land(other);
+        }
+
+        key.Push("frA").Op(Avm1.GetVariable).Op(Avm1.Return);
+        main.DefineFunction("frKey", [], key);
+
+        // frPress(k): one press.
         var keys = new Avm1();
-        keys.Push("frK", 0, "Key").Op(Avm1.GetVariable).Push("getAscii").Op(Avm1.CallMethod).Op(Avm1.SetVariable);
+        keys.Push("frK", "k").Op(Avm1.GetVariable).Op(Avm1.SetVariable);
         keys.Push("frPresses", "frPresses").Op(Avm1.GetVariable).Op(Avm1.Increment).Op(Avm1.SetVariable);
 
         // Deleting: nothing more until the game moves on.
@@ -181,7 +206,11 @@ public static class SelectPanelMovie
         keys.Land(notAsking);
 
         // Which presses arrive (for now, to see whether the panel misses any): "press 7: R".
-        Say(keys, text => text.Push("press ").Push("frPresses").Op(Avm1.GetVariable).Op(Avm1.Add2).Push(": ").Op(Avm1.Add2).Push("frK").Op(Avm1.GetVariable).Op(Avm1.Add2));
+        Say(keys, text =>
+        {
+            text.Push("press ").Push("frPresses").Op(Avm1.GetVariable).Op(Avm1.Add2).Push(": ").Op(Avm1.Add2).Push("frK").Op(Avm1.GetVariable).Op(Avm1.Add2);
+            text.Push(" (").Op(Avm1.Add2).Push("frAscii").Op(Avm1.GetVariable).Op(Avm1.Add2).Push("/").Op(Avm1.Add2).Push("frCode").Op(Avm1.GetVariable).Op(Avm1.Add2).Push(")").Op(Avm1.Add2);
+        });
 
         // R (D-pad right) selects the next line, L (left) the previous one, wrapping around as the game's list does.
         foreach (var (code, step) in new[] { ('R', 1), ('L', -1) })
@@ -205,9 +234,28 @@ public static class SelectPanelMovie
         keys.Land(notSaved);
         keys.Land(notTriangle);
 
+        main.DefineFunction("frPress", ["k"], keys);
+
+        // The listener: a key down is a press; a key up is one too when its key down did not come through as that key.
+        var down = new Avm1();
+        down.Push("frDown", 0, "frKey").Op(Avm1.CallFunction).Op(Avm1.SetVariable);
+        down.Push("frDown").Op(Avm1.GetVariable).Push(1, "frPress").Op(Avm1.CallFunction).Op(Avm1.Pop);
+
+        var up = new Avm1();
+        up.Push("frUp", 0, "frKey").Op(Avm1.CallFunction).Op(Avm1.SetVariable);
+        up.Push("frUp").Op(Avm1.GetVariable).Push("frDown").Op(Avm1.GetVariable).Op(Avm1.Equals2);
+        var seen = up.If();
+        up.Push("frUp").Op(Avm1.GetVariable).Push(1, "frPress").Op(Avm1.CallFunction).Op(Avm1.Pop);
+        up.Land(seen);
+        up.Push("frDown", 0).Op(Avm1.SetVariable);
+
+        main.Push("frDown", 0).Op(Avm1.SetVariable);
         main.Push("frKeys", 0, "Object").Op(Avm1.NewObject).Op(Avm1.SetVariable);
         main.Push("frKeys").Op(Avm1.GetVariable).Push("onKeyDown");
-        main.DefineFunction(string.Empty, [], keys);
+        main.DefineFunction(string.Empty, [], down);
+        main.Op(Avm1.SetMember);
+        main.Push("frKeys").Op(Avm1.GetVariable).Push("onKeyUp");
+        main.DefineFunction(string.Empty, [], up);
         main.Op(Avm1.SetMember);
         main.Push("frKeys").Op(Avm1.GetVariable).Push(1, "Key").Op(Avm1.GetVariable).Push("addListener").Op(Avm1.CallMethod).Op(Avm1.Pop);
 

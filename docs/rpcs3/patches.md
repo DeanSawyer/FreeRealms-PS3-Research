@@ -162,6 +162,11 @@ popup the game used to build for it is skipped; the select panel asks instead ("
 and a Triangle hint above Play and Delete. The panel also shows which presses reach it ("press 7: 82"), to see whether it misses
 any: the selection sometimes took more than one press to move.
 
+**Short presses (13 November):** the panel turned only on long presses. A short press reaches the movie as a key down and a
+key up in the same frame, so when the listener runs `Key.getAscii()` is already the key up's. The panel now takes `Key.getCode()`
+when the ASCII value is 0 (and counts arrow codes 37 to 40 as L, U, R, D), and also treats a key up as a press when its key down
+did not come through as that key. The presses line shows the key it used and the raw values ("press 7: 82 (0/82)").
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
