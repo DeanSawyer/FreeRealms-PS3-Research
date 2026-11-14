@@ -193,6 +193,13 @@ creator's popups use the same window, so they are on the right too.
 
 **Version 2.2:** the left side was meant: the panel's window now goes to x = 40.
 
+**Version 2.3 (13 November):** with the panel on the left, the character should stand right of centre, over the Welcome to
+Free Realms logo. State 9 moves the camera to the select view with `0x343914(camera, position, target, time)` (`0x78f6d0`,
+position and target at `0x1080e70`+352 and +336, filled at run time); the call now goes through a shift that moves both points to
+the camera's left by 0.38 of its horizontal distance to the target (left = -(dz, 0, -dx), assuming y up and left-handed axes).
+The points are changed in place, so coming back to select from the creator shifts them again. The left-turn code (no longer
+reached) is gone to make room.
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
