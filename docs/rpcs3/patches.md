@@ -229,6 +229,8 @@ from the creator moves it again.
 
 **Version 3.5:** versions 2.9 to 3.4 changed lane 1 of the rotation, which tilts the character and does not turn him (so -0.2 and -0.06 looked the same). The turn about the vertical axis is lane 0: the creator's spin (0x7902f0) builds its rotation as (angle, 0, 0, 1). 3.5 turns lane 0 by 0.25 radians, and makes both changes in a copy on the stack, so coming back from the creator does not add them twice.
 
+**Version 3.6:** +0.25 turned him the wrong way: -0.25. The character is also 1.25 times bigger (the node's scale at node+436, set just before 0x836c94 builds the matrix).
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
