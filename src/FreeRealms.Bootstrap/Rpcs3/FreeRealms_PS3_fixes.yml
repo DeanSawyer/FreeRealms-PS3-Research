@@ -161,10 +161,20 @@ PPU-5425f6d47ba410afbcbc7ce77f87f2ffcde68798:
       All:
         All: [ All ]
     Author: "DeanSawyer"
-    Patch Version: 3.9
-    Notes: "Character select for several characters, with the select panel (the Server Manager's Characters page puts the PC client's panel in place of the select prompt and fills it with the characters). D-pad right turns the game's character list one step per press (the D-pad values are held states, so the last ones are kept in 4516/4520 as the creator does); left does nothing. Each turn sends \"CharacterCreatePopups:DisplayText\" with no text, which the panel takes as one step, so it follows the list. The 3D preview is not rebuilt (rebuilding it crashed). X plays the first character of the list, or opens the creator on the server's New character entry (guid 0x7FFF0000). Triangle opens the game's own delete prompt (state 12: X deletes the first character of the list, Circle goes back) for a saved character. The popups window (the panel) goes to the left of the screen: Window:SetPosition (0x21b8b8) puts a 550-wide window at y 75 at x = 40 instead of centred. The select preview stands 4.2 back along x (-x takes it right and away from the camera, to stand over the Welcome to Free Realms logo) (state 9, 0x78f6fc: 0x836f48 sets the position at 0x1080e70+384), then comes 0.13 of the way to the camera along the floor (x and z only; the camera's eye is 0x1080e70+352, which state 9 aims at +336 with 0x343914). It also turns by -0.25 radians about the vertical axis to face the camera (0x78f728: 0x836c94 sets the Euler angles at 0x1080e70+368; the turn is lane 0, where the creator's spin at 0x7902f0 puts its angle; lane 1 tilts). Its scale becomes 1.6 (node+436, which 0x837520 sets and 0x836c94 builds the matrix with). Position and turn are changed in a copy on the stack (r1-96), not in place, so placing the preview again does not add them twice. The code is in the select prompt's old delete path (0x791b94-0x791c10) and the zero padding at 0xe86f80-0xe87004 and 0xe87014-0xe87124."
+    Patch Version: 4.0
+    Notes: "Character select for several characters, with the select panel (the Server Manager's Characters page puts the PC client's panel in place of the select prompt and fills it with the characters). D-pad right turns the game's character list one step per press (the D-pad values are held states, so the last ones are kept in 4516/4520 as the creator does); left does nothing. Each turn sends \"CharacterCreatePopups:DisplayText\" with no text, which the panel takes as one step, so it follows the list. The 3D preview is not rebuilt (rebuilding it crashed). X plays the first character of the list, or opens the creator on the server's New character entry (guid 0x7FFF0000). Triangle opens the game's own delete prompt (state 12: X deletes the first character of the list, Circle goes back) for a saved character. A delete keeps the select screen: X no longer hides the popups and the logo (0x791fcc, 0x791fe8), and the delete reply (0x7889ec) takes the first character out of the game's list and goes back to the select prompt (state 11) instead of the creator (state 13); the panel drops the line itself. The popups window (the panel) goes to the left of the screen: Window:SetPosition (0x21b8b8) puts a 550-wide window at y 75 at x = 40 instead of centred. The select preview stands 4.2 back along x (-x takes it right and away from the camera, to stand over the Welcome to Free Realms logo) (state 9, 0x78f6fc: 0x836f48 sets the position at 0x1080e70+384), then comes 0.13 of the way to the camera along the floor (x and z only; the camera's eye is 0x1080e70+352, which state 9 aims at +336 with 0x343914). It also turns by -0.25 radians about the vertical axis to face the camera (0x78f728: 0x836c94 sets the Euler angles at 0x1080e70+368; the turn is lane 0, where the creator's spin at 0x7902f0 puts its angle; lane 1 tilts). Its scale becomes 1.6 (node+436, which 0x837520 sets and 0x836c94 builds the matrix with). Position and turn are changed in a copy on the stack (r1-96), not in place, so placing the preview again does not add them twice. The code is in the select prompt's old delete path (0x791b94-0x791c10) and the zero padding at 0xe86f80-0xe87004 and 0xe87014-0xe87124."
     Patch:
       - [ be32, 0x0021b8b8, 0x48576345 ]
+      - [ be32, 0x007889ec, 0x809c1060 ]
+      - [ be32, 0x007889f0, 0x2f840000 ]
+      - [ be32, 0x007889f4, 0x419e0020 ]
+      - [ be32, 0x007889f8, 0x81240198 ]
+      - [ be32, 0x007889fc, 0x913c1060 ]
+      - [ be32, 0x00788a00, 0x3800000b ]
+      - [ be32, 0x00788a04, 0x901c1048 ]
+      - [ be32, 0x00788a08, 0x4800000c ]
+      - [ be32, 0x00788a0c, 0x60000000 ]
+      - [ be32, 0x00788a10, 0x60000000 ]
       - [ be32, 0x0078f6fc, 0x486f7945 ]
       - [ be32, 0x0078f728, 0x486f7959 ]
       - [ be32, 0x00791b84, 0x409e0070 ]
@@ -201,6 +211,8 @@ PPU-5425f6d47ba410afbcbc7ce77f87f2ffcde68798:
       - [ be32, 0x00791c08, 0x409e0008 ]
       - [ be32, 0x00791c0c, 0x38800028 ]
       - [ be32, 0x00791c10, 0x4bc4b2fc ]
+      - [ be32, 0x00791fcc, 0x60000000 ]
+      - [ be32, 0x00791fe8, 0x60000000 ]
       - [ be32, 0x00e86f80, 0x38600001 ]
       - [ be32, 0x00e86f84, 0x4800000d ]
       - [ be32, 0x00e86f88, 0x815f1044 ]

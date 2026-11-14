@@ -237,6 +237,8 @@ from the creator moves it again.
 
 **Version 3.9:** 0.2 brought him a little too far forward: 0.13, just above the logo.
 
+**Version 4.0:** deleting a character keeps the select screen. The game's delete (state 12, X) hid the popups and the logo, and its reply (0x78898c, vtable+20 of the select's web service listener at 0xee1f10) went to the creator (state 13) with the creator's camera, as the one-character game did. The hides are nops now, and the reply unlinks the list's first character (the one deleted) and goes to state 11. The panel removes the line on X (`characterData.splice`, the list's dataProvider set again) and selects the next one, which is the game's new first character. The 3D preview still shows the character the screen opened with (it is not rebuilt).
+
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
