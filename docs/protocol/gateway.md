@@ -262,6 +262,17 @@ by `Scripts/Zone/FabledRealms.lua`; Sunstone Valley's two are left out). `FR_WAR
   (`0x1f282c`), so it is a "Handler:Event" name run with the handler table as self: the server sends `Atlas:Show`, which opens
   the atlas (Sanctuary's OpenAtlasInteraction sends `Atlas.Show` to the PC client).
 
+## The open world's NPCs (AddNpc 35/2, RemovePlayer 35/3)
+
+Sanctuary (OSFR) spawns 5,282 NPCs in `Scripts/Zone/FabledRealms.lua` from the definitions in `Resources/Npcs.json`;
+`Data/npcs.tsv.gz` has them joined (without the warpstones, which `Gateway/Warpstones.cs` places). The server sends only those
+whose model file is in the install's packs and whose terrain is too (`GatewayWorld.HasAsset`, `HasGround`), and of those only the
+ones near the character (`NpcRelevance`): within 160 units they are added (at most 150, the nearest first), beyond 200 removed
+with **PlayerUpdate (35) 3, RemovePlayer** (`u16` 0, `u64` guid; the PS3 reads the same, `0x111b38`). It looks again each time the
+character has moved 16 units (its position updates, opcode 125) and after a teleport. `FR_NPCS=0` turns them off. AddNpc carries
+the definition's name, model, scale (else Models.txt's), texture and tint aliases, tint, disposition (a hostile NPC shows its health
+bar), composite effect, animation, vertical offset, terrain object, sub text and the tilt of placed objects (heading, pitch, roll).
+
 ## Item classes and categories (ReferenceData, opcode 44)
 
 The client's handler for opcode 44 is `0xd4764` (vtable slot +340 of the object whose slot +320 handles PlayerUpdate). With

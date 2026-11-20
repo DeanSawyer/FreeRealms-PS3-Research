@@ -13,6 +13,8 @@ This project stands on other people's work. Thank you.
 * **Points of interest.** `src/ps3/Sanctuary.Ps3/Data/PointsOfInterest.txt` is Sanctuary's `Resources/PointOfInterests.json` (the
   entries with a name and a position) as tab-separated columns; teleporting to them follows its PacketZoneTeleportRequestHandler and
   Clover's landing on top of activity points.
+* **NPCs.** `src/ps3/Sanctuary.Ps3/Data/npcs.tsv.gz` is Sanctuary's (OSFR) `Resources/Npcs.json` definitions joined with the spawns of
+  its `Scripts/Zone/FabledRealms.lua`, and the model scales of its `Resources/Models.txt`.
 * **Warpstones.** The warpstones in `src/ps3/Sanctuary.Ps3/Gateway/Warpstones.cs` are Sanctuary's `Resources/Npcs.json` entries
   with `OpensAtlas`, at the places its `Scripts/Zone/FabledRealms.lua` spawns them; using one opens the atlas, as its
   OpenAtlasInteraction does.

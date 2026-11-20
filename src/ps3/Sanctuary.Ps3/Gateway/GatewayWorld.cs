@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 
@@ -27,18 +28,27 @@ public sealed class GatewayWorld
     private readonly (double X, double Z)? _installSpawn;
 
     private readonly Func<double, double, bool>? _ground;
+    private readonly IReadOnlySet<string>? _assets;
 
     public GatewayWorld(
         GatewayOptions? options = null,
         string? installZone = null,
         (double X, double Z)? installSpawn = null,
-        Func<double, double, bool>? ground = null)
+        Func<double, double, bool>? ground = null,
+        IReadOnlySet<string>? assets = null)
     {
         _options = options ?? new GatewayOptions();
         _installZone = installZone;
         _installSpawn = installSpawn;
         _ground = ground;
+        _assets = assets;
     }
+
+    /// <summary>
+    /// Whether the install's packs hold an asset (a model file, say); true when it cannot tell. The client asks the patch server for
+    /// a missing one, which has none, over and over.
+    /// </summary>
+    public bool HasAsset(string name) => _assets?.Contains(name) ?? true;
 
     /// <summary>
     /// Whether the install has the terrain around a position (<see cref="Terrain.Ground(string, string)"/>); true when it cannot tell.
@@ -126,10 +136,12 @@ public sealed class GatewayWorld
         }
 
         Func<double, double, bool>? ground = null;
+        HashSet<string>? assets = null;
 
         try
         {
             ground = Terrain.Ground(usrDir, zone);
+            assets = PackIndex.Load(usrDir).Entries.Select(entry => entry.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
@@ -139,6 +151,6 @@ public sealed class GatewayWorld
         if (!string.Equals(zone, DefaultZone, StringComparison.OrdinalIgnoreCase))
             logger?.LogWarning("zone: '{Default}' is not in the PS3 packs, using '{Zone}' instead (set FR_ZONE to choose another)", DefaultZone, zone);
 
-        return new GatewayWorld(options, zone, spawn, ground);
+        return new GatewayWorld(options, zone, spawn, ground, assets);
     }
 }

@@ -52,57 +52,14 @@ public static class Warpstones
         new(36308, 93509, "Blackspore Warpstone", -2128.67554f, -32.8866158f, 1044.89343f, -1.83259571f),
     ];
 
-    /// <summary>
-    /// PlayerUpdate (35) 2, AddNpc, as the PS3 client reads it (<c>0xb0c010</c>, from sub-opcode 2 of PlayerUpdate at <c>0x1115fc</c>).
-    /// It follows Sanctuary's PlayerUpdatePacketAddNpc with these differences: two <c>i32</c> before the chat bubble colours, two
-    /// strings after the attachments, no stand animation id, one byte fewer before the customization and one after it, and
-    /// nothing after the rider guid but a <c>u8</c>, two <c>u64</c> and an <c>i32</c>. The model id and scale are what the client
-    /// uses to build it (<c>0x11b63c</c>, <c>0x11b798</c>); only the warpstone's fields are set, the rest are zero.
-    /// </summary>
-    public static byte[] AddNpc(Warpstone stone)
-    {
-        var writer = new PacketWriter()
-            .U16(35).U16(2)
-            .U64(stone.Guid)
-            .I32(stone.NameId)
-            .I32(ModelId)
-            .I32(0).I32(0)
-            .I32(0x063C67).I32(0xD4E2F0).I32(1)            // chat bubble colours and size
-            .F32(1)                                        // scale
-            .F32(stone.X).F32(stone.Y).F32(stone.Z).F32(1)
-            .F32(MathF.Sin(stone.Heading)).F32(0).F32(MathF.Cos(stone.Heading)).F32(0)
-            .I32(0)                                        // animation
-            .U32(0)                                        // attachments
-            .Str(string.Empty).Str(string.Empty)
-            .I32(0)                                        // disposition
-            .Str(string.Empty).Str(string.Empty)           // texture alias, tint alias
-            .I32(0)                                        // tint id
-            .U8(1)                                         // hide the health bar
-            .F32(0)                                        // vertical offset
-            .I32(0).I32(0)                                 // composite effect, wield type
-            .Str(stone.Name)
-            .U8(0)                                         // hide the name plate
-            .F32(0).F32(0).F32(0)
-            .I32(0)                                        // terrain object
-            .U8(0)                                         // has attachments
-            .F32(0)                                        // speed
-            .U8(0)
-            .I32(100)                                      // interact range (Sanctuary's default)
-            .I32(0).I32(0)
-            .U8(0).U8(0)
-            .I32(0).I32(0).I32(0)                          // sub text name id, animation event, temporary appearance
-            .U32(0)                                        // effect tags
-            .U8(0).I32(0).U8(0).U8(0)
-            .I32(0).Str(string.Empty).Str(string.Empty).I32(0).Str(string.Empty) // customization
-            .U8(0)                                         // tilt
-            .F32(0).F32(0).F32(0).F32(0)
-            .I32(0).I32(0).I32(0)                          // name colour, area definition, image set
-            .U8(1)                                         // interactable
-            .U64(0)                                        // rider
-            .U8(0).U64(0).U64(0).I32(0);
+    /// <summary>The warpstone as an NPC: the warpstone model, named, interactable (<see cref="Npcs.AddNpc"/>).</summary>
+    public static NpcSpawn AsNpc(Warpstone stone) => new(
+        stone.Guid, stone.NpcId, ModelId, "sg_warpstone_01.adr", stone.NameId, stone.Name, 1, string.Empty, string.Empty, 0,
+        HideNamePlate: false, SubTextNameId: 0, Disposition: 1, CompositeEffectId: 0, Animation: 1, VerticalOffset: 0, TerrainObjectId: 0,
+        Tilted: false, Interactable: true, stone.X, stone.Y, stone.Z, stone.Heading, Pitch: 0, Roll: 0);
 
-        return writer.ToArray();
-    }
+    /// <summary>PlayerUpdate (35) 2, AddNpc for the warpstone (<see cref="Npcs.AddNpc"/>).</summary>
+    public static byte[] AddNpc(Warpstone stone) => Npcs.AddNpc(AsNpc(stone));
 
     /// <summary>The warpstone an InteractRequest (Command 26, sub 8, <c>u64</c> guid) is for, or null.</summary>
     public static Warpstone? FromInteract(ReadOnlySpan<byte> inner)

@@ -104,6 +104,12 @@ public sealed class Ps3Gateway
 
     /// <summary>Peers whose warpstones are in the world (the client may say it finished loading more than once).</summary>
     private readonly HashSet<IPEndPoint> _warpstonesPlaced = [];
+
+    /// <summary>The NPCs each peer has in its world (FR_NPCS), from its first ClientFinishedLoading on.</summary>
+    private readonly Dictionary<IPEndPoint, NpcRelevance> _npcsShown = [];
+
+    /// <summary>The open world's NPCs this install can show: their model is in the packs and their terrain too.</summary>
+    private IReadOnlyList<NpcSpawn>? _placeableNpcs;
     private readonly Dictionary<IPEndPoint, Inventory> _inventories = [];
 
     /// <summary>The saved character each peer plays, and whether it came back with saved progress (so it is dressed from it).</summary>
@@ -544,6 +550,7 @@ public sealed class Ps3Gateway
 
             _clientReady.Remove(peer);
             _warpstonesPlaced.Remove(peer);
+            _npcsShown.Remove(peer);
             Schedule(ReadyFallback, () => SendReadyFallback(peer, channel));
         }
         else if ((opcode is 5 or 6) && payload.Length >= 7)
@@ -684,6 +691,7 @@ public sealed class Ps3Gateway
 
             _positions[peer] = landing;
             SendNamed(peer, channel, $"teleport {point.Id}", [new NamedPacket("UpdateLocation", PointsOfInterest.UpdateLocation(landing))]);
+            UpdateNpcs(peer, channel, landing.X, landing.Z, force: true);
 
             if (_inventories.TryGetValue(peer, out var traveller))
             {
@@ -698,6 +706,8 @@ public sealed class Ps3Gateway
         {
             // The position update: remember where the character stands and save it now and then.
             _positions[peer] = moved;
+
+            UpdateNpcs(peer, channel, moved.X, moved.Z);
 
             if (_now - _positionSavedAt.GetValueOrDefault(peer) >= PositionSaveInterval && _inventories.TryGetValue(peer, out var walking))
             {
@@ -797,6 +807,13 @@ public sealed class Ps3Gateway
             // FR_WARPSTONES: the towns' warpstones, which the PS3 terrain does not have.
             if (_world.Options.Warpstones)
                 Schedule(SpawnDelay, () => SendWarpstones(peer, channel));
+
+            // FR_NPCS: the open world's NPCs around the character.
+            if (_world.Options.Npcs && !_npcsShown.ContainsKey(peer))
+            {
+                _npcsShown[peer] = new NpcRelevance(PlaceableNpcs());
+                Schedule(SpawnDelay, () => UpdateNpcs(peer, channel, x, z, force: true));
+            }
         }
     }
 
@@ -838,6 +855,38 @@ public sealed class Ps3Gateway
 
             SendReliable(peer, Ps3Packets.Tunneled(inner), channel);
         }
+    }
+
+    /// <summary>The open world's NPCs whose model and terrain this install has (worked out once).</summary>
+    private IReadOnlyList<NpcSpawn> PlaceableNpcs()
+    {
+        if (_placeableNpcs is null)
+        {
+            _placeableNpcs = Npcs.All.Where(npc => _world.HasAsset(npc.ModelFile) && _world.HasGround(npc.X, npc.Z)).ToList();
+            _logger?.LogInformation("gateway: npcs: {Placeable} of {All} have their model and terrain in the install", _placeableNpcs.Count, Npcs.All.Count);
+        }
+
+        return _placeableNpcs;
+    }
+
+    /// <summary>Adds the NPCs that came near the character at (x, z) and removes those it left behind (<see cref="NpcRelevance"/>).</summary>
+    private void UpdateNpcs(IPEndPoint peer, int channel, double x, double z, bool force = false)
+    {
+        if (!_sessions.ContainsKey(peer) || !_npcsShown.TryGetValue(peer, out var shown))
+            return;
+
+        var (add, remove) = shown.Update(x, z, force);
+
+        if (add.Count == 0 && remove.Count == 0)
+            return;
+
+        var packets = remove.Select(npc => new NamedPacket($"RemovePlayer {npc.Name}", Npcs.RemoveNpc(npc.Guid)))
+            .Concat(add.Select(npc => new NamedPacket($"AddNpc {npc.NpcId} {npc.Name}", Npcs.AddNpc(npc))));
+
+        _logger?.LogInformation("gateway: npcs: {Added} added, {Removed} removed, {Shown} near the character", add.Count, remove.Count, shown.Shown);
+
+        foreach (var (_, inner) in SanctuaryFlow.Select(packets, _world.Options.Skip))
+            SendReliable(peer, Ps3Packets.Tunneled(inner), channel);
     }
 
     /// <summary>Puts the towns' warpstones into the world (<see cref="Warpstones"/>).</summary>

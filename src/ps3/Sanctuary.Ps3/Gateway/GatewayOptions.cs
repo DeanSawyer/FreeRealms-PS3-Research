@@ -82,6 +82,12 @@ public sealed record GatewayOptions
     /// </summary>
     public bool Warpstones { get; init; }
 
+    /// <summary>
+    /// <c>FR_NPCS</c> (not 0, on unless set to 0): put the open world's NPCs (Sanctuary's) around the character, adding and removing
+    /// them as it moves (<see cref="Gateway.Npcs"/>).
+    /// </summary>
+    public bool Npcs { get; init; }
+
     /// <summary><c>FR_COINSTORE_ITEMS</c>: list only the first this many store items (Sanctuary's order); 0, the default, lists all of them.</summary>
     public int CoinStoreItems { get; init; }
 
@@ -150,6 +156,7 @@ public sealed record GatewayOptions
             Marketplace = Env(get, "FR_MARKETPLACE", "1") != "0",
             Points = Env(get, "FR_POINTS", "1") != "0",
             Warpstones = Env(get, "FR_WARPSTONES", "1") != "0",
+            Npcs = Env(get, "FR_NPCS", "1") != "0",
             CoinStoreItems = int.TryParse(Value("FR_COINSTORE_ITEMS"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var listed) && listed > 0 ? listed : 0,
             CoinStoreDefinitions = Value("FR_COINSTORE_DEFINITIONS") == "1",
             StartingCoins = int.TryParse(Env(get, "FR_STARTING_COINS", "999999999"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var coins) && coins >= 0
