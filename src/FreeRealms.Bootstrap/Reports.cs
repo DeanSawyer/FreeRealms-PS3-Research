@@ -100,7 +100,9 @@ public static partial class Reports
         var rpcs3Folder = Path.GetDirectoryName(settings.Rpcs3Executable)!;
 
         File.WriteAllText(Path.Combine(folder, "steps.txt"), steps.ToString());
-        WriteServerLog(folder, log().Where(entry => entry.Time >= started));
+        // From the server's start when it was already running, so its start-up lines (ports, the DNS check) are in the report too.
+        var from = server.StartedAt is { } serverStarted && serverStarted < started ? serverStarted : started;
+        WriteServerLog(folder, log().Where(entry => entry.Time >= from));
         WriteRpcs3(folder, rpcs3Folder);
         WriteTraces(folder);
         WriteClientData(folder, settings.ClientFolder);
