@@ -222,7 +222,8 @@ database (the state lasts for the session).
   A point is twelve 4-byte fields: `i32` id, name id, location id, `f32` x, y, z, heading, `i32` icon id, notification type, sub
   name id, breadcrumb quest id, teleport location id. Sanctuary's PC point also has an unknown `i32` after the sub name, the atlas
   name (a string) and a second unknown; this build reads none of them. The server sends all 136 of Sanctuary's points with a name
-  and a position (`Data/PointsOfInterest.txt`); it used to send an empty list, so the atlas showed none.
+  and a position (`Data/PointsOfInterest.txt`; `FR_POINTS=0` turns this and the teleport off); it used to send an empty list, so
+  the atlas showed none.
 * **Teleporting.** The atlas movie's `teleportPlayerToPointOfInterest` event (`Main_wndAtlas_swfAtlas_OnUserEvent` in
   `atlas.lua`) calls `Ui.TeleportToPointOfInterest(id)` (`0x2098a4`), which sends **ZoneTeleportRequest (90)**, `i32` point id,
   for a point the client has (`0x15a9ec`). The server answers with **ClientUpdate (38) 12, UpdateLocation** (`0xf9d68`): position

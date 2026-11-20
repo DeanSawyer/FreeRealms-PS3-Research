@@ -638,7 +638,7 @@ public sealed class Ps3Gateway
         }
 
         // The atlas's teleport (ZoneTeleportRequest): the character is put down at the point, as Sanctuary does.
-        if (innerOpcode == PointsOfInterest.TeleportOpcode)
+        if (_world.Options.Points && innerOpcode == PointsOfInterest.TeleportOpcode)
         {
             if (PointsOfInterest.FromRequest(inner) is not { } point)
             {
@@ -720,6 +720,10 @@ public sealed class Ps3Gateway
                 ready.AddRange(Shop.Packets());
                 _logger?.LogInformation("gateway: marketplace: {Bundles} store item(s) listed", Shop.BundleCount);
             }
+
+            // FR_POINTS: every point of interest for the atlas instead of the empty list.
+            if (_world.Options.Points)
+                ready = ready.Select(packet => packet.Name == "PointOfInterestDefinitionReply" ? packet with { Inner = PointsOfInterest.DefinitionReply() } : packet).ToList();
 
             // FR_COINSTORE: the coin store's items instead of the empty list, and the coins the character has.
             if (_world.Options.CoinStore)
