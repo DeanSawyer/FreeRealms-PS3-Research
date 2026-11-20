@@ -593,6 +593,15 @@ public sealed class Ps3Gateway
     /// </summary>
     private void OnSanctuaryPacket(IPEndPoint peer, int channel, int opcode, int innerOpcode, byte[] inner)
     {
+        // X at a warpstone (InteractRequest): open the atlas, as using a warpstone does.
+        if (_world.Options.Warpstones && innerOpcode == Warpstones.CommandOpcode && Warpstones.FromInteract(inner) is { } stone)
+        {
+            _logger?.LogInformation("sanctuary: {Name} used: opening the atlas", stone.Name);
+            SendNamed(peer, channel, $"warpstone {stone.NpcId}", [new NamedPacket("ExecuteScript Atlas:Show", Warpstones.OpenAtlas())]);
+
+            return;
+        }
+
         if (innerOpcode is 42 or 26 && _inventories.TryGetValue(peer, out var inventory) && inventory.Handle(inner) is { } replies)
         {
             var sub = inner.Length >= 4 ? BinaryPrimitives.ReadUInt16LittleEndian(inner.AsSpan(2)) : -1;
@@ -758,6 +767,10 @@ public sealed class Ps3Gateway
 
             // The clothes are not Sanctuary's: its PC client reads them from the items in the player data.
             Schedule(SpawnDelay, () => SendEquipment(peer, channel));
+
+            // FR_WARPSTONES: the towns' warpstones, which the PS3 terrain does not have.
+            if (_world.Options.Warpstones)
+                Schedule(SpawnDelay, () => SendWarpstones(peer, channel));
         }
     }
 
@@ -799,6 +812,15 @@ public sealed class Ps3Gateway
 
             SendReliable(peer, Ps3Packets.Tunneled(inner), channel);
         }
+    }
+
+    /// <summary>Puts the towns' warpstones into the world (<see cref="Warpstones"/>).</summary>
+    private void SendWarpstones(IPEndPoint peer, int channel)
+    {
+        if (!_sessions.ContainsKey(peer))
+            return;
+
+        SendNamed(peer, channel, "warpstones", Warpstones.All.Select(stone => new NamedPacket($"AddNpc {stone.Name}", Warpstones.AddNpc(stone))));
     }
 
     /// <summary>Sends your character's AddPc after the client finished loading (the server marks the player visible then), then the creator's clothes.</summary>

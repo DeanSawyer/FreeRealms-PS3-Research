@@ -221,8 +221,8 @@ database (the state lasts for the session).
   point of interest, and a closing `u8` 0 (handler `0x15aa8c`, which empties the client's table first; points read by `0xb45da4`).
   A point is twelve 4-byte fields: `i32` id, name id, location id, `f32` x, y, z, heading, `i32` icon id, notification type, sub
   name id, breadcrumb quest id, teleport location id. Sanctuary's PC point also has an unknown `i32` after the sub name, the atlas
-  name (a string) and a second unknown; this build reads none of them. The server sends all 136 of Sanctuary's points with a name
-  and a position (`Data/PointsOfInterest.txt`; `FR_POINTS=0` turns this and the teleport off); it used to send an empty list, so
+  name (a string) and a second unknown; this build reads none of them. The server sends Sanctuary's points with a name and a position,
+  except Sunstone Valley's (atlas `sunstone`) (`Data/PointsOfInterest.txt`; `FR_POINTS=0` turns this and the teleport off); it used to send an empty list, so
   the atlas showed none.
 * **Teleporting.** The atlas movie's `teleportPlayerToPointOfInterest` event (`Main_wndAtlas_swfAtlas_OnUserEvent` in
   `atlas.lua`) calls `Ui.TeleportToPointOfInterest(id)` (`0x2098a4`), which sends **ZoneTeleportRequest (90)**, `i32` point id,
@@ -230,6 +230,27 @@ database (the state lasts for the session).
   x, y, z, w, rotation x, y, z, w (`f32`), `u8` teleport (1) and an unknown `u8`. It lands at the point's spawn position facing
   its heading (rotation `(sin, 0, cos, 0)`), or, for an activity point (notification type 6, not a launch pad) whose spawn
   position is the point itself, 3 above the point, as Clover does. The landing is saved as the character's position.
+
+## Warpstones (AddNpc 35/2, InteractRequest 26/8, ExecuteScript 47/7)
+
+The PS3 terrain has no warpstones: the server places them, as Sanctuary does (its `Npcs.json` entries with `OpensAtlas`, placed
+by `Scripts/Zone/FabledRealms.lua`; Sunstone Valley's two are left out). `FR_WARPSTONES=0` turns them off.
+
+* **PlayerUpdate (35) 2, AddNpc**, one per warpstone a second after ClientFinishedLoading. Read by `0xb0c010` (PlayerUpdate's
+  sub-opcode 2, `0x1115fc`; found with `tools/ppc_trace.py`, 264 bytes with every string empty): `u64` guid, `i32` name id,
+  `i32` model id, two `i32`, chat bubble foreground, background and size (`i32`), `f32` scale, position (4 x `f32`), rotation
+  (4 x `f32`), `i32` animation, attachment list, two strings, `i32` disposition, texture alias and tint alias (strings), `i32` tint
+  id, `u8` hide health bar, `f32` vertical offset, `i32` composite effect, `i32` wield type, name (string), `u8` hide name plate,
+  three `f32`, `i32` terrain object, `u8` has attachments, `f32` speed, `u8`, three `i32` (the first is taken as Sanctuary's
+  interact range), two `u8`, three `i32` (sub text name id, animation event, temporary appearance), effect tag list, `u8`,
+  `i32`, two `u8`, the customization (`i32`, two strings, `i32`, string), `u8`, tilt (4 x `f32`), three `i32` (name colour, area
+  definition, image set), `u8` interactable, `u64` rider guid, `u8`, two `u64`, `i32`. The client builds the actor from the
+  model id (`0x11b63c`) and the scale (`0x11b798`); the chat bubble values go to the actor at `+1212`.
+* **Command (26) 8, InteractRequest**: X at an interactable NPC sends `u64` guid and a flag (`0xceab4`; the guid is the actor's id,
+  `actor+112`).
+* **Ui (47) 7, ExecuteScript**: script name (string) and an `i32` list. The client hands the name to the UI event dispatcher
+  (`0x1f282c`), so it is a "Handler:Event" name run with the handler table as self: the server sends `Atlas:Show`, which opens
+  the atlas (Sanctuary's OpenAtlasInteraction sends `Atlas.Show` to the PC client).
 
 ## Item classes and categories (ReferenceData, opcode 44)
 
