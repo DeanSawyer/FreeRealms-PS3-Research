@@ -10,6 +10,9 @@ This project stands on other people's work. Thank you.
   `Resources/ClientItemDefinitions.json` (every class 1 clothing item and every job's default items); the jobs and their default
   items in `Gateway/Jobs.cs` come from its `Resources/Profiles.json`. The Sanctuary flow, the inventory handlers and the reference
   data follow Sanctuary.Gateway's handlers one for one.
+* **Points of interest.** `src/ps3/Sanctuary.Ps3/Data/PointsOfInterest.txt` is Sanctuary's `Resources/PointOfInterests.json` (the
+  entries with a name and a position) as tab-separated columns; teleporting to them follows its PacketZoneTeleportRequestHandler and
+  Clover's landing on top of activity points.
 * **OSFR and the Sanctuary / Clover server.** The C# *Free Realms* server emulator (Sanctuary, the solution behind Clover) is where the
   packet layouts come from: the gateway login packet, `AddPc`, the lobby and queue replies and many opcode numbers in
   [`docs/protocol/gateway.md`](docs/protocol/gateway.md) are named after and compared with it, and the C# port in

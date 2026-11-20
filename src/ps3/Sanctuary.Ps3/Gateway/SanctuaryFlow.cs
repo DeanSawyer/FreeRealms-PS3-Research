@@ -291,7 +291,7 @@ public static class SanctuaryFlow
             new NamedPacket("IgnoreList", new PacketWriter().U16(112).U8(1).I32(0).ToArray()),
 
             // WorldZone
-            new NamedPacket("PointOfInterestDefinitionReply", new PacketWriter().U16(57).I32(1).U8(0).ToArray()),
+            new NamedPacket("PointOfInterestDefinitionReply", PointsOfInterest.DefinitionReply()),
             new NamedPacket("AdventurersJournalInfo", AdventurersJournal()),
             new NamedPacket("CoinStoreItemList", new PacketWriter().U16(165).U16(1).I32(0).I32(0).ToArray()),
             new NamedPacket("InGamePurchaseEnableMarketplace", new PacketWriter().U16(66).U16(24).U8(1).ToArray()),

@@ -637,6 +637,34 @@ public sealed class Ps3Gateway
             return;
         }
 
+        // The atlas's teleport (ZoneTeleportRequest): the character is put down at the point, as Sanctuary does.
+        if (innerOpcode == PointsOfInterest.TeleportOpcode)
+        {
+            if (PointsOfInterest.FromRequest(inner) is not { } point)
+            {
+                _logger?.LogInformation("sanctuary: teleport to an unknown point of interest {Hex}", Convert.ToHexString(inner).ToLowerInvariant());
+                return;
+            }
+
+            var landing = PointsOfInterest.Landing(point);
+
+            _logger?.LogInformation(
+                "sanctuary: teleport to point of interest {Id} ({Name}) at {X:0.##}, {Y:0.##}, {Z:0.##}",
+                point.Id, point.Comment, landing.X, landing.Y, landing.Z);
+            _trace.Write("teleport", ("peer", peer.Address.ToString()), ("point", point.Id), ("x", landing.X), ("y", landing.Y), ("z", landing.Z));
+
+            _positions[peer] = landing;
+            SendNamed(peer, channel, $"teleport {point.Id}", [new NamedPacket("UpdateLocation", PointsOfInterest.UpdateLocation(landing))]);
+
+            if (_inventories.TryGetValue(peer, out var traveller))
+            {
+                _positionSavedAt[peer] = _now;
+                SaveProgress(peer, traveller);
+            }
+
+            return;
+        }
+
         if (innerOpcode == Placement.Opcode && Placement.FromUpdate(inner) is { } moved)
         {
             // The position update: remember where the character stands and save it now and then.

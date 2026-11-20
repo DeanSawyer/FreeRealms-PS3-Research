@@ -215,6 +215,21 @@ real request shows the layout. Reply layouts read from the client:
 Not done yet: 42/6 ItemActionBarAssign, the style cards (42/10 to 12), the combat jobs' toolbar abilities, and saving to a
 database (the state lasts for the session).
 
+## Points of interest and the atlas's teleport (opcodes 57 and 90)
+
+* **PointOfInterestDefinitionReply (57)**, sent with the zone's initial data: `u32` payload length, then `u8` 1 and a point for each
+  point of interest, and a closing `u8` 0 (handler `0x15aa8c`, which empties the client's table first; points read by `0xb45da4`).
+  A point is twelve 4-byte fields: `i32` id, name id, location id, `f32` x, y, z, heading, `i32` icon id, notification type, sub
+  name id, breadcrumb quest id, teleport location id. Sanctuary's PC point also has an unknown `i32` after the sub name, the atlas
+  name (a string) and a second unknown; this build reads none of them. The server sends all 136 of Sanctuary's points with a name
+  and a position (`Data/PointsOfInterest.txt`); it used to send an empty list, so the atlas showed none.
+* **Teleporting.** The atlas movie's `teleportPlayerToPointOfInterest` event (`Main_wndAtlas_swfAtlas_OnUserEvent` in
+  `atlas.lua`) calls `Ui.TeleportToPointOfInterest(id)` (`0x2098a4`), which sends **ZoneTeleportRequest (90)**, `i32` point id,
+  for a point the client has (`0x15a9ec`). The server answers with **ClientUpdate (38) 12, UpdateLocation** (`0xf9d68`): position
+  x, y, z, w, rotation x, y, z, w (`f32`), `u8` teleport (1) and an unknown `u8`. It lands at the point's spawn position facing
+  its heading (rotation `(sin, 0, cos, 0)`), or, for an activity point (notification type 6, not a launch pad) whose spawn
+  position is the point itself, 3 above the point, as Clover does. The landing is saved as the character's position.
+
 ## Item classes and categories (ReferenceData, opcode 44)
 
 The client's handler for opcode 44 is `0xd4764` (vtable slot +340 of the object whose slot +320 handles PlayerUpdate). With
