@@ -233,9 +233,13 @@ database (the state lasts for the session).
 
 * **Only where the install has the ground.** A typical install has about 200 of the zone's 320 terrain tiles. Standing where a tile
   within 96 units is missing (and inside the terrain box), the client asks the patch server for it, gets 404 and retries for ever:
-  WaitForWorldReady never ends (`fr_test_20261120_075517`: the character was saved at Rumble Ridge after a teleport there). So the
-  atlas gets only the points whose landing has its terrain (`Terrain.Ground`, `GatewayWorld.HasGround`), a teleport elsewhere is
-  refused, the warpstones are placed only there, and a saved position without its terrain is dropped for the spawn.
+  WaitForWorldReady never ends (`fr_test_20261120_075517`: the character was saved at Rumble Ridge after a teleport there). So a
+  teleport to a point without its terrain is refused (`Terrain.Ground`, `GatewayWorld.HasGround`), the warpstones are placed only
+  where it is, and a saved position without its terrain is dropped for the spawn. The atlas still shows every point. Crossroads
+  (the PS3's name for the town at Sanctuary's Cobblestone Village, `Crossroads_*` areas around -1840, 440) has no terrain in a
+  typical install (no `FabledRealms_-32_4.gcnk` or `_-28_4`).
+* **Highroad Junction** is marked at the PS3 town's centre, its `Highroad_Junction` area in `FabledRealmsAreas.xml` (-480, 195),
+  rather than Sanctuary's point (-444, 186).
 
 ## Warpstones (AddNpc 35/2, InteractRequest 26/8, ExecuteScript 47/7)
 

@@ -101,6 +101,9 @@ public sealed class Ps3Gateway
     private readonly Dictionary<IPEndPoint, int> _sessions = [];
     private readonly Dictionary<IPEndPoint, int> _maxRaw = [];
     private readonly HashSet<IPEndPoint> _clientReady = [];
+
+    /// <summary>Peers whose warpstones are in the world (the client may say it finished loading more than once).</summary>
+    private readonly HashSet<IPEndPoint> _warpstonesPlaced = [];
     private readonly Dictionary<IPEndPoint, Inventory> _inventories = [];
 
     /// <summary>The saved character each peer plays, and whether it came back with saved progress (so it is dressed from it).</summary>
@@ -540,6 +543,7 @@ public sealed class Ps3Gateway
             }
 
             _clientReady.Remove(peer);
+            _warpstonesPlaced.Remove(peer);
             Schedule(ReadyFallback, () => SendReadyFallback(peer, channel));
         }
         else if ((opcode is 5 or 6) && payload.Length >= 7)
@@ -749,14 +753,11 @@ public sealed class Ps3Gateway
             // FR_POINTS: every point of interest for the atlas instead of the empty list.
             if (_world.Options.Points)
             {
-                // Only the points whose terrain is in the install: teleporting anywhere else leaves the client on the loading screen.
-                var reachable = PointsOfInterest.All.Values
-                    .Where(point => PointsOfInterest.Landing(point) is var landing && _world.HasGround(landing.X, landing.Z))
-                    .OrderBy(point => point.Id)
-                    .ToList();
+                // Every point is on the atlas; a teleport is refused where the install has no terrain (see the teleport request).
+                var reachable = PointsOfInterest.All.Values.Count(point => PointsOfInterest.Landing(point) is var landing && _world.HasGround(landing.X, landing.Z));
 
-                _logger?.LogInformation("gateway: atlas: {Points} of {All} points of interest have their terrain in the install", reachable.Count, PointsOfInterest.All.Count);
-                ready = ready.Select(packet => packet.Name == "PointOfInterestDefinitionReply" ? packet with { Inner = PointsOfInterest.DefinitionReply(reachable) } : packet).ToList();
+                _logger?.LogInformation("gateway: atlas: {All} points of interest, {Reachable} with their terrain in the install", PointsOfInterest.All.Count, reachable);
+                ready = ready.Select(packet => packet.Name == "PointOfInterestDefinitionReply" ? packet with { Inner = PointsOfInterest.DefinitionReply() } : packet).ToList();
             }
 
             // FR_COINSTORE: the coin store's items instead of the empty list, and the coins the character has.
@@ -842,7 +843,7 @@ public sealed class Ps3Gateway
     /// <summary>Puts the towns' warpstones into the world (<see cref="Warpstones"/>).</summary>
     private void SendWarpstones(IPEndPoint peer, int channel)
     {
-        if (!_sessions.ContainsKey(peer))
+        if (!_sessions.ContainsKey(peer) || !_warpstonesPlaced.Add(peer))
             return;
 
         // Only where the install has the terrain: the others could not be reached anyway.

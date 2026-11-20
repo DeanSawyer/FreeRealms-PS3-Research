@@ -1,6 +1,8 @@
 # Sanctuary Resources/PointOfInterests.json (Clover), the entries with a name and a position, without Sunstone Valley's (atlas
 # "sunstone"). Columns: id, name id, location id, position x y z, spawn position x y z, heading, icon id, notification type,
 # sub name id, breadcrumb quest id, teleport location id, comment.
+# Highroad Junction's marker (id 17) is at the PS3 town's centre, its Highroad_Junction area in FabledRealmsAreas.xml (-480, -5, 195);
+# its spawn position is Sanctuary's.
 3	3961	281	51.391	30.987	363.156	51.391	30.987	363.156	1.487	1345	7	382845	0	210020	Snowhill
 4	18140	282	-808.386	-21.029	1631.789	-808.386	-21.029	1631.789	0.14	1345	7	382845	0	210021	Briarwood
 5	3499	283	-1414.636	-27.631	351.567	-1414.636	-27.631	351.567	2.247	1345	7	382845	0	210022	Sanctuary
@@ -15,7 +17,7 @@
 14	4428	11298	-1179.131	-34.879	-434.421	-1179.131	-34.879	-434.421	1.538	1345	7	382845	0	210029	Merry Vale
 15	41393	11299	-2124.768	-23.903	-292.377	-2124.768	-23.903	-292.377	1.694	1345	7	382845	0	210030	Lavender Coast Pass
 16	3500	17569	-2140.764	-32.948	1041.53	-2140.764	-32.948	1041.53	0.712	1345	7	382845	0	210031	Blackspore
-17	103715	200709	-444.471	-3.885	186.237	-444.471	-3.885	186.237	-1.218	1345	7	382845	0	200709	Highroad Junction
+17	103715	200709	-480	-5	195	-444.471	-3.885	186.237	-1.218	1345	7	382845	0	200709	Highroad Junction
 18	103701	200710	-1264.574	-49.042	784.906	-1264.574	-49.042	784.906	-0.304	1345	7	382845	0	210033	Stillwater Crossing
 20	22776	623	-71.964	11.04	226.4	-71.964	11.04	226.4	1.561	7555	6	382862	1808	210034	Perry's Pasture
 21	382811	624	58.901	29.872	-345.668	58.901	29.872	-345.668	0.42	7555	6	382863	1807	210035	Chugaroot Farm
