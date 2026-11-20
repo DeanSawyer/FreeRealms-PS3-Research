@@ -181,6 +181,37 @@ public static class Terrain
         return new SpawnChoice((best.X + edge / 2.0) * cellSize, (best.Z + edge / 2.0) * cellSize, best, note);
     }
 
+    /// <summary>
+    /// Whether the client can stand at a position with this install: every tile within 96 world units (what the loading overlay
+    /// waits for, <see cref="TilesNear"/>) is stored locally or lies outside the terrain box. A tile that is neither is asked of the
+    /// patch server, which has none, and the client waits on the loading screen for ever. Null when the install cannot tell.
+    /// </summary>
+    public static Func<double, double, bool>? Ground(PackSet packs, GzneHeader? header, string zone)
+    {
+        if (header is null || header.Edge <= 0 || packs.Entries.Count == 0)
+            return null;
+
+        var local = LocalTiles(packs.Entries, zone);
+
+        if (local.Count == 0)
+            return null;
+
+        return (x, z) => TilesNear(header, x, z, 96).All(tile => !tile.Inside || local.Contains(new TileKey(tile.X, tile.Z)));
+    }
+
+    /// <summary>Reads the install's packs and terrain header for <see cref="Ground(PackSet, GzneHeader?, string)"/>.</summary>
+    public static Func<double, double, bool>? Ground(string usrDir, string zone)
+    {
+        var packs = PackIndex.Load(usrDir);
+
+        if (packs.Entries.Count == 0)
+            return null;
+
+        var found = PackIndex.ReadAsset(usrDir, zone + ".gzne");
+
+        return found is null ? null : Ground(packs, GzneHeader.Parse(found.Data), zone);
+    }
+
     /// <summary>Reads the install's packs and terrain header and picks a spawn for <paramref name="zone"/>.</summary>
     public static SpawnChoice? PickSpawn(string usrDir, string zone)
     {

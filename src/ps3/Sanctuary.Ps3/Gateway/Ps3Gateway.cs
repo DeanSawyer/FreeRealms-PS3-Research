@@ -494,6 +494,16 @@ public sealed class Ps3Gateway
                 _positions.Remove(peer);
                 _positionSavedAt[peer] = _now;
 
+                // A saved position whose terrain is not in the install (a point of interest outside it) would keep the client on the
+                // loading screen, asking the patch server for the tiles: the character starts at the spawn instead.
+                if (loadout.Position is { } away && !_world.HasGround(away.X, away.Z))
+                {
+                    _logger?.LogWarning(
+                        "gateway: the terrain where it stood (x={X:0.0} z={Z:0.0}) is not in the install; starting at the spawn",
+                        away.X, away.Z);
+                    loadout = loadout with { Position = null };
+                }
+
                 if (loadout.Position is { } place)
                 {
                     _positions[peer] = place;
@@ -657,6 +667,12 @@ public sealed class Ps3Gateway
 
             var landing = PointsOfInterest.Landing(point);
 
+            if (!_world.HasGround(landing.X, landing.Z))
+            {
+                _logger?.LogWarning("sanctuary: no teleport to point of interest {Id} ({Name}): its terrain is not in the install", point.Id, point.Comment);
+                return;
+            }
+
             _logger?.LogInformation(
                 "sanctuary: teleport to point of interest {Id} ({Name}) at {X:0.##}, {Y:0.##}, {Z:0.##}",
                 point.Id, point.Comment, landing.X, landing.Y, landing.Z);
@@ -732,7 +748,16 @@ public sealed class Ps3Gateway
 
             // FR_POINTS: every point of interest for the atlas instead of the empty list.
             if (_world.Options.Points)
-                ready = ready.Select(packet => packet.Name == "PointOfInterestDefinitionReply" ? packet with { Inner = PointsOfInterest.DefinitionReply() } : packet).ToList();
+            {
+                // Only the points whose terrain is in the install: teleporting anywhere else leaves the client on the loading screen.
+                var reachable = PointsOfInterest.All.Values
+                    .Where(point => PointsOfInterest.Landing(point) is var landing && _world.HasGround(landing.X, landing.Z))
+                    .OrderBy(point => point.Id)
+                    .ToList();
+
+                _logger?.LogInformation("gateway: atlas: {Points} of {All} points of interest have their terrain in the install", reachable.Count, PointsOfInterest.All.Count);
+                ready = ready.Select(packet => packet.Name == "PointOfInterestDefinitionReply" ? packet with { Inner = PointsOfInterest.DefinitionReply(reachable) } : packet).ToList();
+            }
 
             // FR_COINSTORE: the coin store's items instead of the empty list, and the coins the character has.
             if (_world.Options.CoinStore)
@@ -820,7 +845,11 @@ public sealed class Ps3Gateway
         if (!_sessions.ContainsKey(peer))
             return;
 
-        SendNamed(peer, channel, "warpstones", Warpstones.All.Select(stone => new NamedPacket($"AddNpc {stone.Name}", Warpstones.AddNpc(stone))));
+        // Only where the install has the terrain: the others could not be reached anyway.
+        var placed = Warpstones.All.Where(stone => _world.HasGround(stone.X, stone.Z)).ToList();
+
+        _logger?.LogInformation("gateway: warpstones: {Placed} of {All} have their terrain in the install", placed.Count, Warpstones.All.Count);
+        SendNamed(peer, channel, "warpstones", placed.Select(stone => new NamedPacket($"AddNpc {stone.Name}", Warpstones.AddNpc(stone))));
     }
 
     /// <summary>Sends your character's AddPc after the client finished loading (the server marks the player visible then), then the creator's clothes.</summary>

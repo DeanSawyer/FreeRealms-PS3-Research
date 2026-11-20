@@ -231,6 +231,12 @@ database (the state lasts for the session).
   its heading (rotation `(sin, 0, cos, 0)`), or, for an activity point (notification type 6, not a launch pad) whose spawn
   position is the point itself, 3 above the point, as Clover does. The landing is saved as the character's position.
 
+* **Only where the install has the ground.** A typical install has about 200 of the zone's 320 terrain tiles. Standing where a tile
+  within 96 units is missing (and inside the terrain box), the client asks the patch server for it, gets 404 and retries for ever:
+  WaitForWorldReady never ends (`fr_test_20261120_075517`: the character was saved at Rumble Ridge after a teleport there). So the
+  atlas gets only the points whose landing has its terrain (`Terrain.Ground`, `GatewayWorld.HasGround`), a teleport elsewhere is
+  refused, the warpstones are placed only there, and a saved position without its terrain is dropped for the spawn.
+
 ## Warpstones (AddNpc 35/2, InteractRequest 26/8, ExecuteScript 47/7)
 
 The PS3 terrain has no warpstones: the server places them, as Sanctuary does (its `Npcs.json` entries with `OpensAtlas`, placed

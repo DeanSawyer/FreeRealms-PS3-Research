@@ -26,12 +26,25 @@ public sealed class GatewayWorld
     private readonly string? _installZone;
     private readonly (double X, double Z)? _installSpawn;
 
-    public GatewayWorld(GatewayOptions? options = null, string? installZone = null, (double X, double Z)? installSpawn = null)
+    private readonly Func<double, double, bool>? _ground;
+
+    public GatewayWorld(
+        GatewayOptions? options = null,
+        string? installZone = null,
+        (double X, double Z)? installSpawn = null,
+        Func<double, double, bool>? ground = null)
     {
         _options = options ?? new GatewayOptions();
         _installZone = installZone;
         _installSpawn = installSpawn;
+        _ground = ground;
     }
+
+    /// <summary>
+    /// Whether the install has the terrain around a position (<see cref="Terrain.Ground(string, string)"/>); true when it cannot tell.
+    /// Without it the client asks the patch server for the missing tiles and never leaves the loading screen.
+    /// </summary>
+    public bool HasGround(double x, double z) => _ground?.Invoke(x, z) ?? true;
 
     public GatewayOptions Options => _options;
 
@@ -112,9 +125,20 @@ public sealed class GatewayWorld
             logger?.LogWarning("could not pick a spawn position from the tiles: {Error}", exception.Message);
         }
 
+        Func<double, double, bool>? ground = null;
+
+        try
+        {
+            ground = Terrain.Ground(usrDir, zone);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            logger?.LogWarning("could not read which terrain tiles are in the install: {Error}", exception.Message);
+        }
+
         if (!string.Equals(zone, DefaultZone, StringComparison.OrdinalIgnoreCase))
             logger?.LogWarning("zone: '{Default}' is not in the PS3 packs, using '{Zone}' instead (set FR_ZONE to choose another)", DefaultZone, zone);
 
-        return new GatewayWorld(options, zone, spawn);
+        return new GatewayWorld(options, zone, spawn, ground);
     }
 }
