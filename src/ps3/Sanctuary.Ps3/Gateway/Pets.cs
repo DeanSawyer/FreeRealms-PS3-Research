@@ -133,6 +133,12 @@ public static class Pets
             .F32(MathF.Sin(heading)).F32(0).F32(MathF.Cos(heading))
             .U8(moving ? 0 : 1).U8(0).F32(speed).ToArray();
 
+    /// <summary>
+    /// Whether a client position update says the character is moving: its state byte (offset 34) is 0 while it moves and 1 once it
+    /// stops. The speed after it is the character's top speed (6 throughout a recorded walk), not how fast it goes.
+    /// </summary>
+    public static bool IsMoving(ReadOnlySpan<byte> inner) => inner.Length >= 35 && inner[34] == 0;
+
     /// <summary>The speed in a client position update (its last <c>f32</c>), or 0.</summary>
     public static float SpeedOf(ReadOnlySpan<byte> inner)
         => inner.Length >= 40 && BinaryPrimitives.ReadSingleLittleEndian(inner[36..]) is var speed && float.IsFinite(speed) && speed is > 0 and < 100
@@ -246,7 +252,7 @@ public sealed class PetKeeper
     public List<NamedPacket> Respawn(Placement at) => Active == 0 ? [] : [Place(at)];
 
     /// <summary>The character moved: the pet follows (none when it is not out or its goal hardly moved).</summary>
-    public List<NamedPacket> Moved(Placement at, float speed, TimeSpan now)
+    public List<NamedPacket> Moved(Placement at, bool moving, float speed, TimeSpan now)
     {
         if (Active == 0 || _at is not { } pet)
             return [];
@@ -258,19 +264,18 @@ public sealed class PetKeeper
             return [new($"RemovePlayer pet {Active}", Npcs.RemoveNpc(ActiveGuid)), Place(at)];
 
         var goal = Goal(at);
-        var moving = speed > 0;
         var far = Distance(pet.X, pet.Z, goal.X, goal.Z);
 
-        // Nothing new: the goal hardly moved, or the character walks on and the last update is recent.
-        if (moving == _moving && (far < StepDistance || now - _sentAt < UpdateInterval))
+        // Nothing new: the goal hardly moved, or the character walks on and the last update is recent. A stop is always sent: a pet
+        // last told it is moving keeps going (the client carries it on along its heading).
+        if (moving == _moving && (far < StepDistance || (moving && now - _sentAt < UpdateInterval)))
             return [];
 
         _moving = moving;
         _sentAt = now;
         _at = goal;
 
-        // The pet walks to its goal at the character's pace (at least a walk) and stands once it is there.
-        return [new("PetPosition", Pets.Position(ActiveGuid, goal.X, goal.Y, goal.Z, goal.Heading, far >= StepDistance, Math.Max(speed, MinimumSpeed)))];
+        return [new("PetPosition", Pets.Position(ActiveGuid, goal.X, goal.Y, goal.Z, goal.Heading, moving, Math.Max(speed, MinimumSpeed)))];
     }
 
     private NamedPacket Place(Placement at)

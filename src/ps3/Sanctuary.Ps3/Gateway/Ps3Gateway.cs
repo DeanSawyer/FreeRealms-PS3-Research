@@ -855,7 +855,7 @@ public sealed class Ps3Gateway
             if (_quests.TryGetValue(peer, out var travelling) && travelling.Moved(moved.X, moved.Y, moved.Z) is { } reached)
                 SendQuestOutcome(peer, channel, reached);
 
-            if (_pets.TryGetValue(peer, out var following) && following.Moved(moved, Pets.SpeedOf(inner), _now) is { Count: > 0 } step)
+            if (_pets.TryGetValue(peer, out var following) && following.Moved(moved, Pets.IsMoving(inner), Pets.SpeedOf(inner), _now) is { Count: > 0 } step)
                 SendNamed(peer, channel, "pet follows", step, quiet: true);
 
             if (_now - _positionSavedAt.GetValueOrDefault(peer) >= PositionSaveInterval && _inventories.TryGetValue(peer, out var walking))

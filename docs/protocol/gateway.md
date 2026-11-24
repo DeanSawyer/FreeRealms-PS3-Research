@@ -406,9 +406,18 @@ which keeps it at the actor's +3784); the position update moves an actor only wh
 have, a pet appeared but stood still. It follows with **PlayerUpdate
 125, UpdatePosition**, which the PS3 reads from the server at `0xcde04` (the BaseClient's vtable slot at +308) as the same 40 bytes it
 sends: `u16` 125, `u64` guid, position and rotation (3 x `f32` each), `u8` state (Sanctuary's 0 moving, 1 stopped), a byte and the
-speed as `f32`. The server sends one when the pet's spot beside the character has moved, at most every 200 ms, and puts the pet down
+speed as `f32`. The client's own update says whether the character moves in its state byte (offset 34: 0 moving, 1 stopped; its speed field stays at
+the top speed, 6, while it stands). The server sends one when the pet's spot beside the character has moved, at most every 200 ms
+while it walks, and a stopped one as soon as the character stops: a pet last told it is moving carries on along its heading.
+It also puts the pet down
 again after a jump of over 40 units (a warpstone). Feeding, grooming, tricks and the pets' names and care are not done yet; other Pet
 packets from the client are logged.
+
+The pet window's picture (the list's column 9, the pet's +252, read at `0x261ca8` by the PetList datasource's GetData `0x2619a0`) is
+the image set; column 2 (+8) is the icon. Neither Sanctuary's pet definition icon (652, 653) nor the pet items' image sets (3198 and
+so on) showed a picture: the packs have item icons for the vanity pets only (`icon_item_vanitypet_*`), none for the dogs, cats,
+ponies, unicorns and dragons. Reports carry `imagesetmappings.txt` and `Browser.gfx` to find what the PS3 shows there. The packs'
+textures decide the starter pets too: there is no `cat_shorthair` texture for Sanctuary's toyger, so the shorthair cat is a tabby.
 
 ## Item classes and categories (ReferenceData, opcode 44)
 

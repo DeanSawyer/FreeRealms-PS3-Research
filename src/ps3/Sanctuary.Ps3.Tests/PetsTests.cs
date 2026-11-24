@@ -60,6 +60,15 @@ public sealed class PetsTests
     }
 
     [TestMethod]
+    public void TheClientsStateByteSaysWhetherItMoves()
+    {
+        var update = new byte[40];
+        Assert.IsTrue(Pets.IsMoving(update));
+        update[34] = 1;
+        Assert.IsFalse(Pets.IsMoving(update));
+    }
+
+    [TestMethod]
     public void ASummonedPetFollowsItsCharacter()
     {
         var keeper = new PetKeeper(Pets.Starters);
@@ -76,22 +85,27 @@ public sealed class PetsTests
         Assert.AreEqual(Pets.MovementType, BinaryPrimitives.ReadInt32LittleEndian(spawn.AsSpan(spawn.Length - 4)), "moved by position updates");
 
         var now = TimeSpan.FromSeconds(10);
-        Assert.AreEqual(0, keeper.Moved(start with { Z = 100.2 }, 0, now).Count, "hardly moved");
+        Assert.AreEqual(0, keeper.Moved(start with { Z = 100.2 }, false, 6, now).Count, "hardly moved");
 
-        var walked = keeper.Moved(start with { Z = 105 }, 6, now + TimeSpan.FromSeconds(1));
+        var walked = keeper.Moved(start with { Z = 105 }, true, 6, now + TimeSpan.FromSeconds(1));
         Assert.AreEqual("PetPosition", walked.Single().Name);
         Assert.AreEqual(Pets.GuidBase + 1, BinaryPrimitives.ReadUInt64LittleEndian(walked[0].Inner.AsSpan(2)));
 
-        Assert.AreEqual(0, keeper.Moved(start with { Z = 106 }, 6, now + TimeSpan.FromSeconds(1.05)).Count, "too soon after the last one");
+        Assert.AreEqual(0, keeper.Moved(start with { Z = 106 }, true, 6, now + TimeSpan.FromSeconds(1.05)).Count, "too soon after the last one");
+
+        // The character stops: the pet is told to stop at once, or it would carry on.
+        var stopped = keeper.Moved(start with { Z = 106.2 }, false, 6, now + TimeSpan.FromSeconds(1.1));
+        Assert.AreEqual(1, stopped.Single().Inner[34], "stopped");
+        Assert.AreEqual(0, keeper.Moved(start with { Z = 106.2 }, false, 6, now + TimeSpan.FromSeconds(1.5)).Count, "still standing");
 
         // A warpstone: the pet is put down beside the character again.
-        var teleported = keeper.Moved(start with { X = 900 }, 0, now + TimeSpan.FromSeconds(2));
+        var teleported = keeper.Moved(start with { X = 900 }, false, 6, now + TimeSpan.FromSeconds(2));
         CollectionAssert.AreEqual(new[] { "RemovePlayer pet 1", "AddNpc pet 1" }, teleported.Select(packet => packet.Name).ToList());
 
         var dismissed = keeper.Recall();
         CollectionAssert.AreEqual(new[] { "RemovePlayer pet 1", $"PetList {Pets.Starters.Count}" }, dismissed.Select(packet => packet.Name).ToList());
         Assert.AreEqual(0, keeper.Active);
-        Assert.AreEqual(0, keeper.Moved(start, 6, now + TimeSpan.FromSeconds(5)).Count);
+        Assert.AreEqual(0, keeper.Moved(start, true, 6, now + TimeSpan.FromSeconds(5)).Count);
         Assert.AreEqual(0, keeper.Summon(99, start).Count, "no such pet");
     }
 }
