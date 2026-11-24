@@ -265,7 +265,11 @@ by `Scripts/Zone/FabledRealms.lua`; Sunstone Valley's two are left out). `FR_WAR
 ## The open world's NPCs (AddNpc 35/2, RemovePlayer 35/3)
 
 Sanctuary (OSFR) spawns 5,282 NPCs in `Scripts/Zone/FabledRealms.lua` from the definitions in `Resources/Npcs.json`;
-`Data/npcs.tsv.gz` has them joined (without the warpstones, which `Gateway/Warpstones.cs` places). The server sends only those
+`Data/npcs.tsv.gz` has the original game's 4,258 of them joined: its `spawnFixedNpc` spawns, without the warpstones (which
+`Gateway/Warpstones.cs` places). Left out are Sanctuary's own `spawnNpc` additions, about 1,000 housing blocks, clouds and
+trampolines built into obstacle courses, all tilted placed objects: with them the PS3 renderer crashed within a minute
+(`fr_test_20261123_201619`, an access violation reading `0x1c` in the Deep Engine Renderer thread at `0x784cec`, under the
+scene walk `0xcc7408`), near the blocks around Seaside and at Highroad Junction. They also took most of the 150 places. The server sends only those
 whose model file is in the install's packs and whose terrain is too (`GatewayWorld.HasAsset`, `HasGround`), and of those only the
 ones near the character (`NpcRelevance`): within 160 units they are added (at most 150, the nearest first), beyond 200 removed
 with **PlayerUpdate (35) 3, RemovePlayer** (`u16` 0, `u64` guid; the PS3 reads the same, `0x111b38`). It looks again each time the

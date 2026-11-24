@@ -16,7 +16,8 @@ public sealed class NpcsTests
     [TestMethod]
     public void EverySpawnIsLoadedWithItsOwnGuid()
     {
-        Assert.IsTrue(Npcs.All.Count > 5000, $"{Npcs.All.Count} NPCs");
+        Assert.IsTrue(Npcs.All.Count > 4000, $"{Npcs.All.Count} NPCs");
+        Assert.IsFalse(Npcs.All.Any(npc => npc.Tilted), "tilted placed objects crashed the PS3 renderer");
         Assert.AreEqual(Npcs.All.Count, Npcs.All.Select(npc => npc.Guid).Distinct().Count());
         Assert.IsFalse(Npcs.All.Any(npc => npc.Name.Contains("Warpstone")), "the warpstones are Warpstones' own");
         Assert.IsTrue(Npcs.All.All(npc => npc.ModelFile.EndsWith(".adr", StringComparison.OrdinalIgnoreCase) || npc.ModelFile.EndsWith(".agr", StringComparison.OrdinalIgnoreCase)));
