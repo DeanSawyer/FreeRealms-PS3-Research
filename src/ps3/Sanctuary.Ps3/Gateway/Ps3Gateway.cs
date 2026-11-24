@@ -999,7 +999,11 @@ public sealed class Ps3Gateway
     {
         if (_placeableNpcs is null)
         {
-            _placeableNpcs = Npcs.All.Where(npc => _world.HasAsset(npc.ModelFile) && _world.HasGround(npc.X, npc.Z)).Select(NpcTalk.WithCursor).ToList();
+            _placeableNpcs = Npcs.All
+                .Select(npc => Merchants.WithStandIn(npc, _world.HasAsset))
+                .Where(npc => _world.HasAsset(npc.ModelFile) && _world.HasGround(npc.X, npc.Z))
+                .Select(NpcTalk.WithCursor)
+                .ToList();
             _logger?.LogInformation("gateway: npcs: {Placeable} of {All} have their model and terrain in the install", _placeableNpcs.Count, Npcs.All.Count);
         }
 

@@ -63,6 +63,37 @@ public static class Merchants
     /// <summary>Whether <paramref name="npc"/> sells anything.</summary>
     public static bool IsMerchant(NpcSpawn npc) => Lists.ContainsKey(npc.NpcId) || JobOf(npc) is not null;
 
+    /// <summary>
+    /// Stand-ins for the job merchants' models, by race and gender: the merchants' own (<c>*_merchant_*.agr</c>) are PC models that
+    /// the PS3 install does not have, so the client could not draw them and they were never placed. Each is a dressed townsperson
+    /// model of the same race and gender that the PS3 packs have (Models.txt id and file), the first one the install has.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, (int ModelId, string File)[]> StandIns = new Dictionary<string, (int, string)[]>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["human_m"] = [(555, "human_m_freestyle_09.agr"), (311, "human_m_freestyle_02.agr"), (184, "human_m_freestyle_01.agr")],
+        ["human_f"] = [(548, "human_f_freestyle_06.agr"), (545, "human_f_freestyle_03.agr"), (339, "human_f_freestyle_01.agr")],
+        ["fairy_m"] = [(659, "fairy_m_freestyle_10.agr"), (657, "fairy_m_freestyle_08.agr"), (48, "fairy_m_01.adr")],
+        ["fairy_f"] = [(571, "fairy_f_freestyle_09.agr"), (366, "fairy_f_freestyle_03.agr"), (41, "fairy_f_01.adr")],
+    };
+
+    /// <summary>
+    /// <paramref name="npc"/>, or, for a merchant whose model the install does not have (<paramref name="hasAsset"/>), the same
+    /// merchant drawn with a stand-in model of its race and gender (<see cref="StandIns"/>), without its PC texture and tint.
+    /// </summary>
+    public static NpcSpawn WithStandIn(NpcSpawn npc, Func<string, bool> hasAsset)
+    {
+        if (!IsMerchant(npc) || hasAsset(npc.ModelFile) || npc.ModelFile.Length < 7 || !StandIns.TryGetValue(npc.ModelFile[..7], out var choices))
+            return npc;
+
+        foreach (var (modelId, file) in choices)
+        {
+            if (hasAsset(file))
+                return npc with { ModelId = modelId, ModelFile = file, TextureAlias = string.Empty, TintAlias = string.Empty, TintId = 0 };
+        }
+
+        return npc;
+    }
+
     /// <summary>A job merchant's stock: the coin store's items of the job's own classes, lowest rank first, then cheapest.</summary>
     public static MerchantStock ForJob(int job)
     {

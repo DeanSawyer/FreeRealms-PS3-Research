@@ -31,6 +31,23 @@ public sealed class MerchantsTests
     }
 
     [TestMethod]
+    public void AMerchantWhoseModelThePs3LacksGetsAStandIn()
+    {
+        var toad = Npcs.All.First(npc => npc.Name == "Dizzy Toad");
+        var packs = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase) { "fairy_m_freestyle_10.agr" };
+
+        var drawn = Merchants.WithStandIn(toad, packs.Contains);
+
+        Assert.AreEqual(659, drawn.ModelId);
+        Assert.AreEqual("fairy_m_freestyle_10.agr", drawn.ModelFile);
+        Assert.AreEqual(toad.Guid, drawn.Guid, "the same merchant");
+        Assert.AreEqual(toad, Merchants.WithStandIn(toad, _ => true), "kept when the install has the model");
+
+        var nikki = Npcs.All.First(npc => npc.Name == "Nikki");
+        Assert.AreEqual(nikki, Merchants.WithStandIn(nikki, packs.Contains), "only merchants");
+    }
+
+    [TestMethod]
     public void SanctuarysOwnMerchantListIsKept()
     {
         var edward = Merchants.Lists[33632];
