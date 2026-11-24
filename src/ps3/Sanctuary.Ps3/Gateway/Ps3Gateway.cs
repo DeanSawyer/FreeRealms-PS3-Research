@@ -113,6 +113,7 @@ public sealed class Ps3Gateway
     private readonly Dictionary<IPEndPoint, TalkConversation> _talks = [];
     private readonly Dictionary<IPEndPoint, QuestSession> _quests = [];
     private readonly Dictionary<IPEndPoint, HashSet<int>> _definitionsSent = [];
+    private readonly HashSet<(IPEndPoint, int)> _pathsLogged = [];
     private readonly QuestStore _questStore;
 
     /// <summary>The open world's NPCs this install can show: their model is in the packs and their terrain too.</summary>
@@ -680,6 +681,22 @@ public sealed class Ps3Gateway
             return;
         }
 
+        // A path from the character to the quest marker (the objective helper's trail, Take Me There): the straight line.
+        if (_world.Options.Npcs && ClientPath.FromRequest(inner) is { } pathRequest)
+        {
+            var path = ClientPath.Straight(pathRequest);
+
+            if (_pathsLogged.Add((peer, pathRequest.Type)))
+            {
+                _logger?.LogInformation("sanctuary: path request type {Type} id {Id} from ({FromX:0.#}, {FromZ:0.#}) to ({ToX:0.#}, {ToZ:0.#}): {Points} points",
+                    pathRequest.Type, pathRequest.Id, pathRequest.FromX, pathRequest.FromZ, pathRequest.ToX, pathRequest.ToZ, path.Count);
+            }
+
+            SendNamed(peer, channel, "path", [new NamedPacket($"ClientPathReply {pathRequest.Type}", ClientPath.Reply(pathRequest, path))], quiet: true);
+
+            return;
+        }
+
         // The answer to a quest offer, and the turn-in window closing.
         if (innerOpcode == Quests.Opcode && _quests.TryGetValue(peer, out var quests))
         {
@@ -975,11 +992,12 @@ public sealed class Ps3Gateway
     }
 
     /// <summary>Sends named inner packets tunneled, leaving out those <c>FR_SKIP</c> names and logging each by name.</summary>
-    private void SendNamed(IPEndPoint peer, int channel, string stage, IEnumerable<NamedPacket> packets)
+    private void SendNamed(IPEndPoint peer, int channel, string stage, IEnumerable<NamedPacket> packets, bool quiet = false)
     {
         var selected = SanctuaryFlow.Select(packets, _world.Options.Skip);
 
-        _logger?.LogInformation("sanctuary: {Stage} -> {Count} packets: {Names}", stage, selected.Count, string.Join(", ", selected.Select(packet => packet.Name)));
+        if (!quiet)
+            _logger?.LogInformation("sanctuary: {Stage} -> {Count} packets: {Names}", stage, selected.Count, string.Join(", ", selected.Select(packet => packet.Name)));
 
         foreach (var (name, inner) in selected)
         {
