@@ -34,13 +34,13 @@ public static class ClientPath
         if (inner.Length < 51 || BinaryPrimitives.ReadUInt16LittleEndian(inner) != Opcode || inner[2] != RequestSub)
             return null;
 
-        float F(int at) => BinaryPrimitives.ReadSingleLittleEndian(inner[at..]);
+        static float F(ReadOnlySpan<byte> data, int at) => BinaryPrimitives.ReadSingleLittleEndian(data[at..]);
 
         return new PathRequest(
             BinaryPrimitives.ReadUInt64LittleEndian(inner[3..]),
             BinaryPrimitives.ReadInt32LittleEndian(inner[11..]),
             BinaryPrimitives.ReadInt32LittleEndian(inner[15..]),
-            F(19), F(23), F(27), F(35), F(39), F(43));
+            F(inner, 19), F(inner, 23), F(inner, 27), F(inner, 35), F(inner, 39), F(inner, 43));
     }
 
     /// <summary>The straight path between the request's ends.</summary>
