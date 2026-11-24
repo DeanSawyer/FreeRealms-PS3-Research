@@ -211,21 +211,6 @@ public sealed class QuestSession
         return packets;
     }
 
-    /// <summary>The player picked <paramref name="questId"/> in the journal to follow: the quest marker moves to it (kept across logins).</summary>
-    public List<NamedPacket> Select(int questId)
-    {
-        if (!_log.InProgress.ContainsKey(questId))
-            return [];
-
-        if (_log.ActiveQuestId != questId)
-        {
-            _log.ActiveQuestId = questId;
-            Save();
-        }
-
-        return Target();
-    }
-
     /// <summary>The turn-in window closed: the quest is done, its reward given (coins and items into <paramref name="inventory"/>).</summary>
     public List<NamedPacket> EndReply(int questId, Inventory? inventory)
     {

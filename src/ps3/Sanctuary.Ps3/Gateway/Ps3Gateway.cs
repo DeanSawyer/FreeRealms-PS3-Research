@@ -697,15 +697,6 @@ public sealed class Ps3Gateway
             return;
         }
 
-        // A quest picked in the journal to follow: the marker moves to it.
-        if (Quests.FromSelect(inner) is { } selected && _quests.TryGetValue(peer, out var following))
-        {
-            _logger?.LogInformation("sanctuary: quest {QuestId} selected", selected);
-            SendNamed(peer, channel, $"quest {selected} selected", following.Select(selected));
-
-            return;
-        }
-
         // The answer to a quest offer, and the turn-in window closing.
         if (innerOpcode == Quests.Opcode && _quests.TryGetValue(peer, out var quests))
         {
