@@ -21,6 +21,8 @@ This project stands on other people's work. Thank you.
 * **Quests.** `src/ps3/Sanctuary.Ps3/Data/quests.json` is Sanctuary's (OSFR) `Resources/Quests.json`; `quest_nodes.tsv` its
   `Resources/CollectionNodeTypes.json` and `CollectionNodeSpawns` for the quests' pickups; `npc_notifications.tsv` the icons of its
   `Resources/Npcs.json`. `Gateway/QuestSession.cs` follows its QuestManager, QuestDialogue and InteractionMenuHelper.
+* **Pets.** `src/ps3/Sanctuary.Ps3/Data/pets.tsv` is taken from Sanctuary's (OSFR) `Resources/ClientItemDefinitions.json`,
+  `Pets.json` and `Models.txt`; `Gateway/Pets.cs` follows its PetHelper and PlayerPet.
 * **OSFR and the Sanctuary / Clover server.** The C# *Free Realms* server emulator (Sanctuary, the solution behind Clover) is where the
   packet layouts come from: the gateway login packet, `AddPc`, the lobby and queue replies and many opcode numbers in
   [`docs/protocol/gateway.md`](docs/protocol/gateway.md) are named after and compared with it, and the C# port in

@@ -33,6 +33,7 @@
     <EmbeddedResource Include="Data\npc_notifications.tsv" LogicalName="Sanctuary.Ps3.npc_notifications.tsv" />
     <EmbeddedResource Include="Data\quests.json" LogicalName="Sanctuary.Ps3.quests.json" />
     <EmbeddedResource Include="Data\quest_nodes.tsv" LogicalName="Sanctuary.Ps3.quest_nodes.tsv" />
+    <EmbeddedResource Include="Data\pets.tsv" LogicalName="Sanctuary.Ps3.pets.tsv" />
     <EmbeddedResource Include="Data\merchants.tsv" LogicalName="Sanctuary.Ps3.merchants.tsv" />
     <!-- The Marketplace's Station Cash shop: Sanctuary's Resources/Store*.json, gzipped; read by Gateway/Shop.cs. -->
     <EmbeddedResource Include="Data\shop\*.json.gz" LogicalName="Sanctuary.Ps3.shop.%(Filename)%(Extension)" />

@@ -94,6 +94,12 @@ public sealed record GatewayOptions
     /// </summary>
     public bool Quests { get; init; }
 
+    /// <summary>
+    /// <c>FR_PETS</c> (not 0, on unless set to 0): the starter pets (<c>Data/pets.tsv</c>) in the pet window, summoned to follow the
+    /// character (<see cref="Gateway.Pets"/>).
+    /// </summary>
+    public bool Pets { get; init; }
+
     /// <summary><c>FR_COINSTORE_ITEMS</c>: list only the first this many store items (Sanctuary's order); 0, the default, lists all of them.</summary>
     public int CoinStoreItems { get; init; }
 
@@ -164,6 +170,7 @@ public sealed record GatewayOptions
             Warpstones = Env(get, "FR_WARPSTONES", "1") != "0",
             Npcs = Env(get, "FR_NPCS", "1") != "0",
             Quests = Env(get, "FR_QUESTS", "1") != "0",
+            Pets = Env(get, "FR_PETS", "1") != "0",
             CoinStoreItems = int.TryParse(Value("FR_COINSTORE_ITEMS"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var listed) && listed > 0 ? listed : 0,
             CoinStoreDefinitions = Value("FR_COINSTORE_DEFINITIONS") == "1",
             StartingCoins = int.TryParse(Env(get, "FR_STARTING_COINS", "999999999"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var coins) && coins >= 0

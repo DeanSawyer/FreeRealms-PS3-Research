@@ -380,6 +380,32 @@ guid, `i32` unknown 4 (Sanctuary's Edward has 468 and 90184; a job merchant send
 item `i32` definition, icon, tint, name, description, purchasable quantity (-1), `u8` members only, `i32` price, unknown 9 and tint
 group: 37 bytes. Sanctuary's PC entry ends with a CanBuy `u8` the PS3 does not read.
 
+## Pets (Pet 53, UpdatePosition 125)
+
+`FR_PETS` (on unless 0) gives every character eight starter pets (`Data/pets.tsv`: dogs, cats, a pony, a unicorn and a dragon whose
+models the PS3 packs have, from Sanctuary's `ClientItemDefinitions.json`, `Pets.json` and `Models.txt`) and lets one follow it
+(`Gateway/Pets.cs`). The PS3's Pet handler is `0x6949c` (opcode 53 in the switch at `0x1051f0`, through `0x59514`): `u16` 53 and a
+`u8` sub-opcode, with Sanctuary's numbers (the sub table at `0x6963c` has 3 status, 5 list, 9 active, 10 set name, 11 equip, 14 and
+15 tricks, 16 and 20 utility).
+
+**Pet 5, PetList** (sent after each ClientFinishedLoading and after a summon or dismissal): `u32` count, each pet, then the active
+pet's `i32` id and `u64` guid. Each pet is read by `0xa88634`: `i32` id, then Sanctuary's PetClientInfo (`i32` id, `u8` sex, `i32`
+icon, hunger, hygiene, play and mood as `f32`, `u8` members only, the tricks (`u32` count; per trick its `i32` key, then id, icon,
+name, skill level, two unknowns, tooltip and an unknown as `i32` and `u8` known: 37 bytes), the worn item guids (`u32` count,
+`i32`s), the item classes (`u32` count; key, id and unknown as `i32`), the name, **one** `i32` (Sanctuary has NameId and TintId
+there; the server sends the tint, which the pet window's `tintValue` column needs), the texture alias, `i32` image set, `u8` vanity
+pet, the four favourite tricks and eight item guids (Sanctuary's unknown and the seven care items). The PS3 has no
+AttachmentItemGroupId or IsTutorialPet. A pet with no tricks, items or classes and empty strings is 107 bytes.
+
+The pet window's Summon and Dismiss (`Pet.Summon` and `Pet.Dismiss`, `0x20498c` and `0x2056d0`) send **Pet 4, PetSummonRecall**,
+built at `0x690f8`: `i32` pet id and `u8` summon (1) or dismiss (0). A summoned pet is an NPC (AddNpc, Sanctuary's disposition 2,
+not interactable, guid `0x0500…` plus the pet id) put down behind the character and to its side. It follows with **PlayerUpdate
+125, UpdatePosition**, which the PS3 reads from the server at `0xcde04` (the BaseClient's vtable slot at +308) as the same 40 bytes it
+sends: `u16` 125, `u64` guid, position and rotation (3 x `f32` each), `u8` state (Sanctuary's 0 moving, 1 stopped), a byte and the
+speed as `f32`. The server sends one when the pet's spot beside the character has moved, at most every 200 ms, and puts the pet down
+again after a jump of over 40 units (a warpstone). Feeding, grooming, tricks and the pets' names and care are not done yet; other Pet
+packets from the client are logged.
+
 ## Item classes and categories (ReferenceData, opcode 44)
 
 The client's handler for opcode 44 is `0xd4764` (vtable slot +340 of the object whose slot +320 handles PlayerUpdate). With

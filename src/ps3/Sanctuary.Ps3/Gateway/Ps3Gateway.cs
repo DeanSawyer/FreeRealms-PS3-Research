@@ -112,6 +112,9 @@ public sealed class Ps3Gateway
     private readonly Dictionary<IPEndPoint, NpcRelevance> _npcsShown = [];
     private readonly Dictionary<IPEndPoint, TalkConversation> _talks = [];
     private readonly Dictionary<IPEndPoint, QuestSession> _quests = [];
+
+    /// <summary>Each peer's pets (FR_PETS), from its first ClientFinishedLoading on.</summary>
+    private readonly Dictionary<IPEndPoint, PetKeeper> _pets = [];
     private readonly Dictionary<IPEndPoint, HashSet<int>> _definitionsSent = [];
     private readonly HashSet<(IPEndPoint, int)> _pathsLogged = [];
     private readonly QuestStore _questStore;
@@ -563,6 +566,7 @@ public sealed class Ps3Gateway
             _npcsShown.Remove(peer);
             _talks.Remove(peer);
             _quests.Remove(peer);
+            _pets.Remove(peer);
             _definitionsSent.Remove(peer);
             Schedule(ReadyFallback, () => SendReadyFallback(peer, channel));
         }
@@ -676,6 +680,24 @@ public sealed class Ps3Gateway
             {
                 _logger?.LogInformation("sanctuary: interact request for {NpcId} {Name}, which has nothing to say {Hex}", npc.NpcId, npc.Name,
                     Convert.ToHexString(inner).ToLowerInvariant());
+            }
+
+            return;
+        }
+
+        // The pet window: a pet summoned (it comes out beside the character) or dismissed.
+        if (Pets.IsPet(inner) && _pets.TryGetValue(peer, out var keeper))
+        {
+            if (Pets.FromSummonRecall(inner) is { } call)
+            {
+                var at = _positions.TryGetValue(peer, out var standing) ? standing : SpawnPlacement();
+
+                _logger?.LogInformation("sanctuary: pet {PetId} {Call}", call.PetId, call.Summon ? "summoned" : "dismissed");
+                SendNamed(peer, channel, $"pet {call.PetId}", call.Summon ? keeper.Summon(call.PetId, at) : keeper.Recall());
+            }
+            else
+            {
+                _logger?.LogInformation("sanctuary: pet packet {Hex}", Convert.ToHexString(inner).ToLowerInvariant());
             }
 
             return;
@@ -833,6 +855,9 @@ public sealed class Ps3Gateway
             if (_quests.TryGetValue(peer, out var travelling) && travelling.Moved(moved.X, moved.Y, moved.Z) is { } reached)
                 SendQuestOutcome(peer, channel, reached);
 
+            if (_pets.TryGetValue(peer, out var following) && following.Moved(moved, Pets.SpeedOf(inner), _now) is { Count: > 0 } step)
+                SendNamed(peer, channel, "pet follows", step, quiet: true);
+
             if (_now - _positionSavedAt.GetValueOrDefault(peer) >= PositionSaveInterval && _inventories.TryGetValue(peer, out var walking))
             {
                 _positionSavedAt[peer] = _now;
@@ -932,6 +957,19 @@ public sealed class Ps3Gateway
             if (_world.Options.Warpstones)
                 Schedule(SpawnDelay, () => SendWarpstones(peer, channel));
 
+            // FR_PETS: the starter pets in the pet window, and the one that is out put down beside the character again.
+            if (_world.Options.Pets)
+            {
+                if (!_pets.TryGetValue(peer, out var pets))
+                    _pets[peer] = pets = new PetKeeper(Pets.Starters.Where(pet => _world.HasAsset(pet.ModelFile)).ToList());
+
+                Schedule(SpawnDelay, () =>
+                {
+                    var at = _positions.TryGetValue(peer, out var here) ? here : SpawnPlacement();
+                    SendNamed(peer, channel, "pets", [pets.List(), .. pets.Respawn(at)]);
+                });
+            }
+
             // FR_NPCS: the open world's NPCs around the character.
             if (_world.Options.Npcs && !_npcsShown.ContainsKey(peer))
             {
@@ -969,6 +1007,14 @@ public sealed class Ps3Gateway
                 });
             }
         }
+    }
+
+    /// <summary>The spawn point as a placement facing the spawn rotation, for a character that has not moved yet.</summary>
+    private Placement SpawnPlacement()
+    {
+        var spawn = _world.Spawn;
+
+        return new Placement(spawn.X, spawn.Y, spawn.Z, Ps3Packets.SpawnRotation.X, Ps3Packets.SpawnRotation.Y, Ps3Packets.SpawnRotation.Z);
     }
 
     /// <summary>
