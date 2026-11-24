@@ -81,9 +81,11 @@ public static class Warpstones
     }
 
     /// <summary>
-    /// Ui (47) 7, ExecuteScript: a script name and an <c>i32</c> list (none). The PS3 client passes it on as a UI event
-    /// ("Handler:Event", as <c>0x1f282c</c> dispatches them), so <c>Atlas:Show</c> runs atlas.lua's Atlas.Show with the Atlas table
-    /// as self, as using a warpstone does in Sanctuary (its OpenAtlasInteraction sends "Atlas.Show").
+    /// Ui (47) 7, ExecuteScript: a script name and an <c>i32</c> list (none). The PS3 client (sub-opcode 7 of the Ui handler
+    /// <c>0x1dbb3c</c>, reached from the opcode switch at <c>0x1051d0</c>) splits the name at '.' and ',' (<c>0x1dd0dc</c>) and only
+    /// a "Table.Function" name goes on to the UI event dispatcher (<c>0x1f282c</c>, from <c>0x1dd380</c>); a name without a dot is
+    /// dropped. So it is <c>Atlas.Show</c>, exactly what Sanctuary's OpenAtlasInteraction sends the PC client, and it runs atlas.lua's
+    /// Atlas.Show.
     /// </summary>
-    public static byte[] OpenAtlas() => new PacketWriter().U16(47).U8(7).Str("Atlas:Show").U32(0).ToArray();
+    public static byte[] OpenAtlas() => new PacketWriter().U16(47).U8(7).Str("Atlas.Show").U32(0).ToArray();
 }

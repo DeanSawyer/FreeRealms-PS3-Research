@@ -60,6 +60,6 @@ public sealed class WarpstonesTests
         var open = Warpstones.OpenAtlas();
         Assert.AreEqual(47, BinaryPrimitives.ReadUInt16LittleEndian(open));
         Assert.AreEqual(7, open[2]);
-        Assert.AreEqual("Atlas:Show", Encoding.UTF8.GetString(open, 7, (int)BinaryPrimitives.ReadUInt32LittleEndian(open.AsSpan(3))));
+        Assert.AreEqual("Atlas.Show", Encoding.UTF8.GetString(open, 7, (int)BinaryPrimitives.ReadUInt32LittleEndian(open.AsSpan(3))));
     }
 }

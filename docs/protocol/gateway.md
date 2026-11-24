@@ -258,9 +258,13 @@ by `Scripts/Zone/FabledRealms.lua`; Sunstone Valley's two are left out). `FR_WAR
   model id (`0x11b63c`) and the scale (`0x11b798`); the chat bubble values go to the actor at `+1212`.
 * **Command (26) 8, InteractRequest**: X at an interactable NPC sends `u64` guid and a flag (`0xceab4`; the guid is the actor's id,
   `actor+112`).
-* **Ui (47) 7, ExecuteScript**: script name (string) and an `i32` list. The client hands the name to the UI event dispatcher
-  (`0x1f282c`), so it is a "Handler:Event" name run with the handler table as self: the server sends `Atlas:Show`, which opens
-  the atlas (Sanctuary's OpenAtlasInteraction sends `Atlas.Show` to the PC client).
+* **Ui (47) 7, ExecuteScript**: script name (string) and an `i32` list. The Ui handler is `0x1dbb3c` (opcode 47 in the switch at
+  `0x1051d0`, sub-opcode 7 at `0x1dc208`). It splits the name at `.` and `,` (`0x1dd0dc`) and passes only a `Table.Function`
+  name on to the UI event dispatcher (`0x1f282c`, called from `0x1dd380`); a name without a dot is dropped silently (checked with
+  `tools/ppc_trace.py`). The server sends `Atlas.Show`, as Sanctuary's OpenAtlasInteraction does for the PC client. (At first
+  the server sent `Atlas:Show`, which the client ignored: the warpstone showed its prompt but the atlas
+  never opened.) atlas.lua's `Atlas.Show` itself returns early in a minigame, in the tutorial, when the minimap's atlas button is
+  hidden, or in the starting zone.
 
 ## The open world's NPCs (AddNpc 35/2, RemovePlayer 35/3)
 

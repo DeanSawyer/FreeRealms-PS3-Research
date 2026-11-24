@@ -618,7 +618,7 @@ public sealed class Ps3Gateway
         if (_world.Options.Warpstones && innerOpcode == Warpstones.CommandOpcode && Warpstones.FromInteract(inner) is { } stone)
         {
             _logger?.LogInformation("sanctuary: {Name} used: opening the atlas", stone.Name);
-            SendNamed(peer, channel, $"warpstone {stone.NpcId}", [new NamedPacket("ExecuteScript Atlas:Show", Warpstones.OpenAtlas())]);
+            SendNamed(peer, channel, $"warpstone {stone.NpcId}", [new NamedPacket("ExecuteScript Atlas.Show", Warpstones.OpenAtlas())]);
 
             return;
         }
