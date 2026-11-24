@@ -344,6 +344,22 @@ icon 2 with the quest's `NotificationAvailable` state for a quest to take ("!"),
 ("?"). An NPC with quest business and no cursor of its own gets the quest cursor (5) in NpcRelevance, and loses it again when the
 quest moves on.
 
+Closing the turn-in window (QuestEndReply) is answered as Sanctuary's handler does: when the turn-in NPC gives the next quest,
+its offer follows 750 ms later; otherwise Command 26/29, QuestDialogComplete, which lets the camera go of the NPC (without it the
+camera stayed on the NPC after the reward).
+
+### Merchants (CoinStore 165/10, MerchantList)
+
+X at a merchant opens its shop (`Gateway/Merchants.cs`). Sanctuary has one merchant list, Assistant Chef Edward's
+(`Data/merchants.tsv`). The open world's job merchants (102 NPCs whose models are `*_merchant_<job>_*`: archer, brawler, chef,
+medic, ...) sell their job's gear: the coin store's items (not hidden, buyable, type 1) whose item class is one of the job's own
+(the classes Sanctuary's profile gives value 5), lowest rank first. Merchants without a cursor get cursor 17. The item
+definitions are sent before the list (each once per login); buying and selling are the coin store's (sub-opcodes 4 and 5 with
+the merchant's guid). The PS3 reads MerchantList at `0x2566f0` (entries `0xba40e4`): `i32` unknown, `i64` player guid, `u64` NPC
+guid, `i32` unknown 4 (Sanctuary's Edward has 468 and 90184; a job merchant sends 0 and the job's name id), `u32` count, then per
+item `i32` definition, icon, tint, name, description, purchasable quantity (-1), `u8` members only, `i32` price, unknown 9 and tint
+group: 37 bytes. Sanctuary's PC entry ends with a CanBuy `u8` the PS3 does not read.
+
 ## Item classes and categories (ReferenceData, opcode 44)
 
 The client's handler for opcode 44 is `0xd4764` (vtable slot +340 of the object whose slot +320 handles PlayerUpdate). With
