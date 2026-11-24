@@ -360,7 +360,9 @@ once every goal is done; `u8` 0 alone takes it away. It is sent when the quest l
 X at a merchant opens its shop (`Gateway/Merchants.cs`). Sanctuary has one merchant list, Assistant Chef Edward's
 (`Data/merchants.tsv`). The open world's job merchants (102 NPCs whose models are `*_merchant_<job>_*`: archer, brawler, chef,
 medic, ...) sell their job's gear: the coin store's items (not hidden, buyable, type 1) whose item class is one of the job's own
-(the classes Sanctuary's profile gives value 5), lowest rank first. Merchants without a cursor get cursor 17. The item
+(the classes Sanctuary's profile gives value 5), lowest rank first. Merchants without a cursor get cursor 17. Their own models
+(`*_merchant_*.agr`) are PC models the PS3 install does not have, so none were placed at first; each is now drawn with a dressed
+townsperson model of its race and gender that the packs have (`Merchants.WithStandIn`). The item
 definitions are sent before the list (each once per login); buying and selling are the coin store's (sub-opcodes 4 and 5 with
 the merchant's guid). The PS3 reads MerchantList at `0x2566f0` (entries `0xba40e4`): `i32` unknown, `i64` player guid, `u64` NPC
 guid, `i32` unknown 4 (Sanctuary's Edward has 468 and 90184; a job merchant sends 0 and the job's name id), `u32` count, then per
