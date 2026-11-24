@@ -348,6 +348,13 @@ Closing the turn-in window (QuestEndReply) is answered as Sanctuary's handler do
 its offer follows 750 ms later; otherwise Command 26/29, QuestDialogComplete, which lets the camera go of the NPC (without it the
 camera stayed on the NPC after the reward).
 
+The quest marker on the minimap and atlas is **Ui (47) 13, ObjectiveTargetUpdate** (Sanctuary's Ui 14; on the PS3 Ui 14 reads
+one byte and does nothing). Read by `0xb7bf64` (48 bytes, Sanctuary's layout: `u8` active, `u64` task id, `i32` 2, `u64` target
+guid, `i32` name id, position, `i32` target type 2); `0x1daf80` then fills the `BaseClient.ObjectiveTarget` datasource that
+`minimap.lua` and `atlas.lua` draw from (`SetObjectiveTarget`, `placeMapIndicator`). The server points it at the tracked quest's
+first open goal: the NPC to talk to (the nearest spawn), the place to reach, the nearest pickup not yet taken, or the turn-in NPC
+once every goal is done; `u8` 0 alone takes it away. It is sent when the quest log changes and at login.
+
 ### Merchants (CoinStore 165/10, MerchantList)
 
 X at a merchant opens its shop (`Gateway/Merchants.cs`). Sanctuary has one merchant list, Assistant Chef Edward's
