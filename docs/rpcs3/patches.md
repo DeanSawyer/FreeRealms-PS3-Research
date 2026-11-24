@@ -47,6 +47,17 @@ when they differ, binds the wanted one through `0x91d2ac` with fields `+256` and
 `0xea0a5c`–`0xea0a7c` (before the constructor list at `0xea0a80`): an empty state skips the bind and goes on at `0x7845e0`, as if
 it had been applied. The padding `0xea0a20`–`0xea0a58` is left for the *select exceptfds* patch.
 
+**Version 1.1, missing shader constants:** the same function's command list (renderer `+3324`, count at `+3320`) has commands that
+copy shader constants out of the parameter table at `+0x2b8`: type 5 one 16-byte vector (`0x784e14`), type 6 four (`0x784e84`).
+Sometimes a table slot holds `0xc0`, the address of a field in an object that does not exist, and `lvx` faults reading it
+(*Access violation reading location 0xc0*, reported at `0x784e6c` or `0x784ea0`, a minute or so into play: runs
+`fr_test_20261123_204239` and `_205611`; the same crash was seen on 2026-11-06 under the sky fix, see docs/re/zone-loading.md).
+Each of the five `lvx v0,0,r11` (`0x784e54`, `0x784ec4`, `0x784ef0`, `0x784f1c`, `0x784f48`) becomes a call to four
+instructions at `0xe86e30` (the zero padding after the float table ending at `0xe86e2c`, before the game log fix): when `r11`
+is below `0x1000` they return without loading, so the constant keeps its last value for that draw instead of stopping the game.
+The function saves the link register on entry, so the call does not disturb its return. The texture-slot form of the crash
+(type 2, `0x784cec`) is not guarded yet.
+
 ## Game log to TTY
 
 **What it does:** the game logs its own messages (for example *Failed to serialize InGamePurchaseStoreItemsResponsePacket packet.*)

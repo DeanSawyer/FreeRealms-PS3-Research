@@ -36,8 +36,8 @@ PPU-5425f6d47ba410afbcbc7ce77f87f2ffcde68798:
       All:
         All: [ All ]
     Author: "DeanSawyer"
-    Patch Version: 1.0
-    Notes: "Skips binding a render state whose slot became null (the Deep Engine Renderer crash reading 0x108 at 0x7845a4, seen after entering a custom name). Uses the padding at 0xea0a5c-0xea0a7c."
+    Patch Version: 1.1
+    Notes: "Skips binding a render state whose slot became null (the Deep Engine Renderer crash reading 0x108 at 0x7845a4, seen after entering a custom name). Uses the padding at 0xea0a5c-0xea0a7c. 1.1: a shader constant whose parameter pointer is not a real address (the crash reading 0xc0 at 0x784e6c/0x784ea0, a minute or so into play) is skipped instead of loaded (0xe86e30-0xe86e3c)."
     Patch:
       - [ be32, 0x007845b8, 0x4871c4b4 ]
       - [ be32, 0x00785170, 0x4871b8ec ]
@@ -50,6 +50,15 @@ PPU-5425f6d47ba410afbcbc7ce77f87f2ffcde68798:
       - [ be32, 0x00ea0a74, 0x409e0008 ]
       - [ be32, 0x00ea0a78, 0x4b8e3b68 ]
       - [ be32, 0x00ea0a7c, 0x4b8e3b40 ]
+      - [ be32, 0x00784e54, 0x48701fdd ]
+      - [ be32, 0x00784ec4, 0x48701f6d ]
+      - [ be32, 0x00784ef0, 0x48701f41 ]
+      - [ be32, 0x00784f1c, 0x48701f15 ]
+      - [ be32, 0x00784f48, 0x48701ee9 ]
+      - [ be32, 0x00e86e30, 0x280b1000 ]
+      - [ be32, 0x00e86e34, 0x4d800020 ]
+      - [ be32, 0x00e86e38, 0x7c0058ce ]
+      - [ be32, 0x00e86e3c, 0x4e800020 ]
   "Free Realms PS3 game log to TTY":
     Games:
       All:
