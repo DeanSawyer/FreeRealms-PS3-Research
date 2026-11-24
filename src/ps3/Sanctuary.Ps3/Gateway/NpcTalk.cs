@@ -38,11 +38,21 @@ public static class NpcTalk
     /// <summary>The lines of every NPC that has something to say, by NPC id.</summary>
     public static IReadOnlyDictionary<int, IReadOnlyList<TalkLine>> All => Loaded.Value;
 
-    /// <summary>The NPC as the client gets it: one with something to say and no cursor of its own gets the quest cursor, as Sanctuary gives quest NPCs.</summary>
+    /// <summary>The NPC as the client gets it: one with something to say and no cursor of its own gets the quest cursor, as Sanctuary gives quest NPCs; a merchant without one gets cursor 17.</summary>
     public static NpcSpawn WithCursor(NpcSpawn npc)
-        => !npc.HasCursor && npc.CursorId == 0 && All.ContainsKey(npc.NpcId)
-            ? npc with { HasCursor = true, CursorId = QuestCursorId }
-            : npc;
+    {
+        if (npc.HasCursor || npc.CursorId != 0)
+            return npc;
+
+        if (All.ContainsKey(npc.NpcId))
+            return npc with { HasCursor = true, CursorId = QuestCursorId };
+
+        // A merchant without a cursor of its own gets the one Sanctuary's merchants and warpstones have.
+        return Merchants.IsMerchant(npc) ? npc with { HasCursor = true, CursorId = MerchantCursorId } : npc;
+    }
+
+    /// <summary>The cursor of Sanctuary's merchants and warpstones (17, "use").</summary>
+    public const byte MerchantCursorId = 17;
 
     /// <summary>
     /// Command (26) 3, ShowDialog, as the PS3 reads it (sub-opcode 3 of the Command handler <c>0x13eac8</c>, read by <c>0x13e480</c>):

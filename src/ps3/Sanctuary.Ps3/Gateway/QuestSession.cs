@@ -241,9 +241,36 @@ public sealed class QuestSession
                 packets.AddRange(inventory.GiveItem(item));
         }
 
+        // The next quest is offered at once when the same NPC gives it (as Sanctuary's OfferNextQuest); otherwise the dialog camera
+        // lets go of the NPC (QuestDialogComplete; without it the camera stayed on the NPC after the reward).
+        var giver = _shown.Values.FirstOrDefault(shown => shown.NpcId == quest.TurnInNpcId);
+
+        if (quest.NextQuestId is { } nextId && Quests.All.TryGetValue(nextId, out var next) && next.GiverNpcId == quest.TurnInNpcId
+            && next.IsOfferableFor(_log) && giver is not null)
+        {
+            Offered = next.QuestId;
+            NextOffer = new NamedPacket($"QuestInfo {next.QuestId}", Quests.Info(next, giver.Guid));
+        }
+        else
+        {
+            packets.Add(new("QuestDialogComplete", Quests.DialogComplete()));
+        }
+
         packets.AddRange(Refresh());
 
         return packets;
+    }
+
+    /// <summary>The next quest's offer, to send a moment after the reward (Sanctuary waits 750 ms); taken once.</summary>
+    public NamedPacket? NextOffer { get; private set; }
+
+    /// <summary>Takes <see cref="NextOffer"/>.</summary>
+    public NamedPacket? TakeNextOffer()
+    {
+        var offer = NextOffer;
+        NextOffer = null;
+
+        return offer;
     }
 
     /// <summary>The character moved to (x, y, z): reach goals within their radius are done.</summary>

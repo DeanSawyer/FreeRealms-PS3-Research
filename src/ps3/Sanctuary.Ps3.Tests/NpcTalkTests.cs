@@ -26,7 +26,7 @@ public sealed class NpcTalkTests
     {
         var talker = Npcs.All.First(npc => npc.NpcId == 33609) with { HasCursor = false, CursorId = 0 };
         var cow = Npcs.All.First(npc => npc.CursorId == 17 && !NpcTalk.All.ContainsKey(npc.NpcId));
-        var silent = Npcs.All.First(npc => !npc.HasCursor && npc.CursorId == 0 && !NpcTalk.All.ContainsKey(npc.NpcId));
+        var silent = Npcs.All.First(npc => !npc.HasCursor && npc.CursorId == 0 && !NpcTalk.All.ContainsKey(npc.NpcId) && !Merchants.IsMerchant(npc));
 
         Assert.AreEqual(NpcTalk.QuestCursorId, NpcTalk.WithCursor(talker).CursorId);
         Assert.AreEqual(cow, NpcTalk.WithCursor(cow));

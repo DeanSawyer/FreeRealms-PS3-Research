@@ -66,6 +66,9 @@ public sealed class Ps3Gateway
     /// <summary>How long after ClientFinishedLoading the characters are put into the world.</summary>
     public static readonly TimeSpan SpawnDelay = TimeSpan.FromSeconds(1);
 
+    /// <summary>How long after a reward the next quest is offered (Sanctuary's NextOfferDelayMs).</summary>
+    public static readonly TimeSpan NextOfferDelay = TimeSpan.FromMilliseconds(750);
+
     /// <summary>An unacknowledged reliable packet is sent again after this long, at most <see cref="MaxTries"/> times in all.</summary>
     public static readonly TimeSpan ResendAfter = TimeSpan.FromSeconds(1);
 
@@ -109,6 +112,7 @@ public sealed class Ps3Gateway
     private readonly Dictionary<IPEndPoint, NpcRelevance> _npcsShown = [];
     private readonly Dictionary<IPEndPoint, TalkConversation> _talks = [];
     private readonly Dictionary<IPEndPoint, QuestSession> _quests = [];
+    private readonly Dictionary<IPEndPoint, HashSet<int>> _definitionsSent = [];
     private readonly QuestStore _questStore;
 
     /// <summary>The open world's NPCs this install can show: their model is in the packs and their terrain too.</summary>
@@ -558,6 +562,7 @@ public sealed class Ps3Gateway
             _npcsShown.Remove(peer);
             _talks.Remove(peer);
             _quests.Remove(peer);
+            _definitionsSent.Remove(peer);
             Schedule(ReadyFallback, () => SendReadyFallback(peer, channel));
         }
         else if ((opcode is 5 or 6) && payload.Length >= 7)
@@ -649,6 +654,15 @@ public sealed class Ps3Gateway
                 _logger?.LogInformation("sanctuary: quest business with {NpcId} {Name}: {Packets}", npc.NpcId, npc.Name, string.Join(", ", outcome.Packets.Select(packet => packet.Name)));
                 SendQuestOutcome(peer, channel, outcome);
             }
+            else if (_world.Options.CoinStore && Merchants.StockOf(npc) is { } stock)
+            {
+                var buyer = _playing.TryGetValue(peer, out var merchantCustomer) ? merchantCustomer.Guid : 0UL;
+                var definitions = stock.Items.Select(item => item.Definition).Where(id => Items.Definitions.ContainsKey(id) && SentDefinitions(peer).Add(id))
+                    .Select(id => new NamedPacket($"ItemDefinition {id}", Items.ItemDefinition(id)));
+
+                _logger?.LogInformation("sanctuary: merchant {NpcId} {Name}: {Items} item(s)", npc.NpcId, npc.Name, stock.Items.Count);
+                SendNamed(peer, channel, $"merchant {npc.NpcId}", [.. definitions, new NamedPacket("MerchantList", Merchants.MerchantList(stock, npc.Guid, buyer))]);
+            }
             else if (NpcTalk.All.TryGetValue(npc.NpcId, out var lines))
             {
                 var conversation = new TalkConversation(npc, lines);
@@ -680,6 +694,9 @@ public sealed class Ps3Gateway
 
                 _logger?.LogInformation("sanctuary: quest {QuestId} handed in", handedIn);
                 SendNamed(peer, channel, $"quest {handedIn} done", quests.EndReply(handedIn, purse));
+
+                if (quests.TakeNextOffer() is { } nextOffer)
+                    Schedule(NextOfferDelay, () => SendNamed(peer, channel, "next quest", [nextOffer]));
 
                 if (purse is not null)
                     SaveProgress(peer, purse);
@@ -1018,6 +1035,10 @@ public sealed class Ps3Gateway
         foreach (var (_, inner) in SanctuaryFlow.Select(packets, _world.Options.Skip))
             SendReliable(peer, Ps3Packets.Tunneled(inner), channel);
     }
+
+    /// <summary>The item definitions sent to the peer for merchants so far (each is sent once).</summary>
+    private HashSet<int> SentDefinitions(IPEndPoint peer)
+        => _definitionsSent.TryGetValue(peer, out var sent) ? sent : _definitionsSent[peer] = [];
 
     /// <summary>Sends what a quest action produced and starts the conversation it brought, if any.</summary>
     private void SendQuestOutcome(IPEndPoint peer, int channel, QuestOutcome outcome)
