@@ -122,7 +122,7 @@ public sealed class PetsTests
 
         Assert.AreEqual(2f, PetCare.ScratchPlay(1_000_000, 10), "at most 2");
         Assert.AreEqual(0.5f, PetCare.ScratchPlay(5000, 100), 1e-4);
-        Assert.AreEqual(1f, PetCare.MoodTarget(0, 100, 100), 0.01f, "a need at 0 counts as 1, and drags the mean down");
+        Assert.AreEqual(3f / 1.02f, PetCare.MoodTarget(0, 100, 100), 0.001f, "a need at 0 counts as 1, and drags the mean down");
     }
 
     [TestMethod]
