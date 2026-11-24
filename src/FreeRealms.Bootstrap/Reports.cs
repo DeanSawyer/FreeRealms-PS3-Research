@@ -113,7 +113,7 @@ public static partial class Reports
     /// <summary>
     /// The game's own Marketplace tables and character select movies, read from its packs, so a report shows what the store screen
     /// expects, how the select screens are built (characterCreateSelect is the select bar the PS3 never shows), and the zone's areas and the
-    /// atlas, where the PS3 has its towns.
+    /// atlas, where the PS3 has its towns, and the quest window and notification movies the quest rewards go to.
     /// </summary>
     private static readonly string[] ClientDataFiles =
     [
@@ -121,6 +121,8 @@ public static partial class Reports
         "characterCreateSelect.gfx", "characterNameScreen.gfx", "characterCreate.gfx", "characterCreateType.gfx",
         // The zone's areas and the atlas movie, to place the atlas's points and warpstones where the PS3 map has them.
         "FabledRealmsAreas.xml", "atlas.gfx",
+        // The quest offer and turn-in window and the notifications the reward celebration goes through, to see how they show rewards.
+        "queststart.gfx", "notificationSm.gfx", "notifications.gfx", "notificationsQuests.gfx", "FRLevelProgressBar.gfx",
     ];
 
     private static void WriteClientData(string folder, string clientFolder)
