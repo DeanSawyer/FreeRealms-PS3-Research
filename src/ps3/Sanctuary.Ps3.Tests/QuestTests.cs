@@ -87,6 +87,14 @@ public sealed class QuestTests
         var taken = session.Reply(2563, accepted: true);
         CollectionAssert.IsSubsetOf(new[] { "QuestAdd 2563", "ObjectiveAdded 2563/0", "ObjectiveActivated 2563/0", "QuestDialogComplete" }, taken.Select(packet => packet.Name).ToList());
         Assert.IsTrue(session.Log.InProgress.ContainsKey(2563));
+
+        // The quest marker points at the NPC the goal is done at (Ui 13, 48 bytes).
+        var marker = taken.Single(packet => packet.Name == "ObjectiveTargetUpdate").Inner;
+        Assert.AreEqual(48, marker.Length);
+        Assert.AreEqual(13, marker[2]);
+        Assert.AreEqual(1, marker[3], "active");
+        Assert.AreEqual(ricky.Guid, BinaryPrimitives.ReadUInt64LittleEndian(marker.AsSpan(16)));
+        Assert.AreEqual(ricky.X, BinaryPrimitives.ReadSingleLittleEndian(marker.AsSpan(28)));
         Assert.AreEqual(Quests.All[2563].NotificationActive, session.Wanted(ricky).Badge?.IconState, "\"?\" over the NPC the quest waits on");
         Assert.IsTrue(taken.Any(packet => packet.Name.StartsWith("RemoveNotifications", StringComparison.Ordinal)), "the giver's \"!\" goes");
 
@@ -98,6 +106,7 @@ public sealed class QuestTests
         CollectionAssert.IsSubsetOf(new[] { "QuestComplete 2563", "CompletedQuestCount", "CoinCount" }, done.Select(packet => packet.Name).ToList());
         Assert.AreEqual(coins + Quests.All[2563].RewardCoins, inventory.Coins);
         CollectionAssert.Contains(session.Log.Completed, 2563);
+        CollectionAssert.AreEqual(Quests.NoObjectiveTarget(), done.Single(packet => packet.Name == "ObjectiveTargetUpdate").Inner, "no quest left to point at");
         Assert.IsTrue(saved >= 3);
 
         Assert.AreEqual("QuestInfo 1801", session.Interact(ricky)?.Packets.Single().Name, "the next quest, which needed this one");

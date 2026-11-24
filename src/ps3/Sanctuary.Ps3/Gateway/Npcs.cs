@@ -62,6 +62,11 @@ public static class Npcs
     /// <summary>Every NPC of the open world, in the order Sanctuary spawns them.</summary>
     public static IReadOnlyList<NpcSpawn> All => Loaded.Value;
 
+    private static readonly Lazy<ILookup<int, NpcSpawn>> ByNpcId = new(() => All.ToLookup(npc => npc.NpcId));
+
+    /// <summary>The spawns of NPC <paramref name="npcId"/>.</summary>
+    public static IEnumerable<NpcSpawn> ById(int npcId) => ByNpcId.Value[npcId];
+
     /// <summary>
     /// PlayerUpdate (35) 2, AddNpc, as the PS3 client reads it (<c>0xb0c010</c>, from sub-opcode 2 of PlayerUpdate at <c>0x1115fc</c>).
     /// It follows Sanctuary's PlayerUpdatePacketAddNpc with these differences: two <c>i32</c> before the chat bubble colours, two

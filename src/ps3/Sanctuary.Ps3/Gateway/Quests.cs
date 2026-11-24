@@ -283,6 +283,22 @@ public static class Quests
         return Reward(writer, quest.RewardCoins, quest.RewardExperience).F32(quest.CameraDistance ?? 0).ToArray();
     }
 
+    /// <summary>
+    /// Ui (47) 13, ObjectiveTargetUpdate (Sanctuary's Ui 14; the PS3's 13 is read by <c>0xb7bf64</c>, then <c>0x1daf80</c> fills the
+    /// <c>BaseClient.ObjectiveTarget</c> datasource the minimap and atlas draw the quest marker from): <c>u8</c> active, <c>u64</c> task
+    /// id, <c>i32</c> 2, <c>u64</c> target guid, <c>i32</c> name id, position (4 x <c>f32</c>), <c>i32</c> target type 2; 48 bytes.
+    /// </summary>
+    public static byte[] ObjectiveTarget(ulong taskId, ulong guid, int nameId, float x, float y, float z)
+        => new PacketWriter().U16(47).U8(ObjectiveTargetSub).U8(1).U64(taskId).I32(2).U64(guid).I32(nameId).F32(x).F32(y).F32(z).F32(1).I32(2).ToArray();
+
+    /// <summary>ObjectiveTargetUpdate with nothing to point at: the marker goes away.</summary>
+    public static byte[] NoObjectiveTarget() => new PacketWriter().U16(47).U8(ObjectiveTargetSub).U8(0).ToArray();
+
+    public const int ObjectiveTargetSub = 13;
+
+    /// <summary>Guids of reach goals' places (Sanctuary's LocationTarget guids are its own): this plus the goal's name id.</summary>
+    public const ulong LocationGuidBase = 0x0400_0000_0000_0000;
+
     /// <summary>Command (26) 29, QuestDialogComplete: closes the offer's camera after an accept (Sanctuary sends it; the PS3 has the sub-opcode).</summary>
     public static byte[] DialogComplete() => new PacketWriter().U16(26).U16(29).ToArray();
 

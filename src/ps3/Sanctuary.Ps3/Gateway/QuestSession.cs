@@ -30,6 +30,9 @@ public sealed class QuestSession
     private readonly Dictionary<ulong, Notification?> _badges = [];
     private readonly Dictionary<ulong, bool> _questCursor = [];
     private readonly Dictionary<ulong, QuestNode> _nodes = [];
+    private readonly ulong _taskId = (ulong)Random.Shared.NextInt64(1, long.MaxValue);
+    private (double X, double Y, double Z)? _at;
+    private byte[]? _target;
 
     public QuestSession(QuestLog log, ulong player, Action<QuestLog> save, Func<NpcSpawn, bool>? placeable = null, Func<long>? now = null)
     {
@@ -79,6 +82,7 @@ public sealed class QuestSession
         }
 
         packets.Add(new("CompletedQuestCount", Quests.CompletedCount(_log.Completed.Count)));
+        packets.AddRange(Target());
 
         return packets;
     }
@@ -276,6 +280,8 @@ public sealed class QuestSession
     /// <summary>The character moved to (x, y, z): reach goals within their radius are done.</summary>
     public QuestOutcome? Moved(double x, double y, double z)
     {
+        _at = (x, y, z);
+
         foreach (var state in InProgressInOrder())
         {
             var quest = Quests.All[state.QuestId];
@@ -324,6 +330,7 @@ public sealed class QuestSession
                 {
                     Save();
                     packets.Add(new($"ObjectiveUpdate {quest.QuestId}/{index}", Quests.ObjectiveUpdate(quest.QuestId, goal, count, state.Completion(quest))));
+                    packets.AddRange(Target());
 
                     return new QuestOutcome(packets);
                 }
@@ -471,8 +478,77 @@ public sealed class QuestSession
         if (cursors.Count > 0)
             packets.Add(new($"NpcRelevance quest {cursors.Count}", Npcs.RelevanceEntries(cursors)));
 
+        packets.AddRange(Target());
+
         return packets;
     }
+
+    /// <summary>
+    /// The quest marker (ObjectiveTargetUpdate) for the tracked quest's first open goal: its NPC, its place, the nearest of its
+    /// pickups, or the turn-in NPC once every goal is done; none when no quest is taken. Sent only when it changed.
+    /// </summary>
+    private List<NamedPacket> Target()
+    {
+        var target = WantedTarget();
+
+        if (_target is not null && target.AsSpan().SequenceEqual(_target))
+            return [];
+
+        _target = target;
+
+        return [new("ObjectiveTargetUpdate", target)];
+    }
+
+    private byte[] WantedTarget()
+    {
+        var state = _log.InProgress.GetValueOrDefault(_log.ActiveQuestId) ?? InProgressInOrder().FirstOrDefault();
+
+        if (state is null || !Quests.All.TryGetValue(state.QuestId, out var quest))
+            return Quests.NoObjectiveTarget();
+
+        if (state.AllGoalsDone(quest))
+            return NpcTarget(quest.TurnInNpcId);
+
+        foreach (var index in state.OpenGoals(quest))
+        {
+            var goal = quest.Goals[index];
+
+            switch (goal.Type)
+            {
+                case QuestGoalDef.Talk:
+                    var waiting = goal.TalkTargets(quest).Where(id => !(state.Talked.TryGetValue(index, out var talked) && talked.Contains(id)));
+
+                    if (waiting.Select(NearestNpc).Where(npc => npc is not null).OrderBy(npc => Distance(npc!.X, npc.Z)).FirstOrDefault() is { } speaker)
+                        return Quests.ObjectiveTarget(_taskId, speaker.Guid, speaker.NameId, speaker.X, speaker.Y, speaker.Z);
+
+                    break;
+
+                case QuestGoalDef.Reach when goal.ReachPosition is [var x, var y, var z]:
+                    return Quests.ObjectiveTarget(_taskId, Quests.LocationGuidBase + (ulong)goal.NameId, goal.NameId, x, y, z);
+
+                case QuestGoalDef.Collect:
+                    var pickup = Quests.Nodes.Where(node => node.Key == goal.CollectNodeType && !state.Taken.Contains(node.Index))
+                        .OrderBy(node => Distance(node.X, node.Z)).FirstOrDefault();
+
+                    if (pickup is not null)
+                        return Quests.ObjectiveTarget(_taskId, pickup.Guid, goal.NameId, pickup.X, pickup.Y, pickup.Z);
+
+                    break;
+            }
+        }
+
+        return Quests.NoObjectiveTarget();
+    }
+
+    private byte[] NpcTarget(int npcId)
+        => NearestNpc(npcId) is { } npc ? Quests.ObjectiveTarget(_taskId, npc.Guid, npc.NameId, npc.X, npc.Y, npc.Z) : Quests.NoObjectiveTarget();
+
+    /// <summary>The spawn of NPC <paramref name="npcId"/> nearest the character (the one the client has, when it has one).</summary>
+    private NpcSpawn? NearestNpc(int npcId)
+        => _shown.Values.FirstOrDefault(npc => npc.NpcId == npcId)
+            ?? Npcs.ById(npcId).OrderBy(npc => Distance(npc.X, npc.Z)).FirstOrDefault();
+
+    private double Distance(double x, double z) => _at is { } at ? ((at.X - x) * (at.X - x)) + ((at.Z - z) * (at.Z - z)) : 0;
 
     /// <summary>
     /// The badge <paramref name="npc"/> shows for this character, and whether it gets the quest cursor: "!" when it has a quest to
