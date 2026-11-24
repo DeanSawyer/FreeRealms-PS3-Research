@@ -277,6 +277,14 @@ character has moved 16 units (its position updates, opcode 125) and after a tele
 the definition's name, model, scale (else Models.txt's), texture and tint aliases, tint, disposition (a hostile NPC shows its health
 bar), composite effect, animation, vertical offset, terrain object, sub text and the tilt of placed objects (heading, pitch, roll).
 
+After each batch of AddNpc the server sends **PlayerUpdate (35) 12, NpcRelevance** for the added NPCs that have a cursor of their
+own (Npcs.json's `CursorId` / `HasCursor` / `RelevanceUnknown2`, the last three columns of `npcs.tsv.gz`; 497 of the 4,258), and
+one for the warpstones (cursor 17): `u32` count, then per NPC `u64` guid, `u8` has cursor, `u8` cursor id (only when it has one),
+`u8` flag. The PS3 reads it as Sanctuary's `PlayerUpdatePacketNpcRelevance` does (checked with `tools/ppc_trace.py`: count at 4,
+guid at 8, has cursor at `0x10`, cursor id at `0x11`, flag at `0x12`). Sanctuary sends it after AddNpc
+(`InteractionMenuHelper.GetNpcRelevancePacket`); without it no X press at a warpstone or NPC ever reached the server
+(no Command 26/8 in `fr_test_20261123_202630`). Every InteractRequest that is not a warpstone's is logged with the NPC it names.
+
 ## Item classes and categories (ReferenceData, opcode 44)
 
 The client's handler for opcode 44 is `0xd4764` (vtable slot +340 of the object whose slot +320 handles PlayerUpdate). With

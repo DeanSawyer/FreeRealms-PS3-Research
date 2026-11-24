@@ -46,6 +46,27 @@ public sealed class NpcsTests
     }
 
     [TestMethod]
+    public void NpcRelevanceListsTheOnesWithACursor()
+    {
+        Assert.IsTrue(Npcs.All.Count(npc => npc.HasCursor) > 300, "Sanctuary gives hundreds of NPCs a cursor");
+
+        var plain = Npcs.All[0] with { CursorId = 0, HasCursor = false };
+        var vendor = Npcs.All[1] with { CursorId = 11, HasCursor = true, RelevanceFlag = true };
+        var packet = Npcs.Relevance([plain, vendor]);
+
+        // PlayerUpdate 12, one entry: guid, has cursor, cursor id, flag (the PS3 reads the same).
+        Assert.AreEqual(35, BinaryPrimitives.ReadUInt16LittleEndian(packet));
+        Assert.AreEqual(12, BinaryPrimitives.ReadUInt16LittleEndian(packet.AsSpan(2)));
+        Assert.AreEqual(1u, BinaryPrimitives.ReadUInt32LittleEndian(packet.AsSpan(4)));
+        Assert.AreEqual(vendor.Guid, BinaryPrimitives.ReadUInt64LittleEndian(packet.AsSpan(8)));
+        CollectionAssert.AreEqual(new byte[] { 1, 11, 1 }, packet[0x10..]);
+
+        var stones = Npcs.Relevance(Warpstones.All.Select(Warpstones.AsNpc));
+        Assert.AreEqual((uint)Warpstones.All.Count, BinaryPrimitives.ReadUInt32LittleEndian(stones.AsSpan(4)));
+        Assert.AreEqual(Warpstones.CursorId, stones[0x11]);
+    }
+
+    [TestMethod]
     public void NearOnesAreAddedAndFarOnesRemoved()
     {
         var near = Npcs.All[0] with { X = 0, Z = 0 };

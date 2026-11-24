@@ -56,7 +56,11 @@ public static class Warpstones
     public static NpcSpawn AsNpc(Warpstone stone) => new(
         stone.Guid, stone.NpcId, ModelId, "sg_warpstone_01.adr", stone.NameId, stone.Name, 1, string.Empty, string.Empty, 0,
         HideNamePlate: false, SubTextNameId: 0, Disposition: 1, CompositeEffectId: 0, Animation: 1, VerticalOffset: 0, TerrainObjectId: 0,
-        Tilted: false, Interactable: true, stone.X, stone.Y, stone.Z, stone.Heading, Pitch: 0, Roll: 0);
+        Tilted: false, Interactable: true, stone.X, stone.Y, stone.Z, stone.Heading, Pitch: 0, Roll: 0,
+        CursorId: CursorId, HasCursor: true);
+
+    /// <summary>The warpstone cursor (Sanctuary's Npcs.json gives every warpstone cursor 17).</summary>
+    public const byte CursorId = 17;
 
     /// <summary>PlayerUpdate (35) 2, AddNpc for the warpstone (<see cref="Npcs.AddNpc"/>).</summary>
     public static byte[] AddNpc(Warpstone stone) => Npcs.AddNpc(AsNpc(stone));

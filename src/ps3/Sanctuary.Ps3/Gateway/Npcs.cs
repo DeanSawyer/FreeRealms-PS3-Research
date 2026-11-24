@@ -34,7 +34,10 @@ public sealed record NpcSpawn(
     float Z,
     float Heading,
     float Pitch,
-    float Roll);
+    float Roll,
+    byte CursorId = 0,
+    bool HasCursor = false,
+    bool RelevanceFlag = false);
 
 /// <summary>
 /// The open world's NPCs: Sanctuary's (OSFR) definitions placed where its <c>Scripts/Zone/FabledRealms.lua</c> spawns them
@@ -113,6 +116,31 @@ public static class Npcs
     /// <summary>PlayerUpdate (35) 3, RemovePlayer: <c>u16</c> 0 and the guid (the PS3 reads the same, <c>0x111b38</c>).</summary>
     public static byte[] RemoveNpc(ulong guid) => new PacketWriter().U16(35).U16(3).U16(0).U64(guid).ToArray();
 
+    /// <summary>
+    /// PlayerUpdate (35) 12, NpcRelevance: a <c>u32</c> count, then per NPC its <c>u64</c> guid, a <c>u8</c> has-cursor, the
+    /// <c>u8</c> cursor id when it has one, and a <c>u8</c> flag. It is what makes an NPC a target the player can press X at, with
+    /// the cursor that says what pressing does (Sanctuary's InteractionMenuHelper.GetNpcRelevancePacket; the PS3 reads it the same
+    /// way). Only NPCs with a cursor of their own are listed, as Sanctuary does.
+    /// </summary>
+    public static byte[] Relevance(IEnumerable<NpcSpawn> npcs)
+    {
+        var entries = npcs.Where(npc => npc.HasCursor || npc.CursorId != 0).ToList();
+        var writer = new PacketWriter().U16(35).U16(12).U32((uint)entries.Count);
+
+        foreach (var npc in entries)
+        {
+            var hasCursor = npc.HasCursor || npc.CursorId != 0;
+            writer.U64(npc.Guid).U8(hasCursor ? 1 : 0);
+
+            if (hasCursor)
+                writer.U8(npc.CursorId);
+
+            writer.U8(npc.RelevanceFlag ? 1 : 0);
+        }
+
+        return writer.ToArray();
+    }
+
     private static IReadOnlyList<NpcSpawn> Load()
     {
         using var stream = typeof(Npcs).Assembly.GetManifestResourceStream(Resource)
@@ -141,7 +169,8 @@ public static class Npcs
                 GuidBase + index++,
                 Int(0), Int(1), c[2], Int(3), c[4], Float(5), c[6], c[7], Int(8),
                 c[9] == "1", Int(10), Int(11), Int(12), Int(13), Float(14), Int(15), c[16] == "1", c[17] == "1",
-                Float(18), Float(19), Float(20), Float(21), Float(22), Float(23));
+                Float(18), Float(19), Float(20), Float(21), Float(22), Float(23),
+                byte.Parse(c[24], CultureInfo.InvariantCulture), c[25] == "1", c[26] == "1");
         }
     }
 }

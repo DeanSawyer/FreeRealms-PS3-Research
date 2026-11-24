@@ -623,6 +623,17 @@ public sealed class Ps3Gateway
             return;
         }
 
+        // X at any other NPC: say which one, so the talking can be built on what the client really sends.
+        if (innerOpcode == Warpstones.CommandOpcode && inner.Length >= 12
+            && BinaryPrimitives.ReadUInt16LittleEndian(inner.AsSpan(2)) == Warpstones.InteractRequestSub)
+        {
+            var guid = BinaryPrimitives.ReadUInt64LittleEndian(inner.AsSpan(4));
+            var npc = guid >= Npcs.GuidBase && guid - Npcs.GuidBase < (ulong)Npcs.All.Count ? Npcs.All[(int)(guid - Npcs.GuidBase)] : null;
+
+            _logger?.LogInformation("sanctuary: interact request for {Guid:x} ({Npc}) {Hex}", guid,
+                npc is null ? "not an NPC" : $"{npc.NpcId} {npc.Name}", Convert.ToHexString(inner).ToLowerInvariant());
+        }
+
         if (innerOpcode is 42 or 26 && _inventories.TryGetValue(peer, out var inventory) && inventory.Handle(inner) is { } replies)
         {
             var sub = inner.Length >= 4 ? BinaryPrimitives.ReadUInt16LittleEndian(inner.AsSpan(2)) : -1;
@@ -883,7 +894,13 @@ public sealed class Ps3Gateway
         var packets = remove.Select(npc => new NamedPacket($"RemovePlayer {npc.Name}", Npcs.RemoveNpc(npc.Guid)))
             .Concat(add.Select(npc => new NamedPacket($"AddNpc {npc.NpcId} {npc.Name}", Npcs.AddNpc(npc))));
 
-        _logger?.LogInformation("gateway: npcs: {Added} added, {Removed} removed, {Shown} near the character", add.Count, remove.Count, shown.Shown);
+        // The added ones with a cursor become targets for X (as Sanctuary sends NpcRelevance after its AddNpc packets).
+        var targets = add.Count(npc => npc.HasCursor || npc.CursorId != 0);
+
+        if (targets > 0)
+            packets = packets.Append(new NamedPacket($"NpcRelevance {targets}", Npcs.Relevance(add)));
+
+        _logger?.LogInformation("gateway: npcs: {Added} added ({Targets} with a cursor), {Removed} removed, {Shown} near the character", add.Count, targets, remove.Count, shown.Shown);
 
         foreach (var (_, inner) in SanctuaryFlow.Select(packets, _world.Options.Skip))
             SendReliable(peer, Ps3Packets.Tunneled(inner), channel);
@@ -899,7 +916,8 @@ public sealed class Ps3Gateway
         var placed = Warpstones.All.Where(stone => _world.HasGround(stone.X, stone.Z)).ToList();
 
         _logger?.LogInformation("gateway: warpstones: {Placed} of {All} have their terrain in the install", placed.Count, Warpstones.All.Count);
-        SendNamed(peer, channel, "warpstones", placed.Select(stone => new NamedPacket($"AddNpc {stone.Name}", Warpstones.AddNpc(stone))));
+        SendNamed(peer, channel, "warpstones", placed.Select(stone => new NamedPacket($"AddNpc {stone.Name}", Warpstones.AddNpc(stone)))
+            .Append(new NamedPacket("NpcRelevance warpstones", Npcs.Relevance(placed.Select(Warpstones.AsNpc)))));
     }
 
     /// <summary>Sends your character's AddPc after the client finished loading (the server marks the player visible then), then the creator's clothes.</summary>
