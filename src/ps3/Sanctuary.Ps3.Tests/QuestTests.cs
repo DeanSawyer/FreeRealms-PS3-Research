@@ -55,6 +55,23 @@ public sealed class QuestTests
     }
 
     [TestMethod]
+    public void RewardItemsAreListedInTheBundle()
+    {
+        var quest = Quests.All.Values.First(q => q.RewardItems.Count(Items.Definitions.ContainsKey) == 1);
+
+        // One item entry is 38 bytes (0xa8d2f4 reads them after the count).
+        Assert.AreEqual(101 + 38, Quests.Info(quest, 5).Length);
+        Assert.AreEqual(87 + 38, Quests.End(quest, 5).Length);
+
+        var celebration = Quests.Celebration(quest, 9);
+        Assert.AreEqual(50, BinaryPrimitives.ReadUInt16LittleEndian(celebration));
+        Assert.AreEqual(1, celebration[2]);
+        Assert.AreEqual(quest.RewardCoins, BinaryPrimitives.ReadInt32LittleEndian(celebration.AsSpan(4)));
+        Assert.AreEqual(1u, BinaryPrimitives.ReadUInt32LittleEndian(celebration.AsSpan(3 + 49)), "one entry");
+        Assert.AreEqual(quest.RewardItems.First(Items.Definitions.ContainsKey), BinaryPrimitives.ReadInt32LittleEndian(celebration.AsSpan(3 + 53 + 21)));
+    }
+
+    [TestMethod]
     public void TheClientsAnswersAreRead()
     {
         byte[] reply = [49, 0, 2, 0, 0, 0, 0x03, 0x0a, 0, 0, 1];
@@ -103,7 +120,7 @@ public sealed class QuestTests
         CollectionAssert.IsSubsetOf(new[] { "ObjectiveComplete 2563/0", "QuestEnd 2563" }, talked.Packets.Select(packet => packet.Name).ToList());
 
         var done = session.EndReply(2563, inventory);
-        CollectionAssert.IsSubsetOf(new[] { "QuestComplete 2563", "CompletedQuestCount", "CoinCount" }, done.Select(packet => packet.Name).ToList());
+        CollectionAssert.IsSubsetOf(new[] { "QuestComplete 2563", "CompletedQuestCount", "RewardBundle 2563", "CoinCount" }, done.Select(packet => packet.Name).ToList());
         Assert.AreEqual(coins + Quests.All[2563].RewardCoins, inventory.Coins);
         CollectionAssert.Contains(session.Log.Completed, 2563);
         CollectionAssert.AreEqual(Quests.NoObjectiveTarget(), done.Single(packet => packet.Name == "ObjectiveTargetUpdate").Inner, "no quest left to point at");

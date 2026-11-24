@@ -233,6 +233,10 @@ public sealed class QuestSession
             new("CompletedQuestCount", Quests.CompletedCount(_log.Completed.Count)),
         };
 
+        // The celebration (coins, experience and items), as Sanctuary's GrantReward sends it.
+        if (quest.RewardCoins > 0 || quest.RewardExperience > 0 || quest.RewardItems.Count > 0)
+            packets.Add(new($"RewardBundle {questId}", Quests.Celebration(quest, _player)));
+
         if (inventory is not null)
         {
             if (quest.RewardCoins > 0)

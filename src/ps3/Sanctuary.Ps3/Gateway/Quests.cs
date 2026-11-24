@@ -218,8 +218,37 @@ public static class Quests
     /// player guid, icon, name, the entries (none here) and a description. Sanctuary's has a multiplier and two <c>i32</c> after the
     /// fourth unknown that the PS3 does not read.
     /// </summary>
-    public static PacketWriter Reward(PacketWriter writer, int coins, int experience, int unknown3 = 0, ulong player = 0, int icon = -1, int name = -1)
-        => writer.U8(0).I32(coins).I32(experience).I32(0).I32(unknown3).I32(0).I32(0).U64(0).U64(player).I32(icon).I32(name).U32(0).I32(0);
+    public static PacketWriter Reward(PacketWriter writer, int coins, int experience, int unknown3 = 0, ulong player = 0, int icon = -1, int name = -1,
+        IReadOnlyList<int>? items = null)
+    {
+        var entries = (items ?? []).Where(Items.Definitions.ContainsKey).ToList();
+
+        writer.U8(0).I32(coins).I32(experience).I32(0).I32(unknown3).I32(0).I32(0).U64(0).U64(player).I32(icon).I32(name).U32((uint)entries.Count);
+
+        // Each item (Sanctuary's RewardBundleEntryItem; with success 0 the item guid after it is not sent): type 1, hidden, icon,
+        // icon tint, name, quantity, definition, tint, description, text colour, members only. The PS3 reads the same (38 bytes).
+        foreach (var definition in entries)
+        {
+            var row = Items.Definitions[definition];
+
+            writer.I32(ItemEntryType).U8(0).I32(Items.Int(row, 3)).I32(Items.Int(row, 4)).I32(Items.Int(row, 1)).I32(1).I32(definition).I32(0)
+                .Str(string.Empty).I32(0).U8(Items.Int(row, 18) != 0 ? 1 : 0);
+        }
+
+        return writer.I32(0);
+    }
+
+    /// <summary>Sanctuary's RewardBundleEntryType.Item.</summary>
+    private const int ItemEntryType = 1;
+
+    /// <summary>
+    /// Reward (50) 1, RewardBundle: the reward celebration after a quest is handed in (Sanctuary's GrantReward sends it): <c>u16</c> 50,
+    /// <c>u8</c> 1, then the reward bundle (<see cref="Reward"/>), read by <c>0x287b1c</c> and <c>0xa8d2f4</c>.
+    /// </summary>
+    public static byte[] Celebration(QuestDef quest, ulong player)
+        => Reward(new PacketWriter().U16(RewardOpcode).U8(1), quest.RewardCoins, quest.RewardExperience, player: player, items: quest.RewardItems).ToArray();
+
+    public const int RewardOpcode = 50;
 
     /// <summary>Quest 1, QuestInfo: the offer window (read by <c>0xa8f354</c>, 101 bytes).</summary>
     public static byte[] Info(QuestDef quest, ulong npcGuid)
@@ -227,7 +256,7 @@ public static class Quests
         var writer = Header(InfoSub)
             .I32(quest.QuestId).I32(quest.GiverDialogueId).I32(TalkAnimationId).I32(quest.TitleId).I32(quest.DescriptionId).I32(0).U8(0);
 
-        return Reward(writer, quest.RewardCoins, quest.RewardExperience).U64(npcGuid).F32(quest.CameraDistance ?? 0).U8(0).ToArray();
+        return Reward(writer, quest.RewardCoins, quest.RewardExperience, items: quest.RewardItems).U64(npcGuid).F32(quest.CameraDistance ?? 0).U8(0).ToArray();
     }
 
     /// <summary>Quest 3, QuestAdd: the quest in the journal and, when <paramref name="tracker"/>, the tracker; its goals follow as ObjectiveAdded.</summary>
@@ -280,7 +309,7 @@ public static class Quests
     {
         var writer = Header(EndSub).U64(npcGuid).I32(quest.QuestId).I32(quest.TurnInDialogueId).I32(TalkAnimationId);
 
-        return Reward(writer, quest.RewardCoins, quest.RewardExperience).F32(quest.CameraDistance ?? 0).ToArray();
+        return Reward(writer, quest.RewardCoins, quest.RewardExperience, items: quest.RewardItems).F32(quest.CameraDistance ?? 0).ToArray();
     }
 
     /// <summary>
