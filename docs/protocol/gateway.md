@@ -360,6 +360,9 @@ guid, `i32` name id, position, `i32` target type 2); `0x1daf80` then fills the `
 first open goal: the NPC to talk to (the nearest spawn), the place to reach, the nearest pickup not yet taken, or the turn-in NPC
 once every goal is done; `u8` 0 alone takes it away. It is sent when the quest log changes and at login.
 
+Picking a quest in the journal sends **Ui (47) 11, SelectQuest** (Sanctuary's Ui 12): `u8` sub 11 and the quest's `i32` id
+(`2f 00 0b a8 0c 00 00` for quest 3240). The server makes it the tracked quest, keeps that in the quest log and moves the marker.
+
 With a quest tracked the PS3 asks for a path to the marker over and over (**ClientPath 98/1, ClientPathRequest**: `u8` sub 1,
 `u64` guid, `i32` type and id, from and to positions, `i32`; 55 bytes, Sanctuary's layout), type 1 for the objective helper's trail
 and type 2 for Take Me There (R2, `0x162824`). Unanswered, neither does anything. Sanctuary answers from the zone's navigation mesh;

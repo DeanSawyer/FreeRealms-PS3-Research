@@ -131,6 +131,34 @@ public sealed class QuestTests
     }
 
     [TestMethod]
+    public void PickingAQuestInTheJournalMovesTheMarker()
+    {
+        // As the PS3 sent it: Ui 11, quest 3240.
+        byte[] select = [0x2f, 0, 0x0b, 0xa8, 0x0c, 0, 0];
+        Assert.AreEqual(3240, Quests.FromSelect(select));
+        Assert.IsNull(Quests.FromSelect([0x2f, 0, 0x0d, 1, 0, 0, 0]));
+
+        var first = Quests.All[2563];
+        var second = Quests.All.Values.First(quest => quest.QuestId != first.QuestId && quest.Goals[0].Type == QuestGoalDef.Talk
+            && quest.Goals[0].TalkTargets(quest).First() != first.Goals[0].TalkTargets(first).First() && Npcs.ById(quest.Goals[0].TalkTargets(quest).First()).Any());
+        var log = new QuestLog { ActiveQuestId = first.QuestId };
+        log.InProgress[first.QuestId] = new QuestState { QuestId = first.QuestId };
+        log.InProgress[second.QuestId] = new QuestState { QuestId = second.QuestId };
+        var saved = 0;
+        var session = new QuestSession(log, 9, _ => saved++);
+
+        session.Restore();
+        var moved = session.Select(second.QuestId);
+
+        Assert.AreEqual(second.QuestId, log.ActiveQuestId);
+        Assert.AreEqual(1, saved);
+        Assert.AreEqual("ObjectiveTargetUpdate", moved.Single().Name);
+        Assert.AreEqual(0, session.Select(second.QuestId).Count, "already followed: nothing changes");
+        Assert.AreEqual(0, session.Select(99999).Count, "not a quest in the journal");
+        Assert.AreEqual(second.QuestId, log.ActiveQuestId);
+    }
+
+    [TestMethod]
     public void PickupsCountForTheirCollectGoal()
     {
         var quest = Quests.All[3042];

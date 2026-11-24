@@ -339,6 +339,16 @@ public static class Quests
     public static int? FromEndReply(ReadOnlySpan<byte> inner)
         => Sub(inner) == EndReplySub && inner.Length >= 10 ? BinaryPrimitives.ReadInt32LittleEndian(inner[6..]) : null;
 
+    /// <summary>
+    /// Ui (47) 11, SelectQuest (Sanctuary's Ui 12; seen from the PS3 as <c>2f 00 0b</c> and an <c>i32</c>): the player picked a quest in
+    /// the journal to follow. The quest id, or null.
+    /// </summary>
+    public static int? FromSelect(ReadOnlySpan<byte> inner)
+        => inner.Length >= 7 && BinaryPrimitives.ReadUInt16LittleEndian(inner) == 47 && inner[2] == SelectQuestSub
+            ? BinaryPrimitives.ReadInt32LittleEndian(inner[3..]) : null;
+
+    public const int SelectQuestSub = 11;
+
     private static int Sub(ReadOnlySpan<byte> inner)
         => inner.Length >= 6 && BinaryPrimitives.ReadUInt16LittleEndian(inner) == Opcode ? (int)BinaryPrimitives.ReadUInt32LittleEndian(inner[2..]) : -1;
 
