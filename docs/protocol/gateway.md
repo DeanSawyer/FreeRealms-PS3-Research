@@ -319,7 +319,12 @@ The Quest handler is `0x76aec` (opcode 49 in the switch at `0x1051d0`, through `
 sub-opcode, Sanctuary's numbers (switch table at `0x76c2c`). Read with `tools/ppc_trace.py`:
 
 * The **reward bundle** (`0xa8d2f4`): `u8` success, `i32` coins, experience and four unknowns, `u64` source and player guid, `i32`
-  icon and name, `u32` entry count and the entries, `i32` description: 57 bytes with no entries. Sanctuary's has a multiplier and
+  icon and name, `u32` entry count and the entries, `i32` description: 57 bytes with no entries. An item entry is Sanctuary's
+  RewardBundleEntryItem: `i32` type 1, `u8` hidden, `i32` icon, icon tint, name, quantity, definition, tint, string description,
+  `i32` text colour, `u8` members only (38 bytes; with success 0 no item guid follows). The quest's reward items are listed in
+  QuestInfo and QuestEnd, and after the hand-in **Reward (50) 1, RewardBundle** (`u16` 50, `u8` 1, the bundle; `0x287b1c`)
+  celebrates the coins, experience and items, as Sanctuary's GrantReward does. Experience is shown but changes nothing: every job
+  is already rank 20. Sanctuary's has a multiplier and
   two more `i32` after the fourth unknown, which the PS3 does not read.
 * **1, QuestInfo** (the offer, `0xa8f354`): quest id, giver line, NPC animation, title, description, an `i32`, `u8` members only,
   the reward, `u64` NPC guid, `f32` camera distance and one `u8` (Sanctuary's has two): 101 bytes.
