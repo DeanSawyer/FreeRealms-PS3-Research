@@ -189,7 +189,7 @@ public static class Quests
     /// <summary>Sanctuary's QuestDialogue.TalkAnimationId: the NPC talks while it offers or hands in a quest.</summary>
     public const int TalkAnimationId = 3106;
 
-    public const int ObjectiveInactive = 0, ObjectiveActive = 1, ObjectiveComplete = 2;
+    public const int StateInactive = 0, StateActive = 1, StateComplete = 2;
 
     // Sanctuary's QuestListRewardBundle: the quest list's reward line shows coins (icon 102, "Coins") or experience (icon 101).
     private const int QuestListRewardUnknown3 = 15, CoinsIconId = 102, CoinsTextId = 6513, ExperienceIconId = 101;
@@ -250,7 +250,7 @@ public static class Quests
     {
         writer.I32(goal.NameId).I32(goal.NameId).I32(goal.DescriptionId != 0 ? goal.DescriptionId : goal.NameId).U8(0);
 
-        return Reward(writer, 0, 0).I32(state).I32(state == ObjectiveComplete ? goal.Needed : count).I32(goal.RequiredCount).I32(0).U8(0).I32(0);
+        return Reward(writer, 0, 0).I32(state).I32(state == StateComplete ? goal.Needed : count).I32(goal.RequiredCount).I32(0).U8(0).I32(0);
     }
 
     /// <summary>Quest 7, ObjectiveAdded (101 bytes).</summary>

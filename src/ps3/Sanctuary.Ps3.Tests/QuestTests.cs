@@ -39,7 +39,7 @@ public sealed class QuestTests
         // Lengths from tools/ppc_trace.py on the Quest handler 0x76aec.
         Assert.AreEqual(101, Quests.Info(quest, 5).Length);
         Assert.AreEqual(108, Quests.Add(quest, state, 9, true, false).Length);
-        Assert.AreEqual(101, Quests.ObjectiveAdded(quest.QuestId, goal, Quests.ObjectiveActive).Length);
+        Assert.AreEqual(101, Quests.ObjectiveAdded(quest.QuestId, goal, Quests.StateActive).Length);
         Assert.AreEqual(19, Quests.ObjectiveActivated(quest.QuestId, goal, false).Length);
         Assert.AreEqual(22, Quests.ObjectiveUpdate(quest.QuestId, goal, 1, 0.5f).Length);
         Assert.AreEqual(23, Quests.ObjectiveComplete(quest.QuestId, goal, 1, true).Length);

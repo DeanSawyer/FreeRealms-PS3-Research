@@ -68,8 +68,8 @@ public sealed class QuestSession
             for (var i = 0; i < Math.Min(stepEnd, quest.Goals.Count); i++)
             {
                 packets.Add(new($"ObjectiveAdded {quest.QuestId}/{i}", state.IsGoalDone(i)
-                    ? Quests.ObjectiveAdded(quest.QuestId, quest.Goals[i], Quests.ObjectiveComplete)
-                    : Quests.ObjectiveAdded(quest.QuestId, quest.Goals[i], Quests.ObjectiveActive, state.Counts.GetValueOrDefault(i))));
+                    ? Quests.ObjectiveAdded(quest.QuestId, quest.Goals[i], Quests.StateComplete)
+                    : Quests.ObjectiveAdded(quest.QuestId, quest.Goals[i], Quests.StateActive, state.Counts.GetValueOrDefault(i))));
             }
 
             foreach (var i in state.OpenGoals(quest))
@@ -360,7 +360,7 @@ public sealed class QuestSession
 
         foreach (var i in state.OpenGoals(quest))
         {
-            packets.Add(new($"ObjectiveAdded {quest.QuestId}/{i}", Quests.ObjectiveAdded(quest.QuestId, quest.Goals[i], Quests.ObjectiveActive)));
+            packets.Add(new($"ObjectiveAdded {quest.QuestId}/{i}", Quests.ObjectiveAdded(quest.QuestId, quest.Goals[i], Quests.StateActive)));
             packets.Add(new($"ObjectiveActivated {quest.QuestId}/{i}", Quests.ObjectiveActivated(quest.QuestId, quest.Goals[i], restored: false)));
         }
 
