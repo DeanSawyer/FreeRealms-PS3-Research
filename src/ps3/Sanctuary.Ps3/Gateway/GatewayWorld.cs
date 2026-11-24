@@ -54,7 +54,14 @@ public sealed class GatewayWorld
     /// Whether the install has the terrain around a position (<see cref="Terrain.Ground(string, string)"/>); true when it cannot tell.
     /// Without it the client asks the patch server for the missing tiles and never leaves the loading screen.
     /// </summary>
-    public bool HasGround(double x, double z) => _ground?.Invoke(x, z) ?? true;
+    public bool HasGround(double x, double z) => !InSunstoneValley(x, z) && (_ground?.Invoke(x, z) ?? true);
+
+    /// <summary>
+    /// Sunstone Valley (north-east of x 300, z 1600; Rumble Ridge, the Rumbledome, Precursor Ruins): a character there never leaves
+    /// the loading screen (fr_test_20261120_075517 and fr_test_20261123_200400, the client asking the patch server for assets it
+    /// does not have), so it counts as having no ground whatever the tiles say.
+    /// </summary>
+    public static bool InSunstoneValley(double x, double z) => x > 300 && z > 1600;
 
     public GatewayOptions Options => _options;
 

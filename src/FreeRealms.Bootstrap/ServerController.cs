@@ -93,6 +93,9 @@ public sealed class ServerController
             Notice = message => Write(LogSeverity.Info, "Server", message),
         };
 
+        // Before the services start, so the lines they write while starting (zone, spawn, terrain) count as this run's.
+        var starting = DateTime.Now;
+
         try
         {
             running = await Task.Run(() => Ps3Server.StartAsync(options, logging => logging
@@ -111,7 +114,7 @@ public sealed class ServerController
                 exception);
         }
 
-        StartedAt = DateTime.Now;
+        StartedAt = starting;
 
         Write(LogSeverity.Info, "Manager", $"Server started: web {running.HttpPort}, game server {(running.GatewayPort is { } port ? port.ToString() : "off")}, DNS {(running.DnsPort is { } dns ? dns.ToString() : "off")}.");
 

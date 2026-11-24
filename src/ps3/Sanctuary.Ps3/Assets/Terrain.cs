@@ -182,8 +182,9 @@ public static class Terrain
     }
 
     /// <summary>
-    /// Whether the client can stand at a position with this install: every tile within 96 world units (what the loading overlay
-    /// waits for, <see cref="TilesNear"/>) is stored locally or lies outside the terrain box. A tile that is neither is asked of the
+    /// Whether the client can stand at a position with this install: its own tile is inside the terrain box and stored locally, and
+    /// every tile within 96 world units (what the loading overlay waits for, <see cref="TilesNear"/>) is stored locally or lies
+    /// outside the terrain box. A tile that is neither is asked of the
     /// patch server, which has none, and the client waits on the loading screen for ever. Null when the install cannot tell.
     /// </summary>
     public static Func<double, double, bool>? Ground(PackSet packs, GzneHeader? header, string zone)
@@ -196,7 +197,16 @@ public static class Terrain
         if (local.Count == 0)
             return null;
 
-        return (x, z) => TilesNear(header, x, z, 96).All(tile => !tile.Inside || local.Contains(new TileKey(tile.X, tile.Z)));
+        // The position's own tile must be in the terrain box and stored: outside the box there is no terrain at all for this build
+        // (Sunstone Valley lies outside it, and a character there never left the loading screen, fr_test_20261123_200400).
+        return (x, z) =>
+        {
+            var tiles = TilesNear(header, x, z, 0);
+
+            return tiles.Count > 0
+                && tiles.All(tile => tile.Inside && local.Contains(new TileKey(tile.X, tile.Z)))
+                && TilesNear(header, x, z, 96).All(tile => !tile.Inside || local.Contains(new TileKey(tile.X, tile.Z)));
+        };
     }
 
     /// <summary>Reads the install's packs and terrain header for <see cref="Ground(PackSet, GzneHeader?, string)"/>.</summary>
