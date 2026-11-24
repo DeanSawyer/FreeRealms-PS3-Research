@@ -31,6 +31,16 @@ PPU-5425f6d47ba410afbcbc7ce77f87f2ffcde68798:
       - [ be32, 0x001ee170, 0x60000000 ]
       - [ be32, 0x001ee1e0, 0x4bffff54 ]
       - [ be32, 0x001ee230, 0x409eff44 ]
+  "Free Realms PS3 take me there":
+    Games:
+      All:
+        All: [ All ]
+    Author: "DeanSawyer"
+    Patch Version: 1.0
+    Notes: "R2 in the world (Take Me There) asked through the character creator's popups (CharacterCreatePopups:SetTeleport), whose movie the Server Manager replaces with the character select panel, so R2 opened the select panel. R2 now goes straight to the objective, as accepting the prompt did (0x162c68: the prompt is skipped as if TeleportMeToObjective had confirmed it)."
+    Patch:
+      - [ be32, 0x00162c68, 0x480003f4 ]
+
   "Free Realms PS3 renderer null state guard":
     Games:
       All:

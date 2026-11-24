@@ -265,3 +265,14 @@ from the creator moves it again.
 Test reports now also have `rpcs3_crash.txt`: RPCS3's dump of the crashed thread (registers, call stack), which the filtered log drops;
 and the game log files leave out `Tile::CreateAll: Failed on Texture` lines, which the select screen's terrain repeats every frame.
 
+## Take Me There (R2)
+
+**Version 1.0:** R2 in the world is the PS3's Take Me There: the handler (`0x162674`) asks first, through the character
+creator's popups (`CharacterCreatePopups:Show`, `:DisplayText` with `S##TMT_Prompt`, `:SetTeleport`, strings at `0xdf1968`-`0xdf19b0`,
+calls from `0x162c84`), and accepting runs `Ui.TeleportMeToObjective` (`0x20f970`), which sets the confirmed flag (`+128` of the
+take-me-there object) and runs the handler again; with the flag set it goes on to the objective (`0x16305c`). The popups' movie is
+the one the Server Manager replaces with the character select panel, so R2 showed the select panel (`fr_test_20261123_215812`:
+"Loading movie UI\characterCreatePopUps.swf" after R2). The fix makes the flag test at `0x162c68` (`bf 30, 0x16305c`, word
+`0x409e03f4`) an unconditional branch (`0x480003f4`): R2 goes to the objective (the quest marker the server sends, Ui 13) without
+asking. The style cards' unsaved-changes prompt uses the same popups and still shows the panel.
+
