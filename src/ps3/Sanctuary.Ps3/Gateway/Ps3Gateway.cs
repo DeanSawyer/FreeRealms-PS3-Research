@@ -107,6 +107,7 @@ public sealed class Ps3Gateway
 
     /// <summary>The NPCs each peer has in its world (FR_NPCS), from its first ClientFinishedLoading on.</summary>
     private readonly Dictionary<IPEndPoint, NpcRelevance> _npcsShown = [];
+    private readonly Dictionary<IPEndPoint, TalkConversation> _talks = [];
 
     /// <summary>The open world's NPCs this install can show: their model is in the packs and their terrain too.</summary>
     private IReadOnlyList<NpcSpawn>? _placeableNpcs;
@@ -551,6 +552,7 @@ public sealed class Ps3Gateway
             _clientReady.Remove(peer);
             _warpstonesPlaced.Remove(peer);
             _npcsShown.Remove(peer);
+            _talks.Remove(peer);
             Schedule(ReadyFallback, () => SendReadyFallback(peer, channel));
         }
         else if ((opcode is 5 or 6) && payload.Length >= 7)
@@ -623,15 +625,42 @@ public sealed class Ps3Gateway
             return;
         }
 
-        // X at any other NPC: say which one, so the talking can be built on what the client really sends.
-        if (innerOpcode == Warpstones.CommandOpcode && inner.Length >= 12
-            && BinaryPrimitives.ReadUInt16LittleEndian(inner.AsSpan(2)) == Warpstones.InteractRequestSub)
+        // X at an NPC with something to say: the first line of its dialog. Any other is logged, with the NPC it names.
+        if (_world.Options.Npcs && NpcTalk.FromInteract(inner) is { } npc)
         {
-            var guid = BinaryPrimitives.ReadUInt64LittleEndian(inner.AsSpan(4));
-            var npc = guid >= Npcs.GuidBase && guid - Npcs.GuidBase < (ulong)Npcs.All.Count ? Npcs.All[(int)(guid - Npcs.GuidBase)] : null;
+            if (NpcTalk.All.TryGetValue(npc.NpcId, out var lines))
+            {
+                var conversation = new TalkConversation(npc, lines);
+                _talks[peer] = conversation;
 
-            _logger?.LogInformation("sanctuary: interact request for {Guid:x} ({Npc}) {Hex}", guid,
-                npc is null ? "not an NPC" : $"{npc.NpcId} {npc.Name}", Convert.ToHexString(inner).ToLowerInvariant());
+                _logger?.LogInformation("sanctuary: talking to {NpcId} {Name}: {Lines} lines", npc.NpcId, npc.Name, lines.Count);
+                SendNamed(peer, channel, $"talk {npc.NpcId}", [new NamedPacket($"ShowDialog {lines[0].TextId}", conversation.Current())]);
+            }
+            else
+            {
+                _logger?.LogInformation("sanctuary: interact request for {NpcId} {Name}, which has nothing to say {Hex}", npc.NpcId, npc.Name,
+                    Convert.ToHexString(inner).ToLowerInvariant());
+            }
+
+            return;
+        }
+
+        // The player answered a dialog line: the next line, or the end of the dialog.
+        if (NpcTalk.FromResponse(inner) is { } response)
+        {
+            _logger?.LogInformation("sanctuary: dialog response {Response} {Hex}", response, Convert.ToHexString(inner).ToLowerInvariant());
+
+            if (_talks.TryGetValue(peer, out var talk) && talk.Next())
+            {
+                SendNamed(peer, channel, $"talk {talk.Npc.NpcId}", [new NamedPacket("ShowDialog", talk.Current())]);
+            }
+            else
+            {
+                _talks.Remove(peer);
+                SendNamed(peer, channel, "talk end", [new NamedPacket("EndDialog", NpcTalk.EndDialog())]);
+            }
+
+            return;
         }
 
         if (innerOpcode is 42 or 26 && _inventories.TryGetValue(peer, out var inventory) && inventory.Handle(inner) is { } replies)
@@ -873,7 +902,7 @@ public sealed class Ps3Gateway
     {
         if (_placeableNpcs is null)
         {
-            _placeableNpcs = Npcs.All.Where(npc => _world.HasAsset(npc.ModelFile) && _world.HasGround(npc.X, npc.Z)).ToList();
+            _placeableNpcs = Npcs.All.Where(npc => _world.HasAsset(npc.ModelFile) && _world.HasGround(npc.X, npc.Z)).Select(NpcTalk.WithCursor).ToList();
             _logger?.LogInformation("gateway: npcs: {Placeable} of {All} have their model and terrain in the install", _placeableNpcs.Count, Npcs.All.Count);
         }
 

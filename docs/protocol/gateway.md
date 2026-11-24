@@ -289,6 +289,22 @@ guid at 8, has cursor at `0x10`, cursor id at `0x11`, flag at `0x12`). Sanctuary
 (`InteractionMenuHelper.GetNpcRelevancePacket`); without it no X press at a warpstone or NPC ever reached the server
 (no Command 26/8 in `fr_test_20261123_202630`). Every InteractRequest that is not a warpstone's is logged with the NPC it names.
 
+### Talking (ShowDialog 26/3, DialogResponse 26/6, EndDialog 26/4)
+
+The Command (26) handler is `0x13eac8` (reached through the client's slot `+284`, which passes it on to the object at `+2116`); its
+sub-opcode switch is the table at `0x13ec28`. X at an NPC sends InteractRequest (26/8) with its guid. When the NPC has something
+to say (`Data/npc_talk.tsv`, `Gateway/NpcTalk.cs`) the server answers with **Command 3, ShowDialog**, read by `0x13e480`: `i32`
+text id, `i32` title id, `u64` NPC guid, `u8` closable, `f32` camera focus, then `u32` response count and per response `i32`
+id, action type, label text id, image id and image set (`tools/ppc_trace.py`: 49 bytes with one response; Sanctuary's packet
+has camera and timing fields after these that the PS3 does not read). The button press comes back as **Command 6,
+DialogResponse** with the response id (`i32`, built at `0x171ad8`); the server sends the next line or, after the last,
+**Command 4, EndDialog** (nothing after the sub-opcode; `0x13b6bc`, which closes the dialog through `0x171b30`).
+
+What NPCs say comes from Sanctuary (OSFR): a quest giver says its first quest's offer (`GiverDialogueId`), a talk goal's NPC its
+goal dialogue, and Samantha, Nikki and Frostpetal their greeting scripts; 119 of the placed NPCs. Those without a cursor of
+their own get the quest cursor (5) in NpcRelevance, as Sanctuary gives quest NPCs one, so they can be targeted. Sanctuary has no
+lines for other NPCs: in Free Realms talking was the quests' dialogue.
+
 ## Item classes and categories (ReferenceData, opcode 44)
 
 The client's handler for opcode 44 is `0xd4764` (vtable slot +340 of the object whose slot +320 handles PlayerUpdate). With
