@@ -390,7 +390,8 @@ models the PS3 packs have, from Sanctuary's `ClientItemDefinitions.json`, `Pets.
 
 **Pet 5, PetList** (sent after each ClientFinishedLoading and after a summon or dismissal): `u32` count, each pet, then the active
 pet's `i32` id and `u64` guid. Each pet is read by `0xa88634`: `i32` id, then Sanctuary's PetClientInfo (`i32` id, `u8` sex, `i32`
-icon, hunger, hygiene, play and mood as `f32`, `u8` members only, the tricks (`u32` count; per trick its `i32` key, then id, icon,
+icon (with Sanctuary's pet definition icon the window showed no pictures; the server sends the pet item's image set, as in the
+`i32` image set further on), hunger, hygiene, play and mood as `f32`, `u8` members only, the tricks (`u32` count; per trick its `i32` key, then id, icon,
 name, skill level, two unknowns, tooltip and an unknown as `i32` and `u8` known: 37 bytes), the worn item guids (`u32` count,
 `i32`s), the item classes (`u32` count; key, id and unknown as `i32`), the name, **one** `i32` (Sanctuary has NameId and TintId
 there; the server sends the tint, which the pet window's `tintValue` column needs), the texture alias, `i32` image set, `u8` vanity
@@ -399,7 +400,10 @@ AttachmentItemGroupId or IsTutorialPet. A pet with no tricks, items or classes a
 
 The pet window's Summon and Dismiss (`Pet.Summon` and `Pet.Dismiss`, `0x20498c` and `0x2056d0`) send **Pet 4, PetSummonRecall**,
 built at `0x690f8`: `i32` pet id and `u8` summon (1) or dismiss (0). A summoned pet is an NPC (AddNpc, Sanctuary's disposition 2,
-not interactable, guid `0x0500…` plus the pet id) put down behind the character and to its side. It follows with **PlayerUpdate
+not interactable, guid `0x0500…` plus the pet id, AddNpc's last `i32` 2) put down behind the character and to its side. That
+last `i32` is Sanctuary's MovementType (`0xb0c010` stores it at +448 of its record, the handler `0x1115fc` passes it to `0x1a01e4`,
+which keeps it at the actor's +3784); the position update moves an actor only when it is 1, 2 or 4, so with 0, as the other NPCs
+have, a pet appeared but stood still. It follows with **PlayerUpdate
 125, UpdatePosition**, which the PS3 reads from the server at `0xcde04` (the BaseClient's vtable slot at +308) as the same 40 bytes it
 sends: `u16` 125, `u64` guid, position and rotation (3 x `f32` each), `u8` state (Sanctuary's 0 moving, 1 stopped), a byte and the
 speed as `f32`. The server sends one when the pet's spot beside the character has moved, at most every 200 ms, and puts the pet down

@@ -40,7 +40,8 @@ public sealed record NpcSpawn(
     float Roll,
     byte CursorId = 0,
     bool HasCursor = false,
-    bool RelevanceFlag = false);
+    bool RelevanceFlag = false,
+    int MovementType = 0);
 
 /// <summary>
 /// The open world's NPCs: Sanctuary's (OSFR) definitions placed where its <c>Scripts/Zone/FabledRealms.lua</c> spawns them
@@ -117,7 +118,8 @@ public static class Npcs
             .I32(0).I32(0).I32(0)                          // name colour, area definition, image set
             .U8(npc.Interactable ? 1 : 0)
             .U64(0)                                        // rider
-            .U8(0).U64(0).U64(0).I32(0)
+            .U8(0).U64(0).U64(0)
+            .I32(npc.MovementType)                         // 0 stands still; 2 (Sanctuary's default) moves with position updates
             .ToArray();
     }
 

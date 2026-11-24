@@ -76,7 +76,9 @@ public static class Pets
     /// <summary>One pet as <c>0xa88634</c> reads it.</summary>
     private static void Info(PacketWriter writer, int id, PetDef pet)
     {
-        writer.I32(id).I32(id).U8(pet.Sex).I32(pet.IconId)
+        // The pet window showed no pictures with Sanctuary's pet definition icon (652, 653) here, so the pet item's image set goes in
+        // both icon fields.
+        writer.I32(id).I32(id).U8(pet.Sex).I32(pet.ImageSetId)
             .F32(MaxNeed).F32(MaxNeed).F32(MaxNeed).F32(MaxNeed)
             .U8(pet.MembersOnly ? 1 : 0)
             .U32((uint)pet.Tricks.Count);
@@ -113,7 +115,13 @@ public static class Pets
     public static NpcSpawn Npc(int id, PetDef pet, float x, float y, float z, float heading) => new(
         GuidBase + (ulong)id, 0, pet.ModelId, pet.ModelFile, pet.NameId, pet.Name, pet.Scale, pet.TextureAlias, pet.TintAlias, pet.TintId,
         HideNamePlate: false, SubTextNameId: 0, Disposition, CompositeEffectId: 0, Animation: 1, VerticalOffset: 0, TerrainObjectId: 0,
-        Tilted: false, Interactable: false, x, y, z, heading, Pitch: 0, Roll: 0);
+        Tilted: false, Interactable: false, x, y, z, heading, Pitch: 0, Roll: 0, MovementType: MovementType);
+
+    /// <summary>
+    /// AddNpc's last <c>i32</c> (obj+448 of <c>0xb0c010</c>'s record, the actor's +3784): Sanctuary's MovementType. The PS3's
+    /// position update (<c>0xcde04</c>) moves an actor only when it is 1, 2 or 4; 2 is Sanctuary's for every NPC that is not a placed object.
+    /// </summary>
+    public const int MovementType = 2;
 
     /// <summary>
     /// PlayerUpdate 125, UpdatePosition, as the PS3 reads it from the server (<c>0xcde04</c>, 40 bytes, the same as it sends):

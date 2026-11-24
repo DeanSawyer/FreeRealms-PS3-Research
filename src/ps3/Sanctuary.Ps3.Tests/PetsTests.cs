@@ -73,6 +73,8 @@ public sealed class PetsTests
         var spawn = summoned[0].Inner;
         Assert.AreEqual(Pets.GuidBase + 1, BinaryPrimitives.ReadUInt64LittleEndian(spawn.AsSpan(4)));
         Assert.IsTrue(BinaryPrimitives.ReadSingleLittleEndian(spawn.AsSpan(4 + 8 + 4 + 4 + 8 + 12 + 4 + 8)) < 100, "z behind");
+        Assert.AreEqual(Pets.MovementType, BinaryPrimitives.ReadInt32LittleEndian(spawn.AsSpan(spawn.Length - 4)), "moved by position updates");
+        Assert.AreEqual(264, spawn.Length);
 
         var now = TimeSpan.FromSeconds(10);
         Assert.AreEqual(0, keeper.Moved(start with { Z = 100.2 }, 0, now).Count, "hardly moved");
