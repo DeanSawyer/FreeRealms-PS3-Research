@@ -300,10 +300,49 @@ has camera and timing fields after these that the PS3 does not read). The button
 DialogResponse** with the response id (`i32`, built at `0x171ad8`); the server sends the next line or, after the last,
 **Command 4, EndDialog** (nothing after the sub-opcode; `0x13b6bc`, which closes the dialog through `0x171b30`).
 
-What NPCs say comes from Sanctuary (OSFR): a quest giver says its first quest's offer (`GiverDialogueId`), a talk goal's NPC its
-goal dialogue, and Samantha, Nikki and Frostpetal their greeting scripts; 119 of the placed NPCs. Those without a cursor of
-their own get the quest cursor (5) in NpcRelevance, as Sanctuary gives quest NPCs one, so they can be targeted. Sanctuary has no
-lines for other NPCs: in Free Realms talking was the quests' dialogue.
+Quest NPCs talk through the quests (below). Without quest business, Samantha, Nikki and Frostpetal say their greeting scripts
+(`Data/npc_talk.tsv`); they get the quest cursor (5) so they can be targeted. Sanctuary has no lines for other NPCs: in Free
+Realms talking was the quests' dialogue.
+
+### Quests (Quest 49, AddNotifications 35/10, RemoveNotifications 35/11)
+
+`FR_QUESTS` (on unless 0, with `FR_NPCS`) runs Sanctuary's 68 quests (`Data/quests.json`, its `Resources/Quests.json` without the
+cut-scenes) after its QuestManager (`Gateway/QuestSession.cs`): a giver with a quest to take shows "!" and the quest cursor, X
+there sends the offer, taking it opens the first goals, a talk goal is done by X at its NPC (who then says the goal's lines), a
+reach goal by walking within its radius, a collect goal by picking up its pickups (`Data/quest_nodes.tsv`: Sanctuary's collection
+nodes for the ten node types its quests collect, added as NPCs with cursor 17 while the goal is open, each counted once). When
+every goal is done the turn-in window opens; closing it completes the quest and gives the coins (CoinCount) and items (ItemAdd).
+Experience is not given (the server has no levels yet). Each character's log is kept in `quests.json` next to the characters'
+database, and sent again at login.
+
+The Quest handler is `0x76aec` (opcode 49 in the switch at `0x1051d0`, through `0x59674`). Its packets are `u16` 49 and a `u32`
+sub-opcode, Sanctuary's numbers (switch table at `0x76c2c`). Read with `tools/ppc_trace.py`:
+
+* The **reward bundle** (`0xa8d2f4`): `u8` success, `i32` coins, experience and four unknowns, `u64` source and player guid, `i32`
+  icon and name, `u32` entry count and the entries, `i32` description: 57 bytes with no entries. Sanctuary's has a multiplier and
+  two more `i32` after the fourth unknown, which the PS3 does not read.
+* **1, QuestInfo** (the offer, `0xa8f354`): quest id, giver line, NPC animation, title, description, an `i32`, `u8` members only,
+  the reward, `u64` NPC guid, `f32` camera distance and one `u8` (Sanctuary's has two): 101 bytes.
+* **3, QuestAdd**: quest id, title, description, helper text, `u8` members only, `i64` time started, `i32` profile, `u8` no
+  banner, `f32` completion, the reward, the objectives (`u32` count, `i32` key and objective each; sent empty, the goals follow
+  as ObjectiveAdded), `i32` icon, two `u8` and `u8` show in tracker: 108 bytes.
+* **7, ObjectiveAdded**: quest id, then the objective: `i32` id, name and description, `u8`, the reward, `i32` state (0 inactive,
+  1 active, 2 done), current and required count, `i32`, `u8`, `i32`: 101 bytes. **8, ObjectiveActivated** (quest, goal, count,
+  `u8` restored), **10, ObjectiveComplete** (quest, goal, `f32` completion, composite effect, `u8` silent), **4, QuestComplete**
+  and **12, CompletedQuestCount** (`i32`) are Sanctuary's. **9, ObjectiveUpdate** ends after the completion (`f32`): Sanctuary's
+  `u8` and `i32` after it are not read.
+* **13, QuestEnd** (the turn-in window): `u64` NPC guid, quest id, the NPC's line, animation, the reward, `f32` camera: 87 bytes.
+* From the client: **2, QuestReply** (`i32` quest, `u8` accepted; built at `0x1d3c80`, serialized by `0xb7d5bc`) and **14,
+  QuestEndReply** (`i32` quest, `0x1d3bb8`). Command (26) 29, QuestDialogComplete, follows an accepted offer.
+
+The icons over NPCs' heads are **PlayerUpdate 10, AddNotifications** (`u32` count; per icon `u64` guid, `u8` compact 0, five `i32`:
+type, icon, icon state, unknown, name id, then `u8` and `i32`; 34 bytes, read by `0xb06dcc`; Sanctuary's PC entry has one more
+`i32`, its reference id, and an enabled flag, which this build does not read) and **11, RemoveNotifications** (Sanctuary's: guid,
+icon state, composite effect). Each NPC's own come from Sanctuary's `Npcs.json` (`Data/npc_notifications.tsv`: its list, and its
+`Notification`, shown unless a quest badge takes its place); the warpstones show theirs. Quest badges are notification type 2:
+icon 2 with the quest's `NotificationAvailable` state for a quest to take ("!"), icon 0 with `NotificationActive` for one waiting
+("?"). An NPC with quest business and no cursor of its own gets the quest cursor (5) in NpcRelevance, and loses it again when the
+quest moves on.
 
 ## Item classes and categories (ReferenceData, opcode 44)
 

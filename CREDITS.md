@@ -18,6 +18,9 @@ This project stands on other people's work. Thank you.
 * **Warpstones.** The warpstones in `src/ps3/Sanctuary.Ps3/Gateway/Warpstones.cs` are Sanctuary's `Resources/Npcs.json` entries
   with `OpensAtlas`, at the places its `Scripts/Zone/FabledRealms.lua` spawns them; using one opens the atlas, as its
   OpenAtlasInteraction does.
+* **Quests.** `src/ps3/Sanctuary.Ps3/Data/quests.json` is Sanctuary's (OSFR) `Resources/Quests.json`; `quest_nodes.tsv` its
+  `Resources/CollectionNodeTypes.json` and `CollectionNodeSpawns` for the quests' pickups; `npc_notifications.tsv` the icons of its
+  `Resources/Npcs.json`. `Gateway/QuestSession.cs` follows its QuestManager, QuestDialogue and InteractionMenuHelper.
 * **OSFR and the Sanctuary / Clover server.** The C# *Free Realms* server emulator (Sanctuary, the solution behind Clover) is where the
   packet layouts come from: the gateway login packet, `AddPc`, the lobby and queue replies and many opcode numbers in
   [`docs/protocol/gateway.md`](docs/protocol/gateway.md) are named after and compared with it, and the C# port in
