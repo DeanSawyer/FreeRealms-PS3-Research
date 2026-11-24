@@ -75,7 +75,7 @@ public sealed class PetsTests
         Assert.IsTrue(BinaryPrimitives.ReadSingleLittleEndian(spawn.AsSpan(4 + 8 + 4 + 4 + 8 + 12 + 4 + 8)) < 100, "z behind");
 
         var now = TimeSpan.FromSeconds(10);
-        Assert.AreEqual(0, keeper.Moved(start with { Z = 100.2 }, 6, now).Count, "hardly moved");
+        Assert.AreEqual(0, keeper.Moved(start with { Z = 100.2 }, 0, now).Count, "hardly moved");
 
         var walked = keeper.Moved(start with { Z = 105 }, 6, now + TimeSpan.FromSeconds(1));
         Assert.AreEqual("PetPosition", walked.Single().Name);
