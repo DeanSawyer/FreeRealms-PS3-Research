@@ -8,6 +8,9 @@ using System.Text;
 
 namespace Sanctuary.Ps3.Gateway;
 
+/// <summary>One NpcRelevance entry: the NPC, whether it has a cursor, which, and the flag after it.</summary>
+public readonly record struct RelevanceEntry(ulong Guid, bool HasCursor, byte CursorId, bool Flag = false);
+
 /// <summary>One NPC placed in the world: Sanctuary's definition fields the PS3 AddNpc carries, and where it stands.</summary>
 public sealed record NpcSpawn(
     ulong Guid,
@@ -123,19 +126,22 @@ public static class Npcs
     /// way). Only NPCs with a cursor of their own are listed, as Sanctuary does.
     /// </summary>
     public static byte[] Relevance(IEnumerable<NpcSpawn> npcs)
+        => RelevanceEntries(npcs.Where(npc => npc.HasCursor || npc.CursorId != 0).Select(npc => new RelevanceEntry(npc.Guid, true, npc.CursorId, npc.RelevanceFlag)));
+
+    /// <summary>NpcRelevance with the given entries (an entry without a cursor takes the NPC's cursor away).</summary>
+    public static byte[] RelevanceEntries(IEnumerable<RelevanceEntry> entries)
     {
-        var entries = npcs.Where(npc => npc.HasCursor || npc.CursorId != 0).ToList();
-        var writer = new PacketWriter().U16(35).U16(12).U32((uint)entries.Count);
+        var list = entries.ToList();
+        var writer = new PacketWriter().U16(35).U16(12).U32((uint)list.Count);
 
-        foreach (var npc in entries)
+        foreach (var entry in list)
         {
-            var hasCursor = npc.HasCursor || npc.CursorId != 0;
-            writer.U64(npc.Guid).U8(hasCursor ? 1 : 0);
+            writer.U64(entry.Guid).U8(entry.HasCursor ? 1 : 0);
 
-            if (hasCursor)
-                writer.U8(npc.CursorId);
+            if (entry.HasCursor)
+                writer.U8(entry.CursorId);
 
-            writer.U8(npc.RelevanceFlag ? 1 : 0);
+            writer.U8(entry.Flag ? 1 : 0);
         }
 
         return writer.ToArray();

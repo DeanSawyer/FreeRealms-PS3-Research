@@ -108,6 +108,8 @@ public sealed class Ps3Gateway
     /// <summary>The NPCs each peer has in its world (FR_NPCS), from its first ClientFinishedLoading on.</summary>
     private readonly Dictionary<IPEndPoint, NpcRelevance> _npcsShown = [];
     private readonly Dictionary<IPEndPoint, TalkConversation> _talks = [];
+    private readonly Dictionary<IPEndPoint, QuestSession> _quests = [];
+    private readonly QuestStore _questStore;
 
     /// <summary>The open world's NPCs this install can show: their model is in the packs and their terrain too.</summary>
     private IReadOnlyList<NpcSpawn>? _placeableNpcs;
@@ -141,8 +143,10 @@ public sealed class Ps3Gateway
         ILogger? logger = null,
         Func<long>? unixTime = null,
         Func<int>? encryptCode = null,
-        Func<DateOnly>? today = null)
+        Func<DateOnly>? today = null,
+        QuestStore? quests = null)
     {
+        _questStore = quests ?? new QuestStore();
         _transport = transport;
         _world = world;
         _characters = characters;
@@ -553,6 +557,7 @@ public sealed class Ps3Gateway
             _warpstonesPlaced.Remove(peer);
             _npcsShown.Remove(peer);
             _talks.Remove(peer);
+            _quests.Remove(peer);
             Schedule(ReadyFallback, () => SendReadyFallback(peer, channel));
         }
         else if ((opcode is 5 or 6) && payload.Length >= 7)
@@ -625,10 +630,26 @@ public sealed class Ps3Gateway
             return;
         }
 
-        // X at an NPC with something to say: the first line of its dialog. Any other is logged, with the NPC it names.
+        // X at a quest pickup: counted for its collect goal.
+        if (_world.Options.Npcs && inner.Length >= 12 && innerOpcode == Warpstones.CommandOpcode
+            && BinaryPrimitives.ReadUInt16LittleEndian(inner.AsSpan(2)) == Warpstones.InteractRequestSub
+            && _quests.TryGetValue(peer, out var picking) && picking.Pickup(BinaryPrimitives.ReadUInt64LittleEndian(inner.AsSpan(4))) is { } picked)
+        {
+            _logger?.LogInformation("sanctuary: quest pickup taken");
+            SendQuestOutcome(peer, channel, picked);
+
+            return;
+        }
+
+        // X at an NPC: its quest business first (hand in, a talk goal, an offer), else what it says.
         if (_world.Options.Npcs && NpcTalk.FromInteract(inner) is { } npc)
         {
-            if (NpcTalk.All.TryGetValue(npc.NpcId, out var lines))
+            if (_quests.TryGetValue(peer, out var questing) && questing.Interact(npc) is { } outcome)
+            {
+                _logger?.LogInformation("sanctuary: quest business with {NpcId} {Name}: {Packets}", npc.NpcId, npc.Name, string.Join(", ", outcome.Packets.Select(packet => packet.Name)));
+                SendQuestOutcome(peer, channel, outcome);
+            }
+            else if (NpcTalk.All.TryGetValue(npc.NpcId, out var lines))
             {
                 var conversation = new TalkConversation(npc, lines);
                 _talks[peer] = conversation;
@@ -640,6 +661,32 @@ public sealed class Ps3Gateway
             {
                 _logger?.LogInformation("sanctuary: interact request for {NpcId} {Name}, which has nothing to say {Hex}", npc.NpcId, npc.Name,
                     Convert.ToHexString(inner).ToLowerInvariant());
+            }
+
+            return;
+        }
+
+        // The answer to a quest offer, and the turn-in window closing.
+        if (innerOpcode == Quests.Opcode && _quests.TryGetValue(peer, out var quests))
+        {
+            if (Quests.FromReply(inner) is { } reply)
+            {
+                _logger?.LogInformation("sanctuary: quest {QuestId} {Answer}", reply.QuestId, reply.Accepted ? "accepted" : "declined");
+                SendNamed(peer, channel, $"quest {reply.QuestId} reply", quests.Reply(reply.QuestId, reply.Accepted));
+            }
+            else if (Quests.FromEndReply(inner) is { } handedIn)
+            {
+                var purse = _inventories.GetValueOrDefault(peer);
+
+                _logger?.LogInformation("sanctuary: quest {QuestId} handed in", handedIn);
+                SendNamed(peer, channel, $"quest {handedIn} done", quests.EndReply(handedIn, purse));
+
+                if (purse is not null)
+                    SaveProgress(peer, purse);
+            }
+            else
+            {
+                _logger?.LogInformation("sanctuary: quest packet {Hex}", Convert.ToHexString(inner).ToLowerInvariant());
             }
 
             return;
@@ -749,6 +796,9 @@ public sealed class Ps3Gateway
 
             UpdateNpcs(peer, channel, moved.X, moved.Z);
 
+            if (_quests.TryGetValue(peer, out var travelling) && travelling.Moved(moved.X, moved.Y, moved.Z) is { } reached)
+                SendQuestOutcome(peer, channel, reached);
+
             if (_now - _positionSavedAt.GetValueOrDefault(peer) >= PositionSaveInterval && _inventories.TryGetValue(peer, out var walking))
             {
                 _positionSavedAt[peer] = _now;
@@ -852,7 +902,37 @@ public sealed class Ps3Gateway
             if (_world.Options.Npcs && !_npcsShown.ContainsKey(peer))
             {
                 _npcsShown[peer] = new NpcRelevance(PlaceableNpcs());
-                Schedule(SpawnDelay, () => UpdateNpcs(peer, channel, x, z, force: true));
+
+                // FR_QUESTS: the character's quest log, with the NPCs' quest icons.
+                if (_world.Options.Quests)
+                {
+                    var guid = _playing.TryGetValue(peer, out var player) ? player.Guid : 0UL;
+                    _quests[peer] = new QuestSession(
+                        _questStore.Load(guid),
+                        guid,
+                        log =>
+                        {
+                            if (guid == 0)
+                                return;
+
+                            _questStore.Save(guid, log);
+
+                            if (_questStore.Problem is { } problem)
+                                _logger?.LogWarning("gateway: quests not saved: {Problem}", problem);
+                        },
+                        candidate => _world.HasAsset(candidate.ModelFile) && _world.HasGround(candidate.X, candidate.Z));
+                }
+
+                Schedule(SpawnDelay, () =>
+                {
+                    UpdateNpcs(peer, channel, x, z, force: true);
+
+                    if (_quests.TryGetValue(peer, out var restoring))
+                    {
+                        _logger?.LogInformation("gateway: quests: {InProgress} in progress, {Completed} completed", restoring.Log.InProgress.Count, restoring.Log.Completed.Count);
+                        SendNamed(peer, channel, "quest journal", restoring.Restore());
+                    }
+                });
             }
         }
     }
@@ -929,10 +1009,28 @@ public sealed class Ps3Gateway
         if (targets > 0)
             packets = packets.Append(new NamedPacket($"NpcRelevance {targets}", Npcs.Relevance(add)));
 
+        // Their icons, and the quest cursor for those with quest business.
+        if (_quests.TryGetValue(peer, out var questing))
+            packets = packets.Concat(questing.NpcsChanged(add, remove)).ToList();
+
         _logger?.LogInformation("gateway: npcs: {Added} added ({Targets} with a cursor), {Removed} removed, {Shown} near the character", add.Count, targets, remove.Count, shown.Shown);
 
         foreach (var (_, inner) in SanctuaryFlow.Select(packets, _world.Options.Skip))
             SendReliable(peer, Ps3Packets.Tunneled(inner), channel);
+    }
+
+    /// <summary>Sends what a quest action produced and starts the conversation it brought, if any.</summary>
+    private void SendQuestOutcome(IPEndPoint peer, int channel, QuestOutcome outcome)
+    {
+        var packets = outcome.Packets.ToList();
+
+        if (outcome.Conversation is { } conversation)
+        {
+            _talks[peer] = conversation;
+            packets.Add(new NamedPacket("ShowDialog", conversation.Current()));
+        }
+
+        SendNamed(peer, channel, "quest", packets);
     }
 
     /// <summary>Puts the towns' warpstones into the world (<see cref="Warpstones"/>).</summary>
@@ -946,7 +1044,10 @@ public sealed class Ps3Gateway
 
         _logger?.LogInformation("gateway: warpstones: {Placed} of {All} have their terrain in the install", placed.Count, Warpstones.All.Count);
         SendNamed(peer, channel, "warpstones", placed.Select(stone => new NamedPacket($"AddNpc {stone.Name}", Warpstones.AddNpc(stone)))
-            .Append(new NamedPacket("NpcRelevance warpstones", Npcs.Relevance(placed.Select(Warpstones.AsNpc)))));
+            .Append(new NamedPacket("NpcRelevance warpstones", Npcs.Relevance(placed.Select(Warpstones.AsNpc))))
+            .Append(new NamedPacket("AddNotifications warpstones", NpcNotifications.Add(placed
+                .Where(stone => NpcNotifications.Badges.ContainsKey(stone.NpcId))
+                .Select(stone => (stone.Guid, NpcNotifications.Badges[stone.NpcId]))))));
     }
 
     /// <summary>Sends your character's AddPc after the client finished loading (the server marks the player visible then), then the creator's clothes.</summary>

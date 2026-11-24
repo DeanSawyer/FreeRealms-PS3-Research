@@ -93,6 +93,30 @@ public sealed class Inventory
     /// <summary>Adds <paramref name="coins"/> (the starting coins), stopping at int.MaxValue.</summary>
     public void GiveCoins(int coins) => Coins = (int)Math.Clamp((long)Coins + coins, 0, int.MaxValue);
 
+    /// <summary>
+    /// Gives one of item <paramref name="definition"/> (a quest reward), in its icon tint, stacked onto one already owned; ItemAdd or
+    /// ItemUpdate for it, or nothing when there is no such definition.
+    /// </summary>
+    public List<NamedPacket> GiveItem(int definition)
+    {
+        if (!Items.Definitions.TryGetValue(definition, out var row))
+            return [];
+
+        var tint = Items.Int(row, FieldIconTint);
+        var existing = _items.Where(pair => pair.Value.Definition == definition && pair.Value.Tint == tint).Select(pair => (int?)pair.Key).FirstOrDefault();
+        var itemId = existing ?? (_items.Count == 0 ? 1 : _items.Keys.Max() + 1);
+
+        _items[itemId] = (definition, tint);
+        _counts[itemId] = (int)Math.Min((long)(existing is null ? 0 : Count(itemId)) + 1, int.MaxValue);
+
+        return
+        [
+            existing is null
+                ? new NamedPacket($"ItemAdd {itemId}", Items.ItemAdd(new OwnedItem(itemId, definition, tint, _counts[itemId]), _counts[itemId]))
+                : new NamedPacket($"ItemUpdate {itemId}", CoinStore.ItemUpdate(itemId, _counts[itemId])),
+        ];
+    }
+
     /// <summary>How many of an item the character has (0 when it has none).</summary>
     public int Count(int itemId) => _items.ContainsKey(itemId) ? _counts.GetValueOrDefault(itemId, 1) : 0;
 

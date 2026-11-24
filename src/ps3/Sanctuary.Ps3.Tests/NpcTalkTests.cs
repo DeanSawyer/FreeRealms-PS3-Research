@@ -13,9 +13,10 @@ namespace Sanctuary.Ps3.Tests;
 public sealed class NpcTalkTests
 {
     [TestMethod]
-    public void QuestNpcsAndGreetersHaveLines()
+    public void GreetersHaveLines()
     {
-        Assert.IsTrue(NpcTalk.All.Count > 100, $"{NpcTalk.All.Count} NPCs");
+        // The greeters; quest offers and quest dialogue are the quest log's.
+        Assert.AreEqual(3, NpcTalk.All.Count);
         Assert.AreEqual(429535, NpcTalk.All[33605][0].TextId, "Nikki's greeting");
         Assert.IsTrue(NpcTalk.All.Keys.All(id => Npcs.All.Any(npc => npc.NpcId == id)), "only NPCs that are placed");
     }

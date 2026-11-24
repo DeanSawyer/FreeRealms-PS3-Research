@@ -1,0 +1,34 @@
+# Quest pickups (collect goals): Sanctuary's Resources/CollectionNodeTypes.json and CollectionNodeSpawns/1/*-<key>.json for
+# the node types its quests collect. Columns: key, model id, model file, name, scale, cursor id, x, y, z, heading.
+bike-retrieval-bikes	3988	chopper_m_basic.adr	Freewheeler Bike	1	17	530.0	2.9	1636.0	0.0
+bike-retrieval-bikes	3988	chopper_m_basic.adr	Freewheeler Bike	1	17	548.73	4.14	1661.27	0.0
+bike-retrieval-bikes	3988	chopper_m_basic.adr	Freewheeler Bike	1	17	606.0	3.1	1655.0	0.0
+bike-retrieval-bikes	3988	chopper_m_basic.adr	Freewheeler Bike	1	17	660.0	5.6	1592.0	0.0
+bike-retrieval-bikes	3988	chopper_m_basic.adr	Freewheeler Bike	1	17	700.0	4.7	1616.0	0.0
+bike-retrieval-bikes	3988	chopper_m_basic.adr	Freewheeler Bike	1	17	749.86	14.55	1646.71	0.0
+box-o-rocks	84	sh_crate_01.adr	Rock	1	17	-535.0	0.5	1350.0	0.0
+box-o-rocks	84	sh_crate_01.adr	Rock	1	17	-550.0	0.5	1365.0	0.0
+box-o-rocks	84	sh_crate_01.adr	Rock	1	17	-525.0	0.5	1355.0	0.0
+hastis-homework	584	sg_papers_01.adr	Hasti's Homework	1	17	-1090.0	5.4	384.0	0.0
+hastis-homework	584	sg_papers_01.adr	Hasti's Homework	1	17	-1072.0	5.3	348.0	0.0
+hastis-homework	584	sg_papers_01.adr	Hasti's Homework	1	17	-938.0	4.75	230.0	0.0
+hastis-homework	584	sg_papers_01.adr	Hasti's Homework	1	17	-1000.0	6.4	202.0	0.0
+hastis-homework	584	sg_papers_01.adr	Hasti's Homework	1	17	-1005.0	6.4	198.0	0.0
+hastis-homework	584	sg_papers_01.adr	Hasti's Homework	1	17	-1099.0	5.19	225.0	0.0
+hastis-homework	584	sg_papers_01.adr	Hasti's Homework	1	17	-1115.0	5.17	306.0	0.0
+hastis-homework	584	sg_papers_01.adr	Hasti's Homework	1	17	-1052.0	4.63	307.0	0.0
+one-mans-trash-camp	862	ss_trash_pile_01.adr	Rubbish Pile	1	17	-1058.0	-39.4	-468.0	0.0
+one-mans-trash-chugawug	862	ss_trash_pile_01.adr	Rubbish Pile	1	17	-1022.0	-38.6	-298.0	0.0
+one-mans-trash-stage	862	ss_trash_pile_01.adr	Rubbish Pile	1	17	-1090.0	-39.9	-455.0	0.0
+one-mans-trash-vendors	862	ss_trash_pile_01.adr	Rubbish Pile	1	17	-1158.0	-37.6	-446.0	0.0
+smashing-chisels	196	sh_pick_01.adr	Chisel	1	17	-608.0	1.0	1213.0	0.0
+smashing-chisels	196	sh_pick_01.adr	Chisel	1	17	-425.0	4.0	1174.0	0.0
+smashing-chisels	196	sh_pick_01.adr	Chisel	1	17	-491.0	1.0	1066.0	0.0
+smashing-chisels	196	sh_pick_01.adr	Chisel	1	17	-387.0	5.0	1080.0	0.0
+smashing-chisels	196	sh_pick_01.adr	Chisel	1	17	-428.0	1.0	1323.0	0.0
+smashing-hammers	197	sh_shovel_01.adr	Hammer	1	17	-595.0	1.0	1225.0	0.0
+smashing-hammers	197	sh_shovel_01.adr	Hammer	1	17	-438.0	4.0	1186.0	0.0
+smashing-hammers	197	sh_shovel_01.adr	Hammer	1	17	-503.0	1.0	1078.0	0.0
+smashing-hammers	197	sh_shovel_01.adr	Hammer	1	17	-399.0	5.0	1092.0	0.0
+smashing-hammers	197	sh_shovel_01.adr	Hammer	1	17	-440.0	1.0	1310.0	0.0
+woe-is-willie-flowers	541	ss_deco_flower_04.adr	Flowers	1	17	-374.5	0.97	-612.5	0.0

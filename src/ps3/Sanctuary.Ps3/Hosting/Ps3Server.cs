@@ -164,7 +164,9 @@ public static class Ps3Server
                 // The zone sent in ZoneDetails must exist in this install's packs (docs/re/zone-loading.md).
                 var world = GatewayWorld.FromInstall(usrDir, options.Gateway, gatewayLog);
 
-                gateway = new Ps3Gateway(gatewayHost, world, characters, new TraceLog(TraceLog.ResolvePath("ps3_gateway_trace.jsonl")), gatewayLog);
+                gateway = new Ps3Gateway(
+                    gatewayHost, world, characters, new TraceLog(TraceLog.ResolvePath("ps3_gateway_trace.jsonl")), gatewayLog,
+                    quests: QuestStore.Beside(characters.Path));
 
                 gatewayHost.Start(gateway);
 
