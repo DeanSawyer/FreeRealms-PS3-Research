@@ -5,7 +5,7 @@ using Sanctuary.Ps3.Database.Entities;
 namespace Sanctuary.Ps3.Database;
 
 /// <summary>
-/// The server's database, laid out like Sanctuary's <c>DatabaseContext</c> (Users, Characters, Items, Profiles, ProfileItems) with the
+/// The server's database, laid out like Sanctuary's <c>DatabaseContext</c> (Users, Characters, Items, Profiles, ProfileItems, Pets) with the
 /// keys and cascades of its SQLite configuration (Sanctuary.Database.Sqlite/Configuration). The same model is used for SQLite and MySQL.
 /// </summary>
 public sealed class Ps3DatabaseContext : DbContext
@@ -23,6 +23,8 @@ public sealed class Ps3DatabaseContext : DbContext
     public DbSet<DbProfile> Profiles => Set<DbProfile>();
 
     public DbSet<DbProfileItem> ProfileItems => Set<DbProfileItem>();
+
+    public DbSet<DbPet> Pets => Set<DbPet>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -65,6 +67,11 @@ public sealed class Ps3DatabaseContext : DbContext
                 .WithOne(p => p.Character)
                 .HasForeignKey(p => p.CharacterId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            character.HasMany(c => c.Pets)
+                .WithOne(p => p.Character)
+                .HasForeignKey(p => p.CharacterId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<DbItem>(item =>
@@ -82,6 +89,13 @@ public sealed class Ps3DatabaseContext : DbContext
                 .WithOne(i => i.Profile)
                 .HasForeignKey(i => new { i.ProfileId, i.CharacterId })
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DbPet>(pet =>
+        {
+            pet.HasKey(p => new { p.Id, p.CharacterId });
+            pet.Property(p => p.Id).ValueGeneratedNever();
+            pet.Property(p => p.Name).IsRequired().HasMaxLength(64);
         });
 
         modelBuilder.Entity<DbProfileItem>(worn =>

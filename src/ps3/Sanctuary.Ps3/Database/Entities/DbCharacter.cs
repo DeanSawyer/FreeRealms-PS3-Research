@@ -80,6 +80,8 @@ public sealed class DbCharacter
 
     public ICollection<DbProfile> Profiles { get; set; } = [];
 
+    public ICollection<DbPet> Pets { get; set; } = [];
+
     public ulong UserId { get; set; }
 
     public DbUser User { get; set; } = null!;

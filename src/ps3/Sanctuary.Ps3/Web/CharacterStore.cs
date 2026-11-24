@@ -19,9 +19,29 @@ public sealed record SavedSlot(int Slot, int Item);
 public sealed record SavedPosition(string Zone, double X, double Y, double Z, double RotationX, double RotationY, double RotationZ);
 
 /// <summary>
+/// A pet a character owns, as Sanctuary's <c>DbPet</c>: its id among the character's pets, the pet item it came from, tint, name, the
+/// four needs (0 to 100), its trait, when it last found treasure, its four favourite tricks and its seven care items (item ids, 0 for
+/// none: shampoo, conditioner, toy, brush, food bowl, food, vitamins).
+/// </summary>
+public sealed record SavedPet(
+    int Id,
+    int Definition,
+    int Tint,
+    string Name,
+    float Hunger,
+    float Hygiene,
+    float Play,
+    float Mood,
+    int Trait,
+    DateTimeOffset? TreasureFoundAt,
+    IReadOnlyList<int> FavoriteTricks,
+    IReadOnlyList<int> CareItems,
+    DateTimeOffset Created);
+
+/// <summary>
 /// What a character has gained by playing, like the item, profile, coin and position columns of Sanctuary's <c>DbCharacter</c>: the
-/// active job, the items, each job's equipment (slots in the order they were filled), the coins and where it stood. Saved by the game
-/// server whenever it changes.
+/// active job, the items, each job's equipment (slots in the order they were filled), the coins, where it stood and its pets. Saved by
+/// the game server whenever it changes.
 /// </summary>
 public sealed record CharacterProgress(
     int ActiveJob,
@@ -29,7 +49,8 @@ public sealed record CharacterProgress(
     IReadOnlyList<SavedItem> Items,
     IReadOnlyDictionary<int, IReadOnlyList<SavedSlot>> Equipment,
     SavedPosition? Position = null,
-    bool GotStartingCoins = false);
+    bool GotStartingCoins = false,
+    IReadOnlyList<SavedPet>? Pets = null);
 
 /// <summary>
 /// A character made in the character creator: the guid the server gave it, the values of its <c>character/create</c> request

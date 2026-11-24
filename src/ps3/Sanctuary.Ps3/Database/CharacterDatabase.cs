@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -88,6 +90,7 @@ public sealed class CharacterDatabase
             .Include(c => c.Items)
             .Include(c => c.Profiles)
             .ThenInclude(p => p.Items)
+            .Include(c => c.Pets)
             .Where(c => c.UserId == user.Id)
             .AsSplitQuery()
             .AsEnumerable()
@@ -103,6 +106,7 @@ public sealed class CharacterDatabase
         using var db = Open();
         using var transaction = db.Database.BeginTransaction();
 
+        db.Pets.ExecuteDelete();
         db.ProfileItems.ExecuteDelete();
         db.Profiles.ExecuteDelete();
         db.Items.ExecuteDelete();
@@ -150,8 +154,52 @@ public sealed class CharacterDatabase
 
         db.Database.EnsureCreated();
 
+        if (Upgraded.TryAdd(Options.ConnectionString, true))
+            AddMissingTables(db);
+
         return db;
     }
+
+    /// <summary>The connection strings whose database has been checked for tables added after it was made.</summary>
+    private static readonly ConcurrentDictionary<string, bool> Upgraded = new();
+
+    /// <summary>The tables the model has gained since the first databases were made (EnsureCreated does nothing to a database that exists).</summary>
+    private static readonly string[] LaterTables = ["Pets"];
+
+    /// <summary>
+    /// Makes the tables of <see cref="LaterTables"/> that an older database lacks, with the statements EF Core would make them with
+    /// (its create script, so SQLite and MySQL each get their own).
+    /// </summary>
+    private static void AddMissingTables(Ps3DatabaseContext db)
+    {
+        string? script = null;
+
+        foreach (var table in LaterTables)
+        {
+            try
+            {
+                var probe = "SELECT COUNT(*) FROM " + Quote(db, table);
+                db.Database.ExecuteSqlRaw(probe);
+                continue;
+            }
+            catch (DbException)
+            {
+                // Not there yet.
+            }
+
+            script ??= db.Database.GenerateCreateScript();
+
+            foreach (var statement in script.Split(';'))
+            {
+                var text = statement.Trim();
+
+                if (text.Contains($"TABLE {Quote(db, table)}", StringComparison.Ordinal) || text.Contains($"ON {Quote(db, table)}", StringComparison.Ordinal))
+                    db.Database.ExecuteSqlRaw(text);
+            }
+        }
+    }
+
+    private static string Quote(Ps3DatabaseContext db, string table) => db.Database.IsSqlite() ? $"\"{table}\"" : $"`{table}`";
 
     private static DbCharacter ToEntity(SavedCharacter character, DbUser user)
     {
@@ -185,6 +233,9 @@ public sealed class CharacterDatabase
 
         if (character.Progress is not { } progress)
             return entity;
+
+        foreach (var pet in (progress.Pets ?? []).DistinctBy(pet => pet.Id))
+            entity.Pets.Add(ToEntity(pet));
 
         entity.HasProgress = true;
         entity.ActiveProfileId = progress.ActiveJob;
@@ -228,6 +279,43 @@ public sealed class CharacterDatabase
         return entity;
     }
 
+    private static DbPet ToEntity(SavedPet pet)
+    {
+        int At(IReadOnlyList<int> values, int index) => index < values.Count ? values[index] : 0;
+
+        return new DbPet
+        {
+            Id = pet.Id,
+            Definition = pet.Definition,
+            Tint = pet.Tint,
+            Name = pet.Name,
+            Hunger = pet.Hunger,
+            Hygiene = pet.Hygiene,
+            Play = pet.Play,
+            Mood = pet.Mood,
+            Trait = pet.Trait,
+            TreasureFoundAt = pet.TreasureFoundAt,
+            EquippedPetTrick1 = At(pet.FavoriteTricks, 0),
+            EquippedPetTrick2 = At(pet.FavoriteTricks, 1),
+            EquippedPetTrick3 = At(pet.FavoriteTricks, 2),
+            EquippedPetTrick4 = At(pet.FavoriteTricks, 3),
+            ShampooItemId = At(pet.CareItems, 0),
+            ConditionerItemId = At(pet.CareItems, 1),
+            ToyItemId = At(pet.CareItems, 2),
+            BrushItemId = At(pet.CareItems, 3),
+            FoodBowlItemId = At(pet.CareItems, 4),
+            FoodItemId = At(pet.CareItems, 5),
+            VitaminItemId = At(pet.CareItems, 6),
+            Created = pet.Created,
+        };
+    }
+
+    private static SavedPet ToSaved(DbPet pet) => new(
+        pet.Id, pet.Definition, pet.Tint, pet.Name, pet.Hunger, pet.Hygiene, pet.Play, pet.Mood, pet.Trait, pet.TreasureFoundAt,
+        [pet.EquippedPetTrick1, pet.EquippedPetTrick2, pet.EquippedPetTrick3, pet.EquippedPetTrick4],
+        [pet.ShampooItemId, pet.ConditionerItemId, pet.ToyItemId, pet.BrushItemId, pet.FoodBowlItemId, pet.FoodItemId, pet.VitaminItemId],
+        pet.Created);
+
     private static SavedCharacter ToSaved(DbCharacter entity)
     {
         Dictionary<string, string>? stored = null;
@@ -264,7 +352,8 @@ public sealed class CharacterDatabase
                 ? new SavedPosition(zone, x, y, z, entity.RotationX ?? 0, entity.RotationY ?? 0, entity.RotationZ ?? 0)
                 : null;
 
-            progress = new CharacterProgress(entity.ActiveProfileId, entity.Coins, items, equipment, position, entity.GotStartingCoins);
+            progress = new CharacterProgress(entity.ActiveProfileId, entity.Coins, items, equipment, position, entity.GotStartingCoins,
+                [.. entity.Pets.OrderBy(pet => pet.Id).Select(ToSaved)]);
         }
 
         return new SavedCharacter(entity.Id, values, entity.Created.UtcDateTime, entity.LastLogin?.UtcDateTime, progress);

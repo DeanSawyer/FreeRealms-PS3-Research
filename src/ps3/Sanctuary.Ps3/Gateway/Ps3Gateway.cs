@@ -113,8 +113,10 @@ public sealed class Ps3Gateway
     private readonly Dictionary<IPEndPoint, TalkConversation> _talks = [];
     private readonly Dictionary<IPEndPoint, QuestSession> _quests = [];
 
-    /// <summary>Each peer's pets (FR_PETS), from its first ClientFinishedLoading on.</summary>
-    private readonly Dictionary<IPEndPoint, PetKeeper> _pets = [];
+    /// <summary>Each peer's pets (FR_PETS), loaded with its character at login, and the channel their care updates go on.</summary>
+    private readonly Dictionary<IPEndPoint, PetCompanion> _pets = [];
+    private readonly Dictionary<IPEndPoint, int> _petChannels = [];
+    private readonly Random _random = new();
     private readonly Dictionary<IPEndPoint, HashSet<int>> _definitionsSent = [];
     private readonly HashSet<(IPEndPoint, int)> _pathsLogged = [];
     private readonly QuestStore _questStore;
@@ -236,7 +238,23 @@ public sealed class Ps3Gateway
     public void Tick(TimeSpan now)
     {
         RunScheduled(now);
+        CareForPets(now);
         Maintain(now);
+    }
+
+    /// <summary>The care of every pet that is out (Sanctuary's every-tick pet update): its status when it changed.</summary>
+    public void CareForPets(TimeSpan now)
+    {
+        lock (_gate)
+        {
+            _now = now;
+
+            foreach (var (peer, companion) in _pets)
+            {
+                if (_petChannels.TryGetValue(peer, out var channel) && companion.Tick(now) is { Count: > 0 } status)
+                    SendNamed(peer, channel, "pet care", status, quiet: true);
+            }
+        }
     }
 
     /// <summary>Runs the delayed actions (the world-ready fallback and the spawn after loading) that are due at <paramref name="now"/>, in due order.</summary>
@@ -550,6 +568,16 @@ public sealed class Ps3Gateway
 
                 _inventories[peer] = new Inventory(loadout, options);
 
+                // FR_PETS: the character's pets, as saved with it (a character without any gets the starter pets).
+                _pets.Remove(peer);
+                _petChannels.Remove(peer);
+
+                if (options.Pets)
+                {
+                    _pets[peer] = PetCompanion.Load(restored ? saved!.Progress!.Pets : null, giveStarters: true, _world.HasAsset, _random, DateTimeOffset.UtcNow);
+                    _logger?.LogInformation("gateway: pets: {Count}", _pets[peer].Pets.Count);
+                }
+
                 if (saved is not null)
                     _playing[peer] = (saved.Guid, restored);
                 else
@@ -559,6 +587,9 @@ public sealed class Ps3Gateway
             {
                 foreach (var packet in Ps3Packets.WorldPackets(_characters.Snapshot(), _world, _unixTime()))
                     SendReliable(peer, packet, channel);
+
+                _pets.Remove(peer);
+                _petChannels.Remove(peer);
             }
 
             _clientReady.Remove(peer);
@@ -566,7 +597,6 @@ public sealed class Ps3Gateway
             _npcsShown.Remove(peer);
             _talks.Remove(peer);
             _quests.Remove(peer);
-            _pets.Remove(peer);
             _definitionsSent.Remove(peer);
             Schedule(ReadyFallback, () => SendReadyFallback(peer, channel));
         }
@@ -685,15 +715,32 @@ public sealed class Ps3Gateway
             return;
         }
 
-        // The pet window: a pet summoned (it comes out beside the character) or dismissed.
-        if (Pets.IsPet(inner) && _pets.TryGetValue(peer, out var keeper))
+        // The pet window: summoning and dismissing, naming, petting, and the window opening on the pet that is out.
+        if (PetWire.IsPet(inner) && _pets.TryGetValue(peer, out var companion))
         {
-            if (Pets.FromSummonRecall(inner) is { } call)
+            _petChannels[peer] = channel;
+
+            if (PetWire.FromSummonRecall(inner) is { } call)
             {
                 var at = _positions.TryGetValue(peer, out var standing) ? standing : SpawnPlacement();
 
                 _logger?.LogInformation("sanctuary: pet {PetId} {Call}", call.PetId, call.Summon ? "summoned" : "dismissed");
-                SendNamed(peer, channel, $"pet {call.PetId}", call.Summon ? keeper.Summon(call.PetId, at) : keeper.Recall());
+                SendNamed(peer, channel, $"pet {call.PetId}", call.Summon ? companion.Summon(call.PetId, at, _now) : companion.Recall());
+                SavePets(peer);
+            }
+            else if (PetWire.FromRequestName(inner) is { } name)
+            {
+                _logger?.LogInformation("sanctuary: pet {PetId} named \"{Name}\"", companion.ActiveId, name);
+                SendNamed(peer, channel, "pet name", companion.Rename(name));
+                SavePets(peer);
+            }
+            else if (PetWire.FromUiMode(inner) is { } open)
+            {
+                SendNamed(peer, channel, "pet window", companion.SetWindowOpen(open), quiet: true);
+            }
+            else if (PetWire.FromTactile(inner) is { Mode: 0 } petting)
+            {
+                companion.Scratch(petting.MovementSquaredSum, petting.DurationMs);
             }
             else
             {
@@ -855,7 +902,7 @@ public sealed class Ps3Gateway
             if (_quests.TryGetValue(peer, out var travelling) && travelling.Moved(moved.X, moved.Y, moved.Z) is { } reached)
                 SendQuestOutcome(peer, channel, reached);
 
-            if (_pets.TryGetValue(peer, out var following) && following.Moved(moved, Pets.IsMoving(inner), Pets.SpeedOf(inner), _now) is { Count: > 0 } step)
+            if (_pets.TryGetValue(peer, out var following) && following.Moved(moved, PetNpc.IsMoving(inner), PetNpc.SpeedOf(inner), _now) is { Count: > 0 } step)
                 SendNamed(peer, channel, "pet follows", step, quiet: true);
 
             if (_now - _positionSavedAt.GetValueOrDefault(peer) >= PositionSaveInterval && _inventories.TryGetValue(peer, out var walking))
@@ -957,16 +1004,15 @@ public sealed class Ps3Gateway
             if (_world.Options.Warpstones)
                 Schedule(SpawnDelay, () => SendWarpstones(peer, channel));
 
-            // FR_PETS: the starter pets in the pet window, and the one that is out put down beside the character again.
-            if (_world.Options.Pets)
+            // FR_PETS: the pet list, and the pet that was out comes back beside the character (Sanctuary's RestorePet).
+            if (_pets.TryGetValue(peer, out var pets))
             {
-                if (!_pets.TryGetValue(peer, out var pets))
-                    _pets[peer] = pets = new PetKeeper(Pets.Starters.Where(pet => _world.HasAsset(pet.ModelFile)).ToList());
+                _petChannels[peer] = channel;
 
                 Schedule(SpawnDelay, () =>
                 {
                     var at = _positions.TryGetValue(peer, out var here) ? here : SpawnPlacement();
-                    SendNamed(peer, channel, "pets", [pets.List(), .. pets.Respawn(at)]);
+                    SendNamed(peer, channel, "pets", [pets.List(), .. pets.Restore(at, _now)]);
                 });
             }
 
@@ -1009,6 +1055,13 @@ public sealed class Ps3Gateway
         }
     }
 
+    /// <summary>Saves the character with its pets as they are now (after a summon or a new name; their care is saved with the position).</summary>
+    private void SavePets(IPEndPoint peer)
+    {
+        if (_inventories.TryGetValue(peer, out var inventory))
+            SaveProgress(peer, inventory);
+    }
+
     /// <summary>The spawn point as a placement facing the spawn rotation, for a character that has not moved yet.</summary>
     private Placement SpawnPlacement()
     {
@@ -1028,7 +1081,12 @@ public sealed class Ps3Gateway
 
         var now = inventory.Snapshot() with { Position = _positions.GetValueOrDefault(peer) };
 
-        if (!_characters.SaveProgress(playing.Guid, SavedProgress.ToProgress(now, _world.Zone, gotStartingCoins: true)))
+        // The pets go with the character (without FR_PETS the saved ones are kept as they are).
+        var pets = _pets.TryGetValue(peer, out var companion)
+            ? companion.Snapshot()
+            : _characters.Current() is { } saved && saved.Guid == playing.Guid ? saved.Progress?.Pets : null;
+
+        if (!_characters.SaveProgress(playing.Guid, SavedProgress.ToProgress(now, _world.Zone, gotStartingCoins: true) with { Pets = pets }))
             return;
 
         _trace.Write("progress", ("peer", peer.Address.ToString()), ("guid", playing.Guid), ("job", inventory.Active));

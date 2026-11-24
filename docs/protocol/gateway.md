@@ -382,42 +382,75 @@ group: 37 bytes. Sanctuary's PC entry ends with a CanBuy `u8` the PS3 does not r
 
 ## Pets (Pet 53, UpdatePosition 125)
 
-`FR_PETS` (on unless 0) gives every character eight starter pets (`Data/pets.tsv`: dogs, cats, a pony, a unicorn and a dragon whose
-models the PS3 packs have, from Sanctuary's `ClientItemDefinitions.json`, `Pets.json` and `Models.txt`) and lets one follow it
-(`Gateway/Pets.cs`). The PS3's Pet handler is `0x6949c` (opcode 53 in the switch at `0x1051f0`, through `0x59514`): `u16` 53 and a
-`u8` sub-opcode, with Sanctuary's numbers (the sub table at `0x6963c` has 3 status, 5 list, 9 active, 10 set name, 11 equip, 14 and
-15 tricks, 16 and 20 utility).
+The pets behave as Sanctuary's (`Gateway/Pets/`, rebuilt from how its PlayerPet and PetHelper work). Built so far: each character's
+pets saved in the database, Sanctuary's pet definitions, the pet list, summoning and dismissing, the pet coming back after a zone load,
+its care while it is out, petting and naming in the pet window. Sanctuary's following (path finding, trail, catching up, wandering),
+its animations, thought bubbles, tricks, feeding, grooming, care items, clothes and treasure come in later stages; until then a
+simpler follower walks the pet beside its owner.
 
-**Pet 5, PetList** (sent after each ClientFinishedLoading and after a summon or dismissal): `u32` count, each pet, then the active
-pet's `i32` id and `u64` guid. Each pet is read by `0xa88634`: `i32` id, then Sanctuary's PetClientInfo (`i32` id, `u8` sex, `i32`
-icon (with Sanctuary's pet definition icon the window showed no pictures; the server sends the pet item's image set, as in the
-`i32` image set further on), hunger, hygiene, play and mood as `f32`, `u8` members only, the tricks (`u32` count; per trick its `i32` key, then id, icon,
-name, skill level, two unknowns, tooltip and an unknown as `i32` and `u8` known: 37 bytes), the worn item guids (`u32` count,
-`i32`s), the item classes (`u32` count; key, id and unknown as `i32`), the name, **one** `i32` (Sanctuary has NameId and TintId
-there; the server sends the tint, which the pet window's `tintValue` column needs), the texture alias, `i32` image set, `u8` vanity
-pet, the four favourite tricks and eight item guids (Sanctuary's unknown and the seven care items). The PS3 has no
-AttachmentItemGroupId or IsTutorialPet. A pet with no tricks, items or classes and empty strings is 107 bytes.
+**Data.** `Data/pet_definitions.json.gz` is Sanctuary's `Resources/Pets.json` as it is: per pet model its icon, default tint and
+tint alias, whether it is a vanity pet, its tricks and item classes, its trick, idle, bathroom and resting animations
+(`PetCatalog`). `Data/pet_items.tsv.gz` lists every pet item of Sanctuary's `ClientItemDefinitions.json` with its model from
+`Models.txt`: name, picture, model, scale and gender, texture and tint alias, members only, tintable.
 
-The pet window's Summon and Dismiss (`Pet.Summon` and `Pet.Dismiss`, `0x20498c` and `0x2056d0`) send **Pet 4, PetSummonRecall**,
-built at `0x690f8`: `i32` pet id and `u8` summon (1) or dismiss (0). A summoned pet is an NPC (AddNpc, Sanctuary's disposition 2,
-not interactable, guid `0x0500…` plus the pet id, AddNpc's last `i32` 2) put down behind the character and to its side. That
-last `i32` is Sanctuary's MovementType (`0xb0c010` stores it at +448 of its record, the handler `0x1115fc` passes it to `0x1a01e4`,
-which keeps it at the actor's +3784); the position update moves an actor only when it is 1, 2 or 4, so with 0, as the other NPCs
-have, a pet appeared but stood still. It follows with **PlayerUpdate
-125, UpdatePosition**, which the PS3 reads from the server at `0xcde04` (the BaseClient's vtable slot at +308) as the same 40 bytes it
-sends: `u16` 125, `u64` guid, position and rotation (3 x `f32` each), `u8` state (Sanctuary's 0 moving, 1 stopped), a byte and the
-speed as `f32`. The client's own update says whether the character moves in its state byte (offset 34: 0 moving, 1 stopped; its speed field stays at
-the top speed, 6, while it stands). The server sends one when the pet's spot beside the character has moved, at most every 200 ms
-while it walks, and a stopped one as soon as the character stops: a pet last told it is moving carries on along its heading.
-It also puts the pet down
-again after a jump of over 40 units (a warpstone). Feeding, grooming, tricks and the pets' names and care are not done yet; other Pet
-packets from the client are logged.
+**Saved.** A `Pets` table with Sanctuary's `DbPet` columns (id among the character's pets, the pet item, tint, name, hunger, hygiene,
+play, mood, trait, when it last found treasure, four favourite tricks, seven care items, created), kept with the character's progress
+(`SavedPet`). A database made before it gets the table the first time it is opened (EF Core's own create statement for it, for
+SQLite and MySQL alike). A character without pets gets the starter pets (`PetCompanion.Starters`, pet items whose models and
+textures the PS3 packs have), as the PS3 has no pet shop yet; a pet without a trait gets one at random, as Sanctuary's do.
 
-The pet window's picture (the list's column 9, the pet's +252, read at `0x261ca8` by the PetList datasource's GetData `0x2619a0`) is
-the image set; column 2 (+8) is the icon. Neither Sanctuary's pet definition icon (652, 653) nor the pet items' image sets (3198 and
-so on) showed a picture: the packs have item icons for the vanity pets only (`icon_item_vanitypet_*`), none for the dogs, cats,
-ponies, unicorns and dragons. Reports carry `imagesetmappings.txt` and `Browser.gfx` to find what the PS3 shows there. The packs'
-textures decide the starter pets too: there is no `cat_shorthair` texture for Sanctuary's toyger, so the shorthair cat is a tabby.
+**The Pet handler** is `0x6949c` (opcode 53 in the switch at `0x1051f0`, through `0x59514`): `u16` 53 and a `u8` sub-opcode, with
+Sanctuary's numbers (the sub table at `0x6963c` has 3 status, 5 list, 9 active, 10 set name, 11 equip, 14 and 15 tricks, 16 and 20
+utility). The handler reads:
+
+* **Pet 5, PetList** (after each ClientFinishedLoading and each summon or new name): `u32` count, each pet, then the active pet's `i32`
+  id and `u64` guid. Each pet is read by `0xa88634`: `i32` id, then Sanctuary's PetClientInfo (`i32` id, `u8` sex (1 for a male
+  model), `i32` icon (the pet definition's), hunger, hygiene, play and mood as `f32`, `u8` members only, the tricks (`u32` count; per
+  trick its `i32` key, then id, icon, name, skill level, two unknowns, tooltip and an unknown as `i32` and `u8` known: 37 bytes), the
+  worn item guids (`u32` count, `i32`s), the item classes (`u32` count; key, id and unknown as `i32`), the name, **one** `i32`
+  (Sanctuary has NameId and TintId there; the server sends the tint, which the pet window's `tintValue` column needs), the texture
+  alias, `i32` image set, `u8` vanity pet, the four favourite tricks and eight item guids (Sanctuary's unknown and the seven care
+  items). The PS3 has no AttachmentItemGroupId or IsTutorialPet. A pet with no tricks, items or classes and empty strings is 107
+  bytes.
+* **Pet 3, PetStatus**: `i32` pet id and the four needs as `f32` (23 bytes). Sent when care changed play or mood.
+* **Pet 9, PetActive**: `i32` pet id and `u64` guid (15 bytes); both 0 when a pet goes away.
+* **Pet 10, PetSetName**: `u64` guid and the name (a string). The PS3 reads no more: Sanctuary's PC packet ends with an Accepted
+  flag, so a refused name is answered with the pet's own name.
+
+From the client: **Pet 4, PetSummonRecall** (`Pet.Summon` and `Pet.Dismiss`, `0x20498c` and `0x2056d0`, built at `0x690f8`): `i32` pet
+id, `u8` summon (1) or dismiss (0). **Pet 6, PetRequestName** (read as Sanctuary's, a string; the PS3's `Pet.SetName`, `0x204a28`,
+builds the name from parts of a name list at `0x669dc`), **Pet 22, PetTactileNotify** (mode, unknown, duration in ms, stick movement
+squared sum, as `i32`s) and **Pet 24, PetUiMode** (`i32` window open) are read as Sanctuary's; other Pet packets are logged with
+their bytes.
+
+**Summoning** puts away the pet that is out (RemovePlayer and an empty PetActive), then adds the new one beside its owner, two units
+to a side picked at random, facing the way its owner faces, and sends the list. A pet dismissed in the window stays away; one put
+away for a zone load (Sanctuary's RecallPet with remember) comes back beside its owner after ClientFinishedLoading (RestorePet).
+
+**Care** (every 1.5 seconds while it is out): play rises a sixth a second plus what petting added (stick movement per millisecond
+times 0.01, at most 2 a time), mood moves toward the harmonic mean of hunger, hygiene and play (each counted as at least 1), rising a
+point a second and falling at once; hunger and hygiene change only by feeding and grooming. Play and mood are saved with the
+character's position; summons and names save at once. **Naming**: 1 to 32 characters, not blank, no control characters.
+
+**The pet's NPC**: AddNpc with Sanctuary's disposition 2, not interactable, guid `0x0500…` plus the pet id, the pet item's model,
+name, scale (1 when the model has none), texture alias, the tint and its alias (the kind's default alias when it wears the default
+tint), and AddNpc's last `i32` 2. That last `i32` is Sanctuary's MovementType (`0xb0c010` stores it at +448 of its record, the
+handler `0x1115fc` passes it to `0x1a01e4`, which keeps it at the actor's +3784); the position update moves an actor only when it
+is 1, 2 or 4, so with 0, as the other NPCs have, a pet appeared but stood still.
+
+It moves with **PlayerUpdate 125, UpdatePosition**, which the PS3 reads from the server at `0xcde04` (the BaseClient's vtable slot at
++308) as the same 40 bytes it sends: `u16` 125, `u64` guid, position and rotation (3 x `f32` each), `u8` state (Sanctuary's 0
+moving, 1 stopped), a byte and the speed as `f32`. The client's own update says whether the character moves in its state byte
+(offset 34: 0 moving, 1 stopped); its speed field stays at the top speed, 6, while it stands. Until Sanctuary's following is built,
+the pet walks to a spot behind its owner and to its side, at most every 200 ms, is told to stop as soon as its owner stops (a pet
+last told it is moving carries on along its heading), stays put while both stand and while the pet window is open, and is put down
+beside its owner again after a jump of over 30 units (a warpstone).
+
+**Pictures.** The pet window's picture (the list's column 9, the pet's +252, read at `0x261ca8` by the PetList datasource's GetData
+`0x2619a0`) is the image set; column 2 (+8) is the icon. The packs have item icons for the vanity pets only
+(`icon_item_vanitypet_*`), none for the dogs, cats, ponies, unicorns and dragons, and no picture showed. Reports carry
+`imagesetmappings.txt` and `Browser.gfx` to find what the PS3 shows there. The packs' textures decide the starter pets too: there is
+no `cat_shorthair` texture for Sanctuary's toyger, so the shorthair cat is a tabby.
 
 ## Item classes and categories (ReferenceData, opcode 44)
 
